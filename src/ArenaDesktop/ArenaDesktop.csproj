@@ -1,0 +1,68 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>ArenaDesktop</AssemblyName>
+    <RootNamespace>ArenaDesktop</RootNamespace>
+    <Version>0.1.0</Version>
+    <!-- Ship only English satellite assemblies: the shell UI is English-only,
+         and the self-contained runtime otherwise adds a folder per culture. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <Authors>Sean Shaffer</Authors>
+    <Description>A native Windows desktop client for Arena (arena.ai).</Description>
+    <ApplicationIcon>arena.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Allow building the Windows target on non-Windows machines for CI gates. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- WFO0003 (WinForms analyzer) wants high-DPI configured via the
+         WinForms-only Application.SetHighDpiMode API. This is a WPF app
+         (WinForms is used only for the tray icon), and WPF reads DPI
+         awareness from the manifest — so the manifest's PerMonitorV2
+         declaration (S6 #60) is the correct route and the warning is
+         suppressed for this project only. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ArenaDesktop.Core\ArenaDesktop.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The window icon is loaded at runtime from a pack resource. It must
+         be a WPF Resource: ApplicationIcon alone only embeds the Win32 exe
+         icon, and referencing the file from XAML without this crashes
+         startup with a XamlParseException (v0.1.0 field bug). -->
+    <Resource Include="arena.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- What's New (v0.13.0, S9 #82): the repo-root WhatsNew.md ships
+         beside the exe; the app extracts the running version's section
+         from it on the first launch of a new version. It is regenerated
+         from CHANGELOG.md at release time (RELEASE_CHECKLIST step), and
+         a Core test pins the two files' current-version sections
+         together so the copy can't silently drift. -->
+    <Content Include="..\..\WhatsNew.md" Link="WhatsNew.md" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Help (v0.14.0, S10 #91): the repo-root Help.md ships beside the
+         exe; the Help window reads its pages from it. Core's
+         HelpCatalog pins the page set — a test fails unless the file
+         carries exactly those sections. -->
+    <Content Include="..\..\Help.md" Link="Help.md" CopyToOutputDirectory="PreserveNewest" />
+    <!-- About (v0.14.0, S10 #94): the app's LICENSE and the third-party
+         notices ship beside the exe so the About window's licenses
+         view shows the files this install actually carries. -->
+    <Content Include="..\..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\THIRD-PARTY-NOTICES.txt" Link="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
