@@ -27,7 +27,9 @@ Arena has no Windows app, so this is one: a small native program that opens aren
 
 ## Screenshots
 
-Captures come from real runs on Windows. The capture list for this version is in [docs/screenshots/CAPTURE.md](docs/screenshots/CAPTURE.md); images will be added as they are captured.
+Captures come from real runs on Windows. More captures are listed in [docs/screenshots/CAPTURE.md](docs/screenshots/CAPTURE.md) and will be added as they are taken.
+
+![The ArenaDesktop main window at Battle](docs/screenshots/main-window.png)
 
 ## Requirements
 
