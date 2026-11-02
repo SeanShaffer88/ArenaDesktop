@@ -13,6 +13,9 @@ namespace ArenaDesktop;
 /// provider; Copy puts the report on the clipboard. The S10 actions
 /// (export support bundle, open today's log, copy last error) are
 /// optional delegates from the main window, shown only when supplied.
+/// The field-pass launch (v0.2.0) is one more: the pass is modeless
+/// and this window is modal, so the delegate closes this window and
+/// the main window opens the pass once this one has unwound.
 /// </summary>
 public partial class DiagnosticsWindow : Window
 {
@@ -21,6 +24,7 @@ public partial class DiagnosticsWindow : Window
     private readonly Action? _onExportBundle;
     private readonly Action? _onOpenLog;
     private readonly Func<string?>? _lastErrorProvider;
+    private readonly Action? _onFieldPass;
 
     /// <summary>
     /// <paramref name="rollbackLabel"/> + <paramref name="onRollback"/>
@@ -30,23 +34,29 @@ public partial class DiagnosticsWindow : Window
     /// (<paramref name="onExportBundle"/>, <paramref name="onOpenLog"/>,
     /// <paramref name="lastErrorProvider"/>) light up the support
     /// actions row; the main window supplies all three.
+    /// <paramref name="onFieldPass"/> (v0.2.0) lights up the Field pass
+    /// launch in the same row; the main window supplies it.
     /// </summary>
     public DiagnosticsWindow(Func<string> reportProvider,
         string? rollbackLabel = null, Action? onRollback = null,
         Action? onExportBundle = null, Action? onOpenLog = null,
-        Func<string?>? lastErrorProvider = null)
+        Func<string?>? lastErrorProvider = null,
+        Action? onFieldPass = null)
     {
         _reportProvider = reportProvider;
         _onRollback = onRollback;
         _onExportBundle = onExportBundle;
         _onOpenLog = onOpenLog;
         _lastErrorProvider = lastErrorProvider;
+        _onFieldPass = onFieldPass;
         InitializeComponent();
         if (rollbackLabel is not null && onRollback is not null)
         {
             RollbackButton.Content = rollbackLabel;
             RollbackButton.Visibility = Visibility.Visible;
         }
+        if (onFieldPass is not null)
+            FieldPassButton.Visibility = Visibility.Visible;
         if (onExportBundle is not null)
             ExportBundleButton.Visibility = Visibility.Visible;
         if (onOpenLog is not null)
@@ -57,6 +67,8 @@ public partial class DiagnosticsWindow : Window
     }
 
     private void OnRollback(object sender, RoutedEventArgs e) => _onRollback?.Invoke();
+
+    private void OnFieldPass(object sender, RoutedEventArgs e) => _onFieldPass?.Invoke();
 
     private void OnExportBundle(object sender, RoutedEventArgs e) => _onExportBundle?.Invoke();
 

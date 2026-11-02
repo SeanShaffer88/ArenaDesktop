@@ -88,6 +88,11 @@ public partial class MainWindow : Window
     // copied prompt can bring Battle forward while the Lab stays open.
     private BattleLabWindow? _battleLabWindow;
 
+    // Field pass (v0.2.0): also modeless, for the same reason — its
+    // "Open feature" buttons bring Settings / Battle Lab / Downloads
+    // forward while the pass stays open.
+    private FieldPassWindow? _fieldPassWindow;
+
     // v1.0.0 (S11) — the global show/hide hotkey (#96: its manager
     // owns the RegisterHotKey registration on this window's handle),
     // the launch intent queued behind the lock (#99/#100: one slot,
@@ -549,6 +554,64 @@ public partial class MainWindow : Window
         window.Closed += (_, _) => _battleLabWindow = null;
         _battleLabWindow = window;
         window.Show();
+    }
+
+    private void OnFieldPass(object sender, RoutedEventArgs e) => OpenFieldPassWindow();
+
+    /// <summary>Open the Field pass from a launch intent — behind the lock like every other window (S7 #64).</summary>
+    private void OpenFieldPassFromLaunch()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        ShowFromTray();
+        OpenFieldPassWindow();
+    }
+
+    /// <summary>
+    /// The field pass (v0.2.0): a single modeless window, like Battle
+    /// Lab — its "Open feature" buttons open Settings / Battle Lab /
+    /// Downloads while the pass stays open. The open-target callback
+    /// dispatches the very handlers the ⋯ menu uses.
+    /// </summary>
+    public void OpenFieldPassWindow()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (_fieldPassWindow is not null)
+        {
+            _fieldPassWindow.Activate();
+            return;
+        }
+        var window = new FieldPassWindow(_log, OpenFieldPassTarget,
+            $"{typeof(App).Assembly.GetName().Version}") { Owner = this };
+        window.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(window);
+        ShellTextScaling.Apply(window, _settings.ShellFontScale);
+        window.Closed += (_, _) => _fieldPassWindow = null;
+        _fieldPassWindow = window;
+        window.Show();
+    }
+
+    /// <summary>A field-pass check's "Open feature" button: the ⋯ menu's own open commands, nothing new.</summary>
+    private void OpenFieldPassTarget(FieldPassTarget target)
+    {
+        switch (target)
+        {
+            case FieldPassTarget.Settings:
+                OpenSettings();
+                break;
+            case FieldPassTarget.BattleLab:
+                OpenBattleLabWindow();
+                break;
+            case FieldPassTarget.Downloads:
+                OnDownloads(this, new RoutedEventArgs());
+                break;
+        }
     }
 
     /// <summary>Battle Lab copied a prompt: come forward on Battle, ready for the paste.</summary>
@@ -2389,6 +2452,9 @@ public partial class MainWindow : Window
             case LaunchIntentKind.OpenBattleLab:
                 OpenBattleLabFromTray();
                 break;
+            case LaunchIntentKind.OpenFieldPass:
+                OpenFieldPassFromLaunch();
+                break;
             case LaunchIntentKind.ShowHelp:
                 ShowFromTray();
                 OnHelp(this, new RoutedEventArgs());
@@ -2988,7 +3054,8 @@ public partial class MainWindow : Window
     /// open Settings at the section the fix lives in, open
     /// Diagnostics, or open the log viewer — and the Help window
     /// stays open behind the target so the steps remain readable
-    /// afterwards where focus allows.
+    /// afterwards where focus allows. The one exception is the field
+    /// pass (v0.2.0): it is modeless, so Help closes first.
     /// </summary>
     private void OnHelp(object sender, RoutedEventArgs e)
     {
@@ -3004,14 +3071,15 @@ public partial class MainWindow : Window
             markdown = "";
         }
         var invoker = FocusReturn.Capture();
-        var dialog = new HelpWindow(markdown, HandleHelpAction) { Owner = this };
+        HelpWindow dialog = null!;
+        dialog = new HelpWindow(markdown, page => HandleHelpAction(page, dialog)) { Owner = this };
         ThemeManager.ApplyTitleBar(dialog);
         ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
         dialog.ShowDialog();
         FocusReturn.Restore(invoker);
     }
 
-    private void HandleHelpAction(HelpPage page)
+    private void HandleHelpAction(HelpPage page, HelpWindow dialog)
     {
         switch (page.Action)
         {
@@ -3023,6 +3091,12 @@ public partial class MainWindow : Window
                 break;
             case HelpAction.OpenLogViewer:
                 OnViewLog(this, new RoutedEventArgs());
+                break;
+            case HelpAction.OpenFieldPass:
+                // The field pass is modeless, so Help (modal) closes
+                // first and the pass opens once it has unwound.
+                dialog.Close();
+                Dispatcher.BeginInvoke(() => OpenFieldPassWindow());
                 break;
         }
     }
@@ -3071,6 +3145,10 @@ public partial class MainWindow : Window
             ? RollbackOffer.Describe(_settings.PreviousInstaller)
             : null;
         DiagnosticsWindow window = null!;
+        // The field pass is modeless and Diagnostics is modal, so the
+        // launch button sets a flag and closes; the pass opens below,
+        // once this dialog has unwound.
+        var openFieldPassAfter = false;
         window = new DiagnosticsWindow(
             () => DiagnosticsReport.Compose(BuildDiagnosticsData()),
             rollbackLabel,
@@ -3080,12 +3158,19 @@ public partial class MainWindow : Window
             // S10 #90/#93: the support actions.
             onExportBundle: () => StartSupportBundleExport(window),
             onOpenLog: OpenTodaysLog,
-            lastErrorProvider: () => LogReading.LastError(ReadLogText()))
+            lastErrorProvider: () => LogReading.LastError(ReadLogText()),
+            onFieldPass: () =>
+            {
+                openFieldPassAfter = true;
+                window.Close();
+            })
         { Owner = this };
         ThemeManager.ApplyTitleBar(window);
         ShellTextScaling.Apply(window, _settings.ShellFontScale);
         window.ShowDialog();
         FocusReturn.Restore(invoker);
+        if (openFieldPassAfter)
+            OpenFieldPassWindow();
     }
 
     /// <summary>

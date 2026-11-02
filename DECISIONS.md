@@ -2,6 +2,13 @@
 
 A living log of significant architecture, UX, security, and dependency decisions.
 
+## 2026-11-02 — Field pass (v0.2.0): guided checks, user-recorded verdicts
+
+- **Its own modeless window.** The field pass opens from the ⋯ menu, from Diagnostics (which closes first — Diagnostics is modal, the pass is not), `--field-pass`, and `arenadesktop://field-pass`, routed through the same LaunchIntent registry as every other capability. Modeless matters: a check's "Open feature" button opens Settings / Battle Lab / Downloads while the pass stays open.
+- **The app verifies nothing.** Every check is a shell check the user performs by hand and marks Pass / Problem / Skip; the app never injects into or reads from the Arena page to "help". The pass's value is structure and memory — exact steps, what working looks like, and a durable record — not automation theatre.
+- **One JSON store, Core-owned.** `FieldPassSession` / `FieldPassStore` in `ArenaDesktop.Core` hold the catalogue, verdicts, counts, and the summary renderer (`field-pass.json` in the app data folder), following the repo's store patterns: atomic replace, a corrupt file preserved as a `.corrupt-…` copy with a fresh pass loaded, autosave on every verdict and note, and no seed content — a fresh pass is simply unmarked.
+- **A help page rides along.** The catalog gained a field-pass page whose action opens the pass (Help closes first, for the same modal reason as Diagnostics), keeping `Help.md` and the Core catalog in lockstep as the drift guard requires.
+
 ## 2026-11-02 — Battle Lab (v0.2.0): prompt library, run queue, results journal
 
 - **Its own window, not a panel.** Battle Lab is a modeless window opened from the ⋯ menu, the tray, `--battle-lab`, and `arenadesktop://battle-lab` (routed through the same LaunchIntent registry as every other capability). Modeless matters: copying a prompt brings the main window forward on Battle while the Lab stays open for the next run and for logging the result.
