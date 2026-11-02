@@ -2,7 +2,7 @@
 
 All notable changes to ArenaDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
-## [0.2.0] — Unreleased
+## [0.2.0] — 2026-11-02
 
 ### Added
 
