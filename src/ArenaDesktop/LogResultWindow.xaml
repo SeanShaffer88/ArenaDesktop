@@ -1,0 +1,37 @@
+<Window x:Class="ArenaDesktop.LogResultWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Log a result"
+        Width="440" Height="Auto" MinWidth="380"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+    <StackPanel Margin="18,14,18,14">
+        <TextBlock Text="Which prompt was run?" TextWrapping="Wrap"/>
+        <ComboBox x:Name="PromptCombo" Margin="0,6,0,0"
+                  AutomationProperties.Name="Prompt"/>
+        <TextBlock Text="Who won?" Margin="0,12,0,0"/>
+        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+            <RadioButton x:Name="AWonRadio" Content="A won" GroupName="Outcome" IsChecked="True"
+                         Foreground="{StaticResource TextBrush}" AutomationProperties.Name="A won"/>
+            <RadioButton x:Name="BWonRadio" Content="B won" GroupName="Outcome" Margin="16,0,0,0"
+                         Foreground="{StaticResource TextBrush}" AutomationProperties.Name="B won"/>
+            <RadioButton x:Name="TieRadio" Content="Tie" GroupName="Outcome" Margin="16,0,0,0"
+                         Foreground="{StaticResource TextBrush}" AutomationProperties.Name="Tie"/>
+        </StackPanel>
+        <TextBlock Text="Note (optional)" Margin="0,12,0,0"/>
+        <TextBox x:Name="NoteText" Margin="0,6,0,0" Height="54" TextWrapping="Wrap"
+                 AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
+                 Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                 BorderBrush="{StaticResource HairlineBrush}"
+                 AutomationProperties.Name="Result note"/>
+        <TextBlock Margin="0,8,0,0" FontSize="11" Foreground="{StaticResource MutedBrush}"
+                   TextWrapping="Wrap"
+                   Text="Results are recorded by hand — ArenaDesktop never reads them from the page."/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="Save result" Width="96" Height="30" IsDefault="True" Click="OnOk"
+                    Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"/>
+            <Button Content="Cancel" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

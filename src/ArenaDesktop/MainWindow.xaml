@@ -72,6 +72,8 @@
                                           ToolTip="See whether a newer ArenaDesktop is available"/>
                                 <MenuItem Header="Downloads…" Click="OnDownloads"
                                           ToolTip="Files Arena has downloaded for you, newest first"/>
+                                <MenuItem Header="Battle Lab…" Click="OnBattleLab"
+                                          ToolTip="Your prompt library, run queue, and results journal for Battle"/>
                                 <MenuItem Header="Arena modes"
                                           ToolTip="Jump straight to a part of Arena: Battle, Direct Chat, Side by Side, the Leaderboard, Agent, Image, Code, Video, or Web Search">
                                     <MenuItem Header="Battle" Click="OnArenaMode" Tag="battle" InputGestureText="Ctrl+1"

@@ -2,6 +2,14 @@
 
 A living log of significant architecture, UX, security, and dependency decisions.
 
+## 2026-11-02 — Battle Lab (v0.2.0): prompt library, run queue, results journal
+
+- **Its own window, not a panel.** Battle Lab is a modeless window opened from the ⋯ menu, the tray, `--battle-lab`, and `arenadesktop://battle-lab` (routed through the same LaunchIntent registry as every other capability). Modeless matters: copying a prompt brings the main window forward on Battle while the Lab stays open for the next run and for logging the result.
+- **Copy, never inject.** "Copy prompt & open Battle" fills the prompt's [blank] placeholders in a small dialog, puts the finished text on the clipboard, and navigates the main window to Battle through the ArenaModes registry. The user pastes. This keeps the standing rule intact: the app never injects script into arena.ai and never reads anything back from the page.
+- **The journal is manual by design.** Results (A won / B won / Tie + note) are recorded by the user; nothing is scraped or detected. Journal entries snapshot the prompt name, so deleting a prompt never rewrites history.
+- **One JSON store, Core-owned.** `BattleLabLibrary` / `BattleLabStore` in `ArenaDesktop.Core` hold all logic and persistence (`battle-lab.json` in the app data folder), following the repo's store patterns: atomic replace, a corrupt file preserved as a `.corrupt-…` copy with an empty library loaded, autosave on every change, and four editable seed prompts written only on first run (deleting them all is permanent — no re-seeding).
+- **Queue completion is automatic but honest.** "Use next from queue" starts the head prompt; when a result is logged for that prompt while it is still at the head, it leaves the queue. Explicit Remove and Clear are always available, and nothing else is removed implicitly.
+
 ## 2026-10-27 — ArenaDesktop v0.1.0: a MuseDesktop-parity fork for arena.ai
 
 - **Fork, don't reinvent.** ArenaDesktop starts from the MuseDesktop codebase (same author's MIT project) at its v1.0.0-era tree, renamed throughout. Reason: the parity target — tray, downloads manager, profiles, app lock, recovery, in-app updates with hash verification — is already built and covered there by a large Core test suite. A clean room rewrite would re-learn the same WebView2 lessons at full cost. The fork keeps the Core/shell split: all testable logic in `ArenaDesktop.Core` (plain .NET 10, no Windows APIs), the WPF app as a thin shell.

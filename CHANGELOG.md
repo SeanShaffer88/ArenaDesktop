@@ -4,6 +4,10 @@ All notable changes to ArenaDesktop. Format follows Keep a Changelog; versions u
 
 ## [0.2.0] — Unreleased
 
+### Added
+
+- **Battle Lab** — a new window (⋯ menu → Battle Lab…, the tray menu, `--battle-lab`, or an `arenadesktop://battle-lab` link) for running Battle prompts in an organised way. A prompt library (searchable, grouped by category, saved as you edit) holds reusable prompts; square-bracket blanks like [topic] in a prompt are filled in at copy time, and "Copy prompt & open Battle" puts the finished text on the clipboard and brings the main window forward on the Battle page, ready to paste. A run queue lines prompts up in order. A results journal records, by hand, which side won each battle (A won / B won / Tie) with a note — ArenaDesktop reads nothing from the Arena page, so results exist only when you log them. Four sample prompts are included on first run and can be edited or deleted.
+
 ### Fixed
 
 - **Quick ask is now named correctly everywhere.** A few places still used the feature's old name — the README's tray list and command-line table, and the status line shown when Arena is not ready yet. The command-line table also described the shortcut as getting you ready for a voice button; it now correctly says it focuses the Arena page ready to type, and lists `--ask` as the main flag (`--dictate` still works as an alias).

@@ -43,6 +43,9 @@ public static class AppPaths
     /// <summary>Finished-download history for the Downloads window (v0.4.0).</summary>
     public static string DownloadsHistoryPath => Location.DownloadsHistoryPath;
 
+    /// <summary>Battle Lab's prompt library, run queue, and results journal (v0.2.0) — beside the settings, so portable mode carries it too.</summary>
+    public static string BattleLabPath => Path.Combine(RootDir, "battle-lab.json");
+
     /// <summary>Privacy report counters + recent permission denials (v0.11.0, S7 #62/#67) — counts and host names only, beside the settings.</summary>
     public static string PrivacyStatsPath => Path.Combine(RootDir, "privacy-stats.json");
 

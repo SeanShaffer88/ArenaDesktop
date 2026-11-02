@@ -28,6 +28,9 @@ public enum LaunchIntentKind
     /// <summary>Show the window and open the Downloads window.</summary>
     OpenDownloads,
 
+    /// <summary>Show the window and open the Battle Lab (v0.2.0).</summary>
+    OpenBattleLab,
+
     /// <summary>Open Help &amp; troubleshooting.</summary>
     ShowHelp,
 
@@ -66,6 +69,8 @@ public sealed record LaunchIntent(LaunchIntentKind Kind, string? ProfileId = nul
             return new LaunchIntent(LaunchIntentKind.OpenSettings);
         if (options.OpenDownloads)
             return new LaunchIntent(LaunchIntentKind.OpenDownloads);
+        if (options.OpenBattleLab)
+            return new LaunchIntent(LaunchIntentKind.OpenBattleLab);
         if (options.ArenaModeId is not null && ArenaModes.TryGet(options.ArenaModeId, out var mode))
             return new LaunchIntent(LaunchIntentKind.GoArenaMode, ModeId: mode.Id);
         if (options.OpenHome)
@@ -131,6 +136,10 @@ public sealed record LaunchIntent(LaunchIntentKind Kind, string? ProfileId = nul
             case "downloads":
                 return path is "" or "/"
                     ? ProtocolParseResult.Ok(new LaunchIntent(LaunchIntentKind.OpenDownloads))
+                    : ProtocolParseResult.Refused($"unknown route '{DescribeForLog(text)}'");
+            case "battle-lab":
+                return path is "" or "/"
+                    ? ProtocolParseResult.Ok(new LaunchIntent(LaunchIntentKind.OpenBattleLab))
                     : ProtocolParseResult.Refused($"unknown route '{DescribeForLog(text)}'");
             case "help":
                 return path is "" or "/"
