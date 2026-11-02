@@ -87,3 +87,14 @@ Try this:
 3. Check another site in your regular browser: if nothing loads anywhere, it's the connection, not the app. If only Arena fails, it may be arena.ai itself — waiting is the fix.
 4. If a proxy is involved (work/school networks), the button below opens Diagnostics, which shows the proxy Windows is configured with — ArenaDesktop never overrides it; WebView2 follows Windows.
 5. Still stuck every launch? Start ArenaDesktop with --safe-mode (it opens at the home page and skips the update check), or use the guided reset in Settings → Data — it backs your settings up before changing anything.
+
+## How do I use the Battle Lab?
+
+The Battle Lab (⋯ menu → Battle Lab…) is where you keep battle prompts and track which side wins. It has three parts: a prompt library, a run queue, and a results journal. Everything you type is saved as you go, on this PC only.
+
+Try this:
+1. Pick a prompt from the library on the left, or add your own with "+ New prompt". Edit its name, category, and text in the middle — there is no Save button; edits are stored straight away.
+2. Square brackets in the text, like [topic], are blanks. When you copy the prompt, ArenaDesktop asks you to fill each blank in, so one prompt can serve many runs.
+3. Choose "Copy prompt & open Battle": the finished text goes to your clipboard and the main window comes forward on the Battle page. Click Arena's prompt box and paste (Ctrl+V) — ArenaDesktop never types into the page for you.
+4. To line several prompts up, use "Add to run queue", then "Use next from queue" in the Battle Lab when you're ready for each one.
+5. After a battle, choose "+ Log a result" in the journal and record which side won (A, B, or a tie) with a note. Results are recorded by you — ArenaDesktop does not read anything from the Arena page, so a result only exists once you log it.
