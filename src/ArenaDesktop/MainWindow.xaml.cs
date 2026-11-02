@@ -2254,7 +2254,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Quick dictate (S11 #97): the tray item, the Jump List task, the
+    /// Quick ask (S11 #97): the tray item, the Jump List task, the
     /// --dictate flag, and the dictate intent all land here. Show the
     /// window, give the Arena PAGE the focus, and state the honest
     /// next step in the status bar. The boundary is deliberate:
@@ -2273,11 +2273,11 @@ public partial class MainWindow : Window
         ShowFromTray();
         if (!_webReady)
         {
-            SetStatus("Arena isn't ready yet — Quick dictate will work once the page has loaded");
+            SetStatus("Arena isn't ready yet — Quick ask will work once the page has loaded");
             return;
         }
         try { Browser.Focus(); }
-        catch (Exception ex) { _log.Warn($"Quick dictate focus failed: {ex.Message}"); }
+        catch (Exception ex) { _log.Warn($"Quick ask focus failed: {ex.Message}"); }
         if (_micGrantedThisSession)
         {
             SetStatus(QuickDictateText.ReadyNote);
@@ -2302,7 +2302,7 @@ public partial class MainWindow : Window
             if (saved?.State == "Allow")
                 SetStatus(QuickDictateText.ReadyNote);
         }
-        catch (Exception ex) { _log.Warn($"Quick dictate permission check failed: {ex.Message}"); }
+        catch (Exception ex) { _log.Warn($"Quick ask permission check failed: {ex.Message}"); }
     }
 
     // ── #98 drag & drop ──
