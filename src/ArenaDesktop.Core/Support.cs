@@ -235,6 +235,9 @@ public enum HelpAction
 
     /// <summary>Open the log viewer.</summary>
     OpenLogViewer,
+
+    /// <summary>Open the Field pass window (v0.2.0).</summary>
+    OpenFieldPass,
 }
 
 /// <summary>
@@ -284,6 +287,10 @@ public static class HelpCatalog
             "How do I use the Battle Lab?",
             "battle lab prompt library run queue journal results winner copy paste blanks compare",
             HelpAction.None, null, null),
+        new HelpPage("field-pass",
+            "How do I use the field pass?",
+            "field pass checks verify working prove tour guided summary problem skip verdicts",
+            HelpAction.OpenFieldPass, "Open the field pass", null),
     };
 
     public static HelpPage? ById(string? id) =>

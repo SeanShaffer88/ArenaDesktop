@@ -46,6 +46,9 @@ public static class AppPaths
     /// <summary>Battle Lab's prompt library, run queue, and results journal (v0.2.0) — beside the settings, so portable mode carries it too.</summary>
     public static string BattleLabPath => Path.Combine(RootDir, "battle-lab.json");
 
+    /// <summary>The field pass's recorded verdicts and notes (v0.2.0) — beside the settings, so portable mode carries it too.</summary>
+    public static string FieldPassPath => Path.Combine(RootDir, "field-pass.json");
+
     /// <summary>Privacy report counters + recent permission denials (v0.11.0, S7 #62/#67) — counts and host names only, beside the settings.</summary>
     public static string PrivacyStatsPath => Path.Combine(RootDir, "privacy-stats.json");
 
