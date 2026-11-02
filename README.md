@@ -13,7 +13,7 @@ Arena has no Windows app, so this is one: a small native program that opens aren
 - **A real app, not a tab** — its own window, taskbar icon, and Alt-Tab entry; no browser chrome competing for space.
 - **Arena modes, one jump away** — Battle, Direct Chat, Side by Side, the Leaderboard, Agent, Image, Code, Video, and Web Search from the ⋯ menu's *Arena modes*, the tray menu, the taskbar Jump List, Ctrl+1…Ctrl+9, the command line, and `arenadesktop://` links. Each one is its own page on arena.ai (addresses verified on the live site); the model used inside Direct Chat and Side by Side is picked at the top of those pages.
 - **Stay signed in** — a dedicated WebView2 profile on your PC keeps your Arena session between launches, and the app reopens the last page you were on.
-- **Tray support** — the tray menu runs the whole app while it's hidden: Open, Arena modes, Quick dictate, New window, Reload, Downloads, Settings, Switch profile, a web-view status line, and Exit. Closing the window minimizes to the tray by default; after a while hidden the web view can suspend to free memory (never during downloads or after the microphone has been used). A global hotkey (Ctrl+Alt+A, changeable) shows or hides the app from anywhere.
+- **Tray support** — the tray menu runs the whole app while it's hidden: Open, Arena modes, Quick ask, New window, Reload, Downloads, Settings, Switch profile, a web-view status line, and Exit. Closing the window minimizes to the tray by default; after a while hidden the web view can suspend to free memory (never during downloads or after the microphone has been used). A global hotkey (Ctrl+Alt+A, changeable) shows or hides the app from anywhere.
 - **Downloads with progress and control** — generated images, files and exports download in parallel with live progress %, estimated time remaining, and speed in the status bar; the taskbar button mirrors overall progress. The Downloads window is a small manager: pause/resume/cancel and retry per download, plus a searchable history with Open / Show in folder / Copy path / Open with… / Delete file. Folder, ask-where-to-save, name-collision behaviour and history size are all in Settings.
 - **Multiple accounts** — profiles keep separate Arena sign-ins on one PC, each with its own session data — up to 32. Each can have its own zoom, downloads folder, accent colour and start page; switch from the ⋯ menu, the tray, or Settings, create a desktop shortcut per profile, or launch with `--profile <id>`.
 - **Settings window** — one place (Ctrl+,) for startup behaviour, close-to-tray, zoom, downloads, updates and appearance, with a search box, export/import (plain or password-encrypted), reset-with-backup-first, and a one-screen setup wizard on first run.
@@ -96,7 +96,7 @@ Every capability in the window is also available from the command line — deskt
 | `--home` | Open at the Arena home page |
 | `--settings` | Open the Settings window |
 | `--downloads` | Open the Downloads window |
-| `--dictate` | Quick dictate: show the window with the Arena page focused, ready for Arena's voice button |
+| `--ask` / `--dictate` | Quick ask: show the window with the Arena page focused, ready to type (`--dictate` is kept as an alias) |
 | `--safe-mode` | Start at the home page with no automatic update check |
 | `--help` / `--version` | Show usage / the app version and exit |
 

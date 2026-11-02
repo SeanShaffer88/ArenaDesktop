@@ -10,7 +10,7 @@ The release notes ArenaDesktop shows on the first launch of a new version. This 
 
 ### Fixed
 
-- Wording: the tray / Jump List / command-line shortcut that focuses Arena ready to type is named **Quick ask** everywhere, including this changelog (v0.1.0's notes called it Quick dictate). Arena has no voice button; for voice input, click the prompt box and use Windows dictation (Win+H).
+- Wording: the tray / Jump List / command-line shortcut that focuses Arena ready to type is named **Quick ask** everywhere, including this changelog (v0.1.0's notes used the old name). Arena has no voice button; for voice input, click the prompt box and use Windows dictation (Win+H).
 
 ## [0.1.0] — 2026-10-27
 
