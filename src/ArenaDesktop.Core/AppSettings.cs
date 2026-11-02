@@ -163,6 +163,9 @@ public sealed class AppSettings
     /// <summary>Shell UI text scale (S5 #46): 1.0, 1.25, or 1.5 (sanitized to the nearest offered factor). Independent of page zoom.</summary>
     public double ShellFontScale { get; set; } = 1.0;
 
+    /// <summary>Shell layout (v0.2.0): Standard (the long-standing toolbar + full status bar), CompactFocus (slim 30px toolbar, the status bar replaced by a floating status pill, the page gains the height) or LeftRail (56px navigation rail down the left edge carrying navigation and the Arena modes, 30px title strip, full status bar). Shell chrome only — the Arena page is never restyled. The DEFAULT is CompactFocus — it only ever applies when no value was saved; a persisted value always wins, and Sanitized repairs an undefined value to that same default.</summary>
+    public ShellLayout ShellLayout { get; set; } = ShellLayout.CompactFocus;
+
     /// <summary>Toolbar button order (S5 #45): every known item id in display order. Sanitized by ToolbarLayout.</summary>
     public List<string> ToolbarOrder { get; set; } = ToolbarLayout.DefaultOrder();
 
@@ -341,6 +344,8 @@ public sealed class AppSettings
         // never to an unusable one.
         if (!Enum.IsDefined(Theme))
             Theme = ThemeMode.Dark;
+        if (!Enum.IsDefined(ShellLayout))
+            ShellLayout = ShellLayout.CompactFocus;
         AccentColor = AccentPalette.Sanitize(AccentColor);
         ShellFontScale = ShellTextScale.Sanitize(ShellFontScale);
         var (order, hidden) = ToolbarLayout.Sanitize(ToolbarOrder, ToolbarHidden);
