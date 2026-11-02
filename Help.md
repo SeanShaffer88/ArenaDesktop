@@ -98,3 +98,11 @@ Try this:
 3. Choose "Copy prompt & open Battle": the finished text goes to your clipboard and the main window comes forward on the Battle page. Click Arena's prompt box and paste (Ctrl+V) — ArenaDesktop never types into the page for you.
 4. To line several prompts up, use "Add to run queue", then "Use next from queue" in the Battle Lab when you're ready for each one.
 5. After a battle, choose "+ Log a result" in the journal and record which side won (A, B, or a tie) with a note. Results are recorded by you — ArenaDesktop does not read anything from the Arena page, so a result only exists once you log it.
+
+## How do I use the field pass?
+
+The field pass (⋯ menu → Field pass…, or Diagnostics → Field pass…) walks you through nine short checks that prove ArenaDesktop on this PC: the three layouts, the Battle Lab, Arena mode jumps, a battle with its journal entry, downloads, the tray and hotkey, the app lock, profile switching, and the update check.
+
+Each check says exactly what to do and what working looks like. When a check is about a window, its "Open …" button opens that window for you. After trying a check, mark it Pass, "It has a problem", or Skip for now, and add a note if there's anything worth remembering — a problem note is the most useful thing you can hand over with a bug report.
+
+Everything is saved on this PC as you go, so you can close the window at any point and carry on later; the pass reopens at the first check you haven't marked. "Copy summary" puts the whole pass — verdicts and notes — on the clipboard as plain text. The field pass only records what you saw: it doesn't test anything by itself, and nothing is sent anywhere.
