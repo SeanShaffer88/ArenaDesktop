@@ -21,5 +21,6 @@ renamed; "New" = written for ArenaDesktop.
 | CLI + arenadesktop:// protocol | Inherited + extended with mode flags/routes | CommandLine/LaunchIntegration tests green |
 | Arena modes (9: Battle/Direct/SideBySide/Leaderboard/Agent/Image/Code/Video/Web Search, URLs verified live 2026-10-27) | **New** | ArenaModesTests — registry, CLI, protocol, JSON round-trip, shortcut catalog |
 | Jump List mode tasks | **New** | JumpListBuilder (Battle, Leaderboard) |
+| Battle Lab (prompt library, blanks, run queue, manual results journal; window + tray + `--battle-lab` + `arenadesktop://battle-lab`) | **New** (v0.2.0) | Core BattleLab + BattleLabTests; copy-to-clipboard only — never injects into or reads the Arena page |
 | Tray Arena modes submenu | **New** | TrayController, from the Core registry |
 | Windows runtime behaviour | **Unverified** | RELEASE_CHECKLIST.md on-machine pass owed |
