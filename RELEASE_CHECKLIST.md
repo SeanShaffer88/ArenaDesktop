@@ -16,7 +16,7 @@ Run before publishing any release. CI covers the automated half; this is the on-
 - [ ] Battle flow: run a battle, vote, identities reveal; Direct Chat with a named model; Side by Side with two named models
 - [ ] Upload a PDF and an image to Arena — drag-and-drop onto the page works, the frame lights on drag-over the shell
 - [ ] Download a generated image: progress % / speed / ETA in the status bar, taskbar progress, pause/resume/cancel, retry after a forced failure, history entry opens / shows in folder / deletes
-- [ ] Voice input: microphone grant prompt appears only for arena.ai; Quick dictate focuses the page and the status line is honest about the next step
+- [ ] Voice input: microphone grant prompt appears only for arena.ai; Quick ask focuses the page and the status line is honest about the next step
 - [ ] Tray: close-to-tray, suspend after the configured timeout (and NOT during a download), Ctrl+Alt+A shows/hides, single-instance (second launch wakes, no duplicate)
 - [ ] Profiles: create a second profile, sign in differently, switch from menu and tray, per-profile shortcut launches it, data sizes shown in Settings
 - [ ] Privacy: clear cache only (still signed in), clear cookies only (signed out), permissions manager reflects Arena's saved choices, app lock asks at startup and on Lock now, wrong-password pause works
