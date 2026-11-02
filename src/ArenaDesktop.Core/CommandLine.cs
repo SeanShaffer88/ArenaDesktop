@@ -37,6 +37,9 @@ public sealed class CommandLineOptions
     /// <summary>Open the Downloads window (S11 #100; the Jump List's Downloads-adjacent routes and scripts use this).</summary>
     public bool OpenDownloads { get; init; }
 
+    /// <summary>Open the Battle Lab window (v0.2.0): the prompt library, run queue, and results journal.</summary>
+    public bool OpenBattleLab { get; init; }
+
     /// <summary>Quick ask (S11 #97): show the window and focus the Arena page, ready to type. The tray item and the Jump List task ride this flag (--dictate stays as an alias).</summary>
     public bool QuickDictate { get; init; }
 
@@ -66,6 +69,7 @@ public static class CommandLine
         var safeMode = false;
         var openHome = false;
         var openDownloads = false;
+        var openBattleLab = false;
         var quickDictate = false;
         string? arenaModeId = null;
         var showHelp = false;
@@ -101,6 +105,10 @@ public static class CommandLine
             else if (arg.Equals("--downloads", StringComparison.OrdinalIgnoreCase))
             {
                 openDownloads = true;
+            }
+            else if (arg.Equals("--battle-lab", StringComparison.OrdinalIgnoreCase))
+            {
+                openBattleLab = true;
             }
             else if (arg.Equals("--dictate", StringComparison.OrdinalIgnoreCase)
                      || arg.Equals("--ask", StringComparison.OrdinalIgnoreCase))
@@ -207,6 +215,7 @@ public static class CommandLine
             ProfileId = profileId,
             OpenHome = openHome,
             OpenDownloads = openDownloads,
+            OpenBattleLab = openBattleLab,
             QuickDictate = quickDictate,
             ArenaModeId = arenaModeId,
             ShowHelp = showHelp,
@@ -237,6 +246,7 @@ public static class CommandLineUsage
         "  --home           Open at the Arena home page.\n" +
         "  --settings       Open the Settings window.\n" +
         "  --downloads      Open the Downloads window.\n" +
+        "  --battle-lab     Open the Battle Lab (prompt library, run queue, results journal).\n" +
         "  --ask, --dictate Open ArenaDesktop with Arena focused, ready to type (Quick ask).\n" +
         "  --battle         Go to Battle (Arena's home experience).\n" +
         "  --direct         Go to Direct Chat (its own page; pick the model there).\n" +
@@ -259,6 +269,7 @@ public static class CommandLineUsage
         "  arenadesktop://home            Go to the Arena home page\n" +
         "  arenadesktop://settings        Open Settings\n" +
         "  arenadesktop://downloads       Open Downloads\n" +
+        "  arenadesktop://battle-lab      Open the Battle Lab\n" +
         "  arenadesktop://help            Open Help & troubleshooting\n" +
         "  arenadesktop://profile/<id>    Start in (or switch to) a profile\n" +
         "  arenadesktop://battle          Go to Battle\n" +

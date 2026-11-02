@@ -280,6 +280,10 @@ public static class HelpCatalog
             "The page won't load",
             "page won't load blank offline internet connection dns error failed try again network",
             HelpAction.OpenDiagnostics, "Open Diagnostics", null),
+        new HelpPage("battle-lab",
+            "How do I use the Battle Lab?",
+            "battle lab prompt library run queue journal results winner copy paste blanks compare",
+            HelpAction.None, null, null),
     };
 
     public static HelpPage? ById(string? id) =>
