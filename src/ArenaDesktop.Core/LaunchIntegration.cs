@@ -395,7 +395,7 @@ public enum ProtocolSyncAction
     Unregister,
 }
 
-// ───────────────────── quick dictate wording (S11 #97) ─────────────────────
+// ───────────────────── quick ask wording (S11 #97) ─────────────────────
 
 /// <summary>
 /// The Quick ask status lines (S11 #97). Quick ask shows the window and
