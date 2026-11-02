@@ -15,6 +15,10 @@
          the handlers light the frame ring and point at the page. -->
     <Grid AllowDrop="True" DragEnter="OnDragEnter" DragOver="OnDragOver"
           DragLeave="OnDragLeave" Drop="OnDrop">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="RailColumn" Width="0"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="40"/>
             <RowDefinition Height="Auto"/>
@@ -23,7 +27,7 @@
         </Grid.RowDefinitions>
 
         <!-- Toolbar -->
-        <Border x:Name="Toolbar" Grid.Row="0" Background="{StaticResource SurfaceBrush}"
+        <Border x:Name="Toolbar" Grid.Row="0" Grid.Column="1" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
             <DockPanel LastChildFill="True" Margin="6,0">
                 <!-- The two button strips are named: S5 #45 rebuilds their
@@ -110,6 +114,12 @@
                                           ToolTip="Keep ArenaDesktop above other windows"/>
                                 <MenuItem x:Name="FocusItem" Header="Focus mode" IsCheckable="True" Click="OnToggleFocusMode"
                                           InputGestureText="F8" ToolTip="Hide the toolbar and status bar (F8 or Esc to exit)"/>
+                                <MenuItem x:Name="StandardLayoutItem" Header="Standard layout" IsCheckable="True" Click="OnSelectStandardLayout"
+                                          ToolTip="The classic toolbar across the top and the status bar along the bottom"/>
+                                <MenuItem x:Name="CompactFocusItem" Header="Compact Focus layout" IsCheckable="True" Click="OnToggleCompactFocusLayout"
+                                          ToolTip="Slim toolbar, and the status bar becomes a small pill in the corner — the Arena page gets the extra room"/>
+                                <MenuItem x:Name="LeftRailLayoutItem" Header="Left Rail layout" IsCheckable="True" Click="OnSelectLeftRailLayout"
+                                          ToolTip="Navigation and the Arena modes in a slim rail down the left edge, a thin title strip on top, and the status bar along the bottom"/>
                                 <MenuItem Header="Restore last closed page" Click="OnRestoreClosedPage" InputGestureText="Ctrl+Shift+T"/>
                                 <Separator/>
                                 <MenuItem Header="Connection security…" Click="OnConnectionSecurity"
@@ -143,8 +153,76 @@
             </DockPanel>
         </Border>
 
+        <!-- Shell layout (v0.2.0): the Left Rail. Shown only in that
+             layout — a 56px rail down the left edge spanning every
+             row, while the rest of the chrome sits in column 1. Its
+             buttons call the very same handlers as their toolbar and
+             ⋯-menu equivalents: there is no second implementation of
+             any action here. Navigation tops the rail, then the Arena
+             modes (the app's main navigation — the same registry the
+             ⋯ menu, tray, Jump List and Ctrl+1…Ctrl+9 dispatch
+             through), Downloads and profile switching; Settings and
+             the ⋯ menu live at the foot, under the brand dot that
+             tops the rail. The mode column scrolls when the window
+             is too short for all of it. -->
+        <Border x:Name="LeftRail" Grid.Column="0" Grid.RowSpan="4" Visibility="Collapsed"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,1,0">
+            <DockPanel LastChildFill="True" Margin="0,6">
+                <StackPanel DockPanel.Dock="Top" Orientation="Vertical" HorizontalAlignment="Center">
+                    <Ellipse Width="8" Height="8" Fill="{StaticResource AccentBrush}" HorizontalAlignment="Center" Margin="0,5,0,12"/>
+                    <Button x:Name="RailBackButton" Style="{StaticResource BarButton}" Content="&#x2190;" Width="40" Height="40"
+                            ToolTip="Back (Alt+Left). Right-click for history." Click="OnBack" AutomationProperties.Name="Back"
+                            PreviewMouseRightButtonUp="OnBackHistoryMenu"
+                            PreviewMouseLeftButtonDown="OnNavButtonPress" PreviewMouseLeftButtonUp="OnNavButtonRelease"/>
+                    <Button x:Name="RailForwardButton" Style="{StaticResource BarButton}" Content="&#x2192;" Width="40" Height="40"
+                            ToolTip="Forward (Alt+Right). Right-click for history." Click="OnForward" AutomationProperties.Name="Forward"
+                            PreviewMouseRightButtonUp="OnForwardHistoryMenu"
+                            PreviewMouseLeftButtonDown="OnNavButtonPress" PreviewMouseLeftButtonUp="OnNavButtonRelease"/>
+                    <Button x:Name="RailReloadButton" Style="{StaticResource BarButton}" Content="&#x27F3;" Width="40" Height="40"
+                            ToolTip="Reload (Ctrl+R / F5)" Click="OnReload" AutomationProperties.Name="Reload"/>
+                    <Button x:Name="RailHomeButton" Style="{StaticResource BarButton}" Content="&#x2302;" Width="40" Height="40"
+                            ToolTip="Arena home" Click="OnHome" AutomationProperties.Name="Home"/>
+                    <Border Width="28" Height="1" Background="{StaticResource HairlineBrush}" Margin="0,6"/>
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Vertical" HorizontalAlignment="Center">
+                    <Button x:Name="RailSettingsButton" Style="{StaticResource BarButton}" Content="&#x2699;" Width="40" Height="40"
+                            ToolTip="Settings — startup, downloads, updates, memory, and data options" Click="OnSettings" AutomationProperties.Name="Settings"/>
+                    <Button x:Name="RailMenuButton" Style="{StaticResource BarButton}" Content="&#x22EF;" Width="40" Height="40"
+                            ToolTip="More options" Click="OnRailMenu" AutomationProperties.Name="More options"/>
+                </StackPanel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                        <Button Style="{StaticResource BarButton}" Content="&#x2694;" Width="40" Height="40" Tag="battle"
+                                ToolTip="Battle: two anonymous models answer your prompt — vote, then see who they were (Ctrl+1)" Click="OnRailArenaMode" AutomationProperties.Name="Battle"/>
+                        <Button Style="{StaticResource BarButton}" Content="&#x1F4AC;" Width="40" Height="40" Tag="direct"
+                                ToolTip="Direct Chat: chat with one named model — pick it at the top of the page (Ctrl+2)" Click="OnRailArenaMode" AutomationProperties.Name="Direct Chat"/>
+                        <Button Style="{StaticResource BarButton}" Content="&#x25E7;" Width="40" Height="40" Tag="side-by-side"
+                                ToolTip="Side by Side: compare two named models — pick both at the top of the page (Ctrl+3)" Click="OnRailArenaMode" AutomationProperties.Name="Side by Side"/>
+                        <Button Style="{StaticResource BarButton}" Content="&#x1F3C6;" Width="40" Height="40" Tag="leaderboard"
+                                ToolTip="Leaderboard: the public model rankings, by category (Ctrl+4)" Click="OnRailArenaMode" AutomationProperties.Name="Leaderboard"/>
+                        <Button Style="{StaticResource BarButton}" Content="&#x1F916;" Width="40" Height="40" Tag="agent"
+                                ToolTip="Agent Mode: Arena's agents take on longer, multi-step tasks (Ctrl+5)" Click="OnRailArenaMode" AutomationProperties.Name="Agent"/>
+                        <Button Style="{StaticResource BarButton}" Content="&#x1F5BC;" Width="40" Height="40" Tag="image"
+                                ToolTip="Image: generate and compare images from the top image models (Ctrl+6)" Click="OnRailArenaMode" AutomationProperties.Name="Image"/>
+                        <Button Style="{StaticResource BarButton}" Content="&#x1F4BB;" Width="40" Height="40" Tag="code"
+                                ToolTip="Code: build websites and apps with the top coding models (Ctrl+7)" Click="OnRailArenaMode" AutomationProperties.Name="Code"/>
+                        <Button Style="{StaticResource BarButton}" Content="&#x1F3AC;" Width="40" Height="40" Tag="video"
+                                ToolTip="Video: generate and compare videos from the top video models (Ctrl+8)" Click="OnRailArenaMode" AutomationProperties.Name="Video"/>
+                        <Button Style="{StaticResource BarButton}" Content="&#x1F50D;" Width="40" Height="40" Tag="search"
+                                ToolTip="Web Search: search the web with AI search models (Ctrl+9)" Click="OnRailArenaMode" AutomationProperties.Name="Web Search"/>
+                        <Border Width="28" Height="1" Background="{StaticResource HairlineBrush}" Margin="0,6"/>
+                        <Button x:Name="RailDownloadsButton" Style="{StaticResource BarButton}" Content="&#x2193;" Width="40" Height="40"
+                                ToolTip="Files Arena has downloaded for you, newest first" Click="OnDownloads" AutomationProperties.Name="Downloads"/>
+                        <Button x:Name="RailProfilesButton" Style="{StaticResource BarButton}" Content="&#x1F464;" Width="40" Height="40"
+                                ToolTip="Switch profile — restart ArenaDesktop signed in with another profile" Click="OnRailProfiles" AutomationProperties.Name="Switch profile"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+
         <!-- Find bar (v0.5.0, S1 #1) -->
-        <Border x:Name="FindBar" Grid.Row="1" Background="{StaticResource SurfaceBrush}"
+        <Border x:Name="FindBar" Grid.Row="1" Grid.Column="1" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1"
                 Visibility="Collapsed">
             <StackPanel Orientation="Horizontal" Margin="6,3" VerticalAlignment="Center">
@@ -167,7 +245,7 @@
         <!-- Web content. The first-run / error overlay sits above it until the page loads.
              ContentGrid is named because S8 #71's recovery replaces the web
              view controls inside it when the browser process exits. -->
-        <Grid Grid.Row="2" x:Name="ContentGrid">
+        <Grid Grid.Row="2" Grid.Column="1" x:Name="ContentGrid">
             <!-- Focus ring (S6 #58): the border is always 2px (so the
                  page never shifts); its brush turns accent-colored
                  while keyboard focus is inside the page, transparent
@@ -180,6 +258,22 @@
                  re-issue a download that failed in this session. Never shown. -->
             <wv2:WebView2 x:Name="RetryBrowser" Width="1" Height="1" Visibility="Hidden"
                           IsHitTestVisible="False" DefaultBackgroundColor="#0B0B0D"/>
+            <!-- Shell layout (v0.2.0): the Compact Focus status pill.
+                 Shown only in that layout, where it replaces the
+                 status bar: same status text, floating over the
+                 page's bottom-right corner. Display-only — it never
+                 takes clicks away from the page beyond its own small
+                 bounds, and its tooltip carries the full status
+                 line. -->
+            <Border x:Name="StatusPill" Visibility="Collapsed"
+                    HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,12,12"
+                    Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource HairlineBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="10,5" MaxWidth="520"
+                    AutomationProperties.Name="Status pill">
+                <TextBlock x:Name="StatusPillText" Text="" FontSize="11"
+                           Foreground="{StaticResource MutedBrush}"
+                           TextTrimming="CharacterEllipsis"/>
+            </Border>
             <!-- S8 #80: the hung-page banner. Non-modal on purpose —
                  the user may be mid-voice-call; the page is never
                  reloaded without their say-so. -->
@@ -212,7 +306,7 @@
         </Grid>
 
         <!-- Status bar -->
-        <Border x:Name="StatusBar" Grid.Row="3" Background="{StaticResource SurfaceBrush}"
+        <Border x:Name="StatusBar" Grid.Row="3" Grid.Column="1" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0">
             <DockPanel LastChildFill="True" Margin="8,0">
                 <Button x:Name="CancelDownloadButton" DockPanel.Dock="Right" Content="&#x2715;" Width="22" Height="18"

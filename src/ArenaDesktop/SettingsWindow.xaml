@@ -222,8 +222,13 @@
                         <ComboBox x:Name="TextScaleCombo" Width="170"
                                   ToolTip="Scales ArenaDesktop's own text (toolbar, menus, Settings) — separate from page zoom. The tray menu is drawn by Windows and keeps its system size"/>
                     </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,6,0,0">
+                        <TextBlock Text="Shell layout:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="LayoutCombo" Width="170"
+                                  ToolTip="Standard is the classic toolbar and status bar. Compact Focus gives the page more room: a slim toolbar, and the status bar becomes a small pill in the corner. Left Rail moves navigation and the Arena modes into a slim rail down the left edge, with a thin title strip on top and the status bar along the bottom. New installs start in Compact Focus; a layout you pick here (or in the ⋯ menu) is always kept"/>
+                    </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Theme, accent, and text size restyle ArenaDesktop's own windows only — never the Arena page."/>
+                               Text="Theme, accent, layout, and text size restyle ArenaDesktop's own windows only — never the Arena page."/>
                     <TextBlock Style="{StaticResource Note}" Margin="0,10,0,2"
                                Text="Toolbar buttons — tick to show, select then move with ↑ / ↓ (the ⋯ menu is always there, last):"/>
                     <ListBox x:Name="ToolbarList" Height="148"

@@ -139,6 +139,7 @@ public partial class MainWindow : Window
         // the title bar + web background.
         Browser.DefaultBackgroundColor = ThemeManager.BrowserBackground;
         ApplyToolbarLayout();
+        ApplyShellLayout();
         ShellTextScaling.Apply(this, _settings.ShellFontScale);
         ThemeManager.Changed += OnThemeChanged;
 
@@ -305,6 +306,57 @@ public partial class MainWindow : Window
         foreach (var id in ToolbarLayout.VisibleIds(_settings.ToolbarOrder, _settings.ToolbarHidden, ToolbarGroup.Right))
             RightStrip.Children.Add(elements[id]);
         RightStrip.Children.Add(MenuButton);
+    }
+
+    /// <summary>
+    /// Apply the active shell layout's chrome (v0.2.0) — the Core
+    /// metrics decide: the toolbar/status row heights, which status
+    /// presentation shows, the ⋯ menu's layout checkmarks, and the
+    /// Left Rail. The root grid's rows are fixed by the XAML layout:
+    /// 0 = toolbar, last = status bar; column 0 is the rail.
+    /// </summary>
+    private void ApplyShellLayout()
+    {
+        var metrics = ShellLayoutMetrics.For(_settings.ShellLayout);
+        if (Content is System.Windows.Controls.Grid root && root.RowDefinitions.Count >= 2)
+        {
+            root.RowDefinitions[0].Height = new GridLength(metrics.ToolbarHeight);
+            root.RowDefinitions[root.RowDefinitions.Count - 1].Height = new GridLength(metrics.StatusBarHeight);
+        }
+        StatusBar.Visibility = metrics.StatusBarVisible && !_focusMode
+            ? Visibility.Visible : Visibility.Collapsed;
+        StatusPill.Visibility = metrics.StatusPillVisible && !_focusMode
+            ? Visibility.Visible : Visibility.Collapsed;
+        StandardLayoutItem.IsChecked = _settings.ShellLayout == ShellLayout.Standard;
+        CompactFocusItem.IsChecked = _settings.ShellLayout == ShellLayout.CompactFocus;
+        LeftRailLayoutItem.IsChecked = _settings.ShellLayout == ShellLayout.LeftRail;
+        ApplyRailChrome(metrics);
+        // Left Rail: the rail carries navigation, the Arena modes,
+        // Downloads, profile switching and the ⋯ menu, so the top
+        // strip keeps only the title/address and the zoom cluster —
+        // the thin strip the layout promises. Every other layout
+        // shows the full strips. (The pin and Open-in-browser stay
+        // one ⋯-menu click away in that layout.)
+        var rail = metrics.RailVisible;
+        LeftStrip.Visibility = rail ? Visibility.Collapsed : Visibility.Visible;
+        PinButton.Visibility = rail ? Visibility.Collapsed : Visibility.Visible;
+        BrowserButton.Visibility = rail ? Visibility.Collapsed : Visibility.Visible;
+        MenuButton.Visibility = rail ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>
+    /// The Left Rail's column and visibility, resolved against the
+    /// window's transient states: focus mode and full screen hide ALL
+    /// chrome, the rail included, and leaving either restores the rail
+    /// when the active layout wants one. Called from ApplyShellLayout
+    /// (layout changes), SetFocusMode and SetFullScreen, so every path
+    /// that changes any of those inputs re-resolves it.
+    /// </summary>
+    private void ApplyRailChrome(ShellLayoutMetrics metrics)
+    {
+        var show = metrics.RailVisible && !_focusMode && !_isFullScreen;
+        LeftRail.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        RailColumn.Width = new GridLength(show ? metrics.RailWidth : 0);
     }
 
     private void OnThemeChanged(object? sender, EventArgs e)
@@ -1535,12 +1587,23 @@ public partial class MainWindow : Window
         if (!_webReady) return;
         BackButton.IsEnabled = Browser.CanGoBack;
         ForwardButton.IsEnabled = Browser.CanGoForward;
+        // The Left Rail's pair mirrors the toolbar's (same handlers,
+        // same state) in the layout where the toolbar pair is hidden.
+        RailBackButton.IsEnabled = BackButton.IsEnabled;
+        RailForwardButton.IsEnabled = ForwardButton.IsEnabled;
     }
 
     private void SetStatus(string text, string? right = null)
     {
         StatusText.Text = text;
         StatusRight.Text = right ?? "";
+        // Shell layout (v0.2.0): in Compact Focus the pill IS the
+        // status bar — it carries the same line (plus the right-hand
+        // segment the bar would show), and its tooltip keeps the
+        // full untruncated text one hover away.
+        var pill = string.IsNullOrEmpty(right) ? text : $"{text}  \u2022  {right}";
+        StatusPillText.Text = pill;
+        StatusPill.ToolTip = pill;
     }
 
     private void ShowOverlay(string title, string body, string buttonText, Action? buttonOverride)
@@ -1601,7 +1664,12 @@ public partial class MainWindow : Window
         if (!string.IsNullOrEmpty(src)) OpenExternal(src);
     }
 
-    private void OnMenu(object sender, RoutedEventArgs e)
+    private void OnMenu(object sender, RoutedEventArgs e) => OpenMoreMenu(MenuButton);
+
+    /// <summary>The Left Rail's ⋯ button: the same More menu, anchored to the rail button — in that layout the toolbar's own ⋯ button is hidden.</summary>
+    private void OnRailMenu(object sender, RoutedEventArgs e) => OpenMoreMenu(RailMenuButton);
+
+    private void OpenMoreMenu(FrameworkElement target)
     {
         // Pop-up menus live outside the window's tree, so S5 #46 scales
         // this one explicitly each time it opens.
@@ -1611,8 +1679,50 @@ public partial class MainWindow : Window
         LockNowItem.Visibility = AppLock.IsLockActive(_settings) && !_isLocked
             ? Visibility.Visible
             : Visibility.Collapsed;
-        MoreMenu.PlacementTarget = MenuButton;
+        MoreMenu.PlacementTarget = target;
         MoreMenu.IsOpen = true;
+    }
+
+    /// <summary>The Left Rail's mode buttons: the same ArenaModes dispatch as Ctrl+1…Ctrl+9 and the ⋯ menu's Arena modes submenu — the button's Tag carries the mode id.</summary>
+    private void OnRailArenaMode(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button button && button.Tag is string modeId)
+            NavigateArenaMode(modeId);
+    }
+
+    /// <summary>
+    /// The Left Rail's profile button: a switch-profile menu built
+    /// exactly like the ⋯ menu's submenu (active checked + disabled,
+    /// accent dot), anchored to the rail button. Switching restarts
+    /// the app, like every other profile surface.
+    /// </summary>
+    private void OnRailProfiles(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu { PlacementTarget = RailProfilesButton };
+        foreach (var p in _settings.Profiles)
+        {
+            var id = p.Id;
+            var item = new MenuItem
+            {
+                Header = Profiles.MenuLabel(p),
+                IsChecked = id == _settings.ActiveProfileId,
+                IsEnabled = id != _settings.ActiveProfileId,
+            };
+            if (ProfileColors.HexFor(p.DisplayColor) is { } hex)
+            {
+                item.Icon = new System.Windows.Shapes.Ellipse
+                {
+                    Width = 10,
+                    Height = 10,
+                    Fill = new System.Windows.Media.SolidColorBrush(
+                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex)),
+                };
+            }
+            item.Click += (_, _) => SwitchToProfileFromMenu(id);
+            menu.Items.Add(item);
+        }
+        ShellTextScaling.Apply(menu, _settings.ShellFontScale);
+        menu.IsOpen = true;
     }
 
     // ───────────────────────── settings (v0.2.0) ─────────────────────────
@@ -1688,6 +1798,7 @@ public partial class MainWindow : Window
         _settings.Theme = clone.Theme;
         _settings.AccentColor = clone.AccentColor;
         _settings.ShellFontScale = clone.ShellFontScale;
+        _settings.ShellLayout = clone.ShellLayout;
         _settings.ToolbarOrder = clone.ToolbarOrder;
         _settings.ToolbarHidden = clone.ToolbarHidden;
         _settings.SettingsLastSection = clone.SettingsLastSection;
@@ -1731,6 +1842,7 @@ public partial class MainWindow : Window
         // S5 #43/#44/#45/#46 take effect immediately on OK.
         ThemeManager.Apply(_settings);
         ApplyToolbarLayout();
+        ApplyShellLayout();
         ShellTextScaling.Apply(this, _settings.ShellFontScale);
         if (_webReady)
             Browser.ZoomFactor = EffectiveZoom();
@@ -1872,6 +1984,7 @@ public partial class MainWindow : Window
     {
         var active = _settings.Profiles.FirstOrDefault(p => p.Id == _settings.ActiveProfileId);
         var multi = _settings.Profiles.Count > 1;
+        RailProfilesButton.IsEnabled = multi;
         ProfileItem.Visibility = multi ? Visibility.Visible : Visibility.Collapsed;
         ProfileSeparator.Visibility = multi ? Visibility.Visible : Visibility.Collapsed;
         if (multi && active is not null)
@@ -2701,6 +2814,27 @@ public partial class MainWindow : Window
         SaveSettings();
     }
 
+    /// <summary>Shell layout choice (v0.2.0 — the ⋯-menu twin of the Settings Appearance picker), persisted at once like the pin toggle. The Compact Focus item keeps toggle behaviour: unticking it returns to Standard. The other two items select their layout outright.</summary>
+    private void OnToggleCompactFocusLayout(object sender, RoutedEventArgs e) =>
+        SetShellLayout(CompactFocusItem.IsChecked ? ShellLayout.CompactFocus : ShellLayout.Standard);
+
+    private void OnSelectStandardLayout(object sender, RoutedEventArgs e) => SetShellLayout(ShellLayout.Standard);
+
+    private void OnSelectLeftRailLayout(object sender, RoutedEventArgs e) => SetShellLayout(ShellLayout.LeftRail);
+
+    private void SetShellLayout(ShellLayout layout)
+    {
+        _settings.ShellLayout = layout;
+        ApplyShellLayout();
+        SaveSettings();
+        SetStatus(layout switch
+        {
+            ShellLayout.CompactFocus => "Compact Focus layout — slim toolbar, status pill in the corner",
+            ShellLayout.LeftRail => "Left Rail layout — navigation rail on the left, status bar along the bottom",
+            _ => "Standard layout — toolbar and status bar",
+        });
+    }
+
     // #6 Focus / compact mode (F8). Session-only, never persisted.
     private void OnToggleFocusMode(object sender, RoutedEventArgs e) =>
         SetFocusMode(sender is MenuItem ? FocusItem.IsChecked : !_focusMode);
@@ -2710,28 +2844,40 @@ public partial class MainWindow : Window
         _focusMode = on;
         FocusItem.IsChecked = on;
         Toolbar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
-        StatusBar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+        // Leaving focus mode restores the chrome the LAYOUT wants:
+        // the status bar in Standard and Left Rail, the pill in
+        // Compact Focus.
+        var layoutMetrics = ShellLayoutMetrics.For(_settings.ShellLayout);
+        StatusBar.Visibility = !on && layoutMetrics.StatusBarVisible
+            ? Visibility.Visible : Visibility.Collapsed;
+        StatusPill.Visibility = !on && layoutMetrics.StatusPillVisible
+            ? Visibility.Visible : Visibility.Collapsed;
+        // The rail is chrome too: focus mode hides it, and exiting
+        // restores it when the layout is Left Rail.
+        ApplyRailChrome(layoutMetrics);
         if (on) SetStatus("Focus mode — press F8 or Esc to exit");
     }
 
     // #3 Back/Forward history dropdowns (right-click or long-press).
     private void OnBackHistoryMenu(object sender, MouseButtonEventArgs e)
-    { ShowHistoryMenu(back: true, BackButton); e.Handled = true; }
+    { ShowHistoryMenu(back: true, sender as FrameworkElement ?? BackButton); e.Handled = true; }
 
     private void OnForwardHistoryMenu(object sender, MouseButtonEventArgs e)
-    { ShowHistoryMenu(back: false, ForwardButton); e.Handled = true; }
+    { ShowHistoryMenu(back: false, sender as FrameworkElement ?? ForwardButton); e.Handled = true; }
 
     private void OnNavButtonPress(object sender, MouseButtonEventArgs e)
     {
         if (e.ChangedButton != MouseButton.Left) return;
-        var back = sender == BackButton;
+        // The toolbar pair and the Left Rail pair share this press
+        // logic; the menu anchors to whichever button was pressed.
+        var back = sender == BackButton || sender == RailBackButton;
         _navPressTimer?.Stop();
         _navPressTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(550) };
         _navPressTimer.Tick += (_, _) =>
         {
             _navPressTimer?.Stop();
             _suppressNavClick = true;
-            ShowHistoryMenu(back, back ? BackButton : ForwardButton);
+            ShowHistoryMenu(back, (FrameworkElement)sender);
         };
         _navPressTimer.Start();
     }
@@ -3259,6 +3405,9 @@ public partial class MainWindow : Window
             Toolbar.Visibility = _focusMode ? Visibility.Collapsed : Visibility.Visible;
         }
         _isFullScreen = on;
+        // Full screen hides the rail with the rest of the chrome;
+        // leaving it restores the rail when the layout wants one.
+        ApplyRailChrome(ShellLayoutMetrics.For(_settings.ShellLayout));
     }
 
     // ───────────────────────── title bar ─────────────────────────
