@@ -2,6 +2,12 @@
 
 All notable changes to ArenaDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.2.0] — Unreleased
+
+### Fixed
+
+- **Quick ask is now named correctly everywhere.** A few places still used the feature's old name — the README's tray list and command-line table, and the status line shown when Arena is not ready yet. The command-line table also described the shortcut as getting you ready for a voice button; it now correctly says it focuses the Arena page ready to type, and lists `--ask` as the main flag (`--dictate` still works as an alias).
+
 ## [0.1.1] — 2026-10-27
 
 ### Changed
@@ -10,7 +16,7 @@ All notable changes to ArenaDesktop. Format follows Keep a Changelog; versions u
 
 ### Fixed
 
-- Wording: the tray / Jump List / command-line shortcut that focuses Arena ready to type is named **Quick ask** everywhere, including this changelog (v0.1.0's notes called it Quick dictate). Arena has no voice button; for voice input, click the prompt box and use Windows dictation (Win+H).
+- Wording: the tray / Jump List / command-line shortcut that focuses Arena ready to type is named **Quick ask** everywhere, including this changelog (v0.1.0's notes used the old name). Arena has no voice button; for voice input, click the prompt box and use Windows dictation (Win+H).
 
 ## [0.1.0] — 2026-10-27
 
