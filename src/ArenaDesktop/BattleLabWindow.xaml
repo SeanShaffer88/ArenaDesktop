@@ -1,0 +1,225 @@
+<Window x:Class="ArenaDesktop.BattleLabWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Battle Lab"
+        Width="1220" Height="740" MinWidth="940" MinHeight="560"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+    <Window.Resources>
+        <Style x:Key="Note" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style x:Key="Section" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+        <Style x:Key="Panel" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12"/>
+        </Style>
+        <Style x:Key="Field" TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource RaisedBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="14,12,14,10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+            <TextBlock Text="Battle Lab" FontSize="19" FontWeight="Bold" VerticalAlignment="Center"/>
+            <TextBlock Text="prompts, runs and results — all on this PC" Style="{StaticResource Note}"
+                       Margin="10,4,0,0" VerticalAlignment="Center"/>
+            <TextBlock x:Name="StatusText" Style="{StaticResource Note}" Margin="18,4,0,0"
+                       VerticalAlignment="Center" Foreground="{StaticResource AccentBrush}"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="272"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="356"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Prompt library -->
+            <Border Grid.Column="0" Style="{StaticResource Panel}" Margin="0,0,10,0">
+                <DockPanel>
+                    <TextBlock Text="Prompt library" Style="{StaticResource Section}" DockPanel.Dock="Top"/>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                        <Button x:Name="NewPromptButton" Content="+ New prompt" Height="32" Click="OnNewPrompt"
+                                ToolTip="Add a prompt to the library" AutomationProperties.Name="New prompt"/>
+                        <Button x:Name="DeletePromptButton" Content="Delete prompt" Height="28" Margin="0,6,0,0"
+                                Click="OnDeletePrompt" ToolTip="Delete the selected prompt (journal entries keep their history)"
+                                AutomationProperties.Name="Delete prompt"/>
+                    </StackPanel>
+                    <TextBox x:Name="SearchText" DockPanel.Dock="Top" Height="26" Margin="0,0,0,8"
+                             Style="{StaticResource Field}" TextChanged="OnSearchChanged"
+                             ToolTip="Search by name, category, or prompt text" AutomationProperties.Name="Search prompts"/>
+                    <ListBox x:Name="PromptList" Background="Transparent" BorderThickness="0"
+                             Foreground="{StaticResource TextBrush}"
+                             SelectionChanged="OnPromptSelectionChanged"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             AutomationProperties.Name="Prompt library">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="4,4">
+                                    <TextBlock Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding CategoryLabel}" FontSize="11"
+                                               Foreground="{StaticResource MutedBrush}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- Editor + queue -->
+            <Grid Grid.Column="1" Margin="0,0,10,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="196"/>
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Style="{StaticResource Panel}" Margin="0,0,0,10">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBox x:Name="PromptNameText" Grid.Row="0" FontSize="15" FontWeight="SemiBold"
+                                 Style="{StaticResource Field}" Height="30"
+                                 TextChanged="OnEditorChanged" AutomationProperties.Name="Prompt name"/>
+                        <ComboBox x:Name="PromptCategoryCombo" Grid.Row="1" Width="190" HorizontalAlignment="Left"
+                                  Margin="0,8,0,0" IsEditable="True" IsTextSearchEnabled="False"
+                                  LostFocus="OnCategoryCommitted" AutomationProperties.Name="Prompt category"
+                                  ToolTip="Category — pick an existing one or type a new one"/>
+                        <TextBox x:Name="PromptBodyText" Grid.Row="2" Margin="0,10,0,0"
+                                 Style="{StaticResource Field}" VerticalContentAlignment="Top"
+                                 AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                 TextChanged="OnEditorChanged" AutomationProperties.Name="Prompt text"
+                                 ToolTip="The prompt text. Square brackets like [topic] are blanks you fill in at copy time."/>
+                        <TextBlock x:Name="BlanksHint" Grid.Row="3" Style="{StaticResource Note}" Margin="0,8,0,0"
+                                   Text="Blanks like [topic] ask you to fill them in each run."/>
+                        <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,10,0,0">
+                            <Button x:Name="CopyButton" Content="Copy prompt &amp; open Battle" Height="36" Padding="18,0"
+                                    Click="OnCopyAndOpenBattle" IsDefault="True"
+                                    Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}"
+                                    BorderThickness="0" FontWeight="SemiBold"
+                                    ToolTip="Fill in any blanks, copy the finished prompt, and bring Battle forward so you can paste it"
+                                    AutomationProperties.Name="Copy prompt and open Battle"/>
+                            <Button x:Name="QueueButton" Content="Add to run queue" Height="36" Padding="16,0"
+                                    Margin="10,0,0,0" Click="OnAddToQueue"
+                                    ToolTip="Line this prompt up in the run queue" AutomationProperties.Name="Add to run queue"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="1" Style="{StaticResource Panel}">
+                    <DockPanel>
+                        <TextBlock Text="Run queue" Style="{StaticResource Section}" DockPanel.Dock="Top"/>
+                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button x:Name="UseNextButton" Content="Use next from queue" Height="28" Padding="10,0"
+                                    Click="OnUseNext" ToolTip="Fill in and copy the first prompt in the queue, and open Battle"
+                                    AutomationProperties.Name="Use next from queue"/>
+                            <Button Content="↑" Width="30" Height="28" Margin="8,0,0,0" Click="OnQueueMoveUp"
+                                    ToolTip="Move the selected prompt up" AutomationProperties.Name="Move queue item up"/>
+                            <Button Content="↓" Width="30" Height="28" Margin="4,0,0,0" Click="OnQueueMoveDown"
+                                    ToolTip="Move the selected prompt down" AutomationProperties.Name="Move queue item down"/>
+                            <Button Content="Remove" Height="28" Padding="10,0" Margin="8,0,0,0" Click="OnQueueRemove"
+                                    ToolTip="Take the selected prompt out of the queue" AutomationProperties.Name="Remove from queue"/>
+                            <Button Content="Clear" Height="28" Padding="10,0" Margin="4,0,0,0" Click="OnQueueClear"
+                                    ToolTip="Empty the run queue" AutomationProperties.Name="Clear queue"/>
+                        </StackPanel>
+                        <ListBox x:Name="QueueList" Background="Transparent" BorderThickness="0"
+                                 Foreground="{StaticResource TextBrush}"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 AutomationProperties.Name="Run queue">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="4,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="13"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding State}" FontSize="11"
+                                                   Foreground="{StaticResource MutedBrush}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                </Border>
+            </Grid>
+
+            <!-- Results journal -->
+            <Border Grid.Column="2" Style="{StaticResource Panel}">
+                <DockPanel>
+                    <TextBlock Text="Results journal" Style="{StaticResource Section}" DockPanel.Dock="Top"/>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                        <Button x:Name="LogResultButton" Content="+ Log a result" Height="32" Click="OnLogResult"
+                                ToolTip="Record a Battle result by hand" AutomationProperties.Name="Log a result"/>
+                        <Button Content="Delete entry" Height="28" Margin="0,6,0,0" Click="OnDeleteJournalEntry"
+                                ToolTip="Delete the selected journal entry" AutomationProperties.Name="Delete journal entry"/>
+                    </StackPanel>
+                    <TextBox x:Name="JournalFilterText" DockPanel.Dock="Top" Height="26" Margin="0,0,0,8"
+                             Style="{StaticResource Field}" TextChanged="OnJournalFilterChanged"
+                             ToolTip="Filter the journal by prompt name" AutomationProperties.Name="Filter journal by prompt name"/>
+                    <ListBox x:Name="JournalList" Background="Transparent" BorderThickness="0"
+                             Foreground="{StaticResource TextBrush}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             AutomationProperties.Name="Results journal">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource RaisedBrush}"
+                                        BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
+                                        CornerRadius="5" Padding="9" Margin="0,0,0,8">
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding PromptName}" FontSize="13"
+                                                       FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding When}" FontSize="11"
+                                                       Foreground="{StaticResource MutedBrush}"/>
+                                        </Grid>
+                                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                            <Border Background="{Binding ChipBrush}" CornerRadius="4" Padding="7,2">
+                                                <TextBlock Text="{Binding OutcomeLabel}" FontSize="11" FontWeight="Bold"
+                                                           Foreground="White"/>
+                                            </Border>
+                                            <TextBlock Text="{Binding Note}" FontSize="11" Margin="8,2,0,0"
+                                                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <TextBlock Grid.Row="2" Style="{StaticResource Note}" Margin="0,8,0,0"
+                   Text="Nothing is scraped from arena.ai — you record winners and notes yourself."/>
+    </Grid>
+</Window>

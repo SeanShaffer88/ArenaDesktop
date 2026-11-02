@@ -84,6 +84,10 @@ public partial class MainWindow : Window
     private readonly AppLockThrottle _lockThrottle = new();
     private LockWindow? _lockWindow;
 
+    // Battle Lab (v0.2.0): one modeless window per main window, so a
+    // copied prompt can bring Battle forward while the Lab stays open.
+    private BattleLabWindow? _battleLabWindow;
+
     // v1.0.0 (S11) — the global show/hide hotkey (#96: its manager
     // owns the RegisterHotKey registration on this window's handle),
     // the launch intent queued behind the lock (#99/#100: one slot,
@@ -194,7 +198,8 @@ public partial class MainWindow : Window
             () => AppLock.IsLockActive(_settings),
             LockNow,
             quickDictate: QuickDictate,
-            openArenaMode: NavigateArenaMode);
+            openArenaMode: NavigateArenaMode,
+            openBattleLab: OpenBattleLabFromTray);
 
         // S6 #54: live regions for assistive-tech announcements, and
         // the download events that feed them (the wording is Core's).
@@ -452,6 +457,53 @@ public partial class MainWindow : Window
         }
         ShowFromTray();
         OnDownloads(this, new RoutedEventArgs());
+    }
+
+    private void OnBattleLab(object sender, RoutedEventArgs e) => OpenBattleLabWindow();
+
+    /// <summary>Open Battle Lab from the tray — behind the lock like every other window (S7 #64).</summary>
+    private void OpenBattleLabFromTray()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        ShowFromTray();
+        OpenBattleLabWindow();
+    }
+
+    /// <summary>
+    /// Battle Lab (v0.2.0): a single modeless window. Copying a prompt
+    /// there brings this window forward on the Battle page (see
+    /// <see cref="OpenBattleWithCopiedPrompt"/>), so the Lab must not
+    /// be a modal dialog.
+    /// </summary>
+    public void OpenBattleLabWindow()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (_battleLabWindow is not null)
+        {
+            _battleLabWindow.Activate();
+            return;
+        }
+        var window = new BattleLabWindow(_log, OpenBattleWithCopiedPrompt) { Owner = this };
+        window.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(window);
+        ShellTextScaling.Apply(window, _settings.ShellFontScale);
+        window.Closed += (_, _) => _battleLabWindow = null;
+        _battleLabWindow = window;
+        window.Show();
+    }
+
+    /// <summary>Battle Lab copied a prompt: come forward on Battle, ready for the paste.</summary>
+    private void OpenBattleWithCopiedPrompt()
+    {
+        NavigateArenaMode(ArenaModes.BattleId);
+        SetStatus("Battle Lab prompt copied — click the prompt box and paste (Ctrl+V).");
     }
 
     /// <summary>Open Settings on a visible window (tray menu and the --settings launch flag, S4 #32/#33).</summary>
@@ -2220,6 +2272,9 @@ public partial class MainWindow : Window
                 break;
             case LaunchIntentKind.OpenDownloads:
                 OpenDownloadsFromTray();
+                break;
+            case LaunchIntentKind.OpenBattleLab:
+                OpenBattleLabFromTray();
                 break;
             case LaunchIntentKind.ShowHelp:
                 ShowFromTray();

@@ -55,6 +55,9 @@ public sealed class TrayController : IDisposable
     private readonly Action? _quickDictate;
     // Arena modes (ArenaDesktop v0.1.0): optional like Quick ask.
     private readonly Action<string>? _openArenaMode;
+    // Battle Lab (v0.2.0): optional like Quick ask.
+    private readonly Action? _openBattleLab;
+    private Forms.ToolStripMenuItem? _battleLabItem;
     private Forms.ToolStripMenuItem? _modesItem;
 
     private Forms.NotifyIcon? _icon;
@@ -110,7 +113,8 @@ public sealed class TrayController : IDisposable
         Func<bool>? lockConfigured = null,
         Action? lockNow = null,
         Action? quickDictate = null,
-        Action<string>? openArenaMode = null)
+        Action<string>? openArenaMode = null,
+        Action? openBattleLab = null)
     {
         _log = log;
         _dispatcher = dispatcher;
@@ -139,6 +143,7 @@ public sealed class TrayController : IDisposable
         _lockNow = lockNow;
         _quickDictate = quickDictate;
         _openArenaMode = openArenaMode;
+        _openBattleLab = openBattleLab;
     }
 
     public bool IsSuspended => _suspended;
@@ -195,6 +200,13 @@ public sealed class TrayController : IDisposable
             // completed files, rebuilt on every open.
             _downloadsItem = new Forms.ToolStripMenuItem("Downloads");
             menu.Items.Add(_downloadsItem);
+            // Battle Lab (v0.2.0): present only when the shell wired it.
+            if (_openBattleLab is not null)
+            {
+                _battleLabItem = new Forms.ToolStripMenuItem("Battle Lab…");
+                _battleLabItem.Click += (_, _) => _dispatcher.Invoke(_openBattleLab);
+                menu.Items.Add(_battleLabItem);
+            }
             _settingsItem = new Forms.ToolStripMenuItem("Settings…");
             _settingsItem.Click += (_, _) => _dispatcher.Invoke(_openSettings);
             menu.Items.Add(_settingsItem);
