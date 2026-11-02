@@ -89,6 +89,11 @@ public partial class SettingsWindow : Window
         ThemeCombo.Items.Add("Dark");
         ThemeCombo.Items.Add("Light");
         ThemeCombo.Items.Add("Follow Windows");
+        // Shell layouts in ShellLayout order (Standard / Compact
+        // Focus / Left Rail) — the combo index IS the enum value.
+        LayoutCombo.Items.Add("Standard");
+        LayoutCombo.Items.Add("Compact Focus");
+        LayoutCombo.Items.Add("Left Rail");
         foreach (var (key, _, _) in AccentPalette.Palette)
         {
             _accentKeys.Add(key);
@@ -224,6 +229,7 @@ public partial class SettingsWindow : Window
 
         // S5: appearance controls + the toolbar editor + the data note.
         ThemeCombo.SelectedIndex = (int)_working.Theme;
+        LayoutCombo.SelectedIndex = (int)_working.ShellLayout;
         var accentIndex = _accentKeys.IndexOf(_working.AccentColor);
         AccentCombo.SelectedIndex = accentIndex >= 0 ? accentIndex : 0;
         TextScaleCombo.SelectedItem = ShellTextScale.FormatPercent(_working.ShellFontScale);
@@ -331,6 +337,8 @@ public partial class SettingsWindow : Window
         // see the toolbar editor handlers).
         if (ThemeCombo.SelectedIndex >= 0 && ThemeCombo.SelectedIndex <= (int)Core.ThemeMode.FollowSystem)
             _working.Theme = (Core.ThemeMode)ThemeCombo.SelectedIndex;
+        if (LayoutCombo.SelectedIndex >= 0 && LayoutCombo.SelectedIndex <= (int)Core.ShellLayout.LeftRail)
+            _working.ShellLayout = (Core.ShellLayout)LayoutCombo.SelectedIndex;
         if (AccentCombo.SelectedIndex >= 0 && AccentCombo.SelectedIndex < _accentKeys.Count)
             _working.AccentColor = _accentKeys[AccentCombo.SelectedIndex];
         if (TextScaleCombo.SelectedItem is string scaleText &&

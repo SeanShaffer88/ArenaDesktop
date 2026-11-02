@@ -35,7 +35,7 @@ public static class SettingsSearch
         new SettingsSectionInfo(ProfilesId, "Account profiles",
             "profile account sign-in rename accent color dot switch remove add copy settings start page home custom url zoom downloads folder data size last used shortcut desktop storage cap limit cache cleanup"),
         new SettingsSectionInfo(AppearanceId, "Appearance & toolbar",
-            "theme dark light follow windows system accent color shell text size font scale toolbar customize reorder hide show buttons layout reset appearance"),
+            "theme dark light follow windows system accent color shell text size font scale toolbar customize reorder hide show buttons layout compact focus left rail standard reset appearance"),
         new SettingsSectionInfo(ZoomId, "Zoom",
             "zoom default percent bigger smaller text size page extended range low vision 500"),
         new SettingsSectionInfo(AccessibilityId, "Keyboard & accessibility",
@@ -157,6 +157,9 @@ public static class SettingsReset
         target.Theme = fresh.Theme;
         target.AccentColor = fresh.AccentColor;
         target.ShellFontScale = fresh.ShellFontScale;
+        // The shell layout (v0.2.0) is an appearance preference too:
+        // a reset returns it to the fresh-install default.
+        target.ShellLayout = fresh.ShellLayout;
         target.ToolbarOrder = fresh.ToolbarOrder;
         target.ToolbarHidden = fresh.ToolbarHidden;
         // A reset returns the app to its first-run state, wizard
