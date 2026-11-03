@@ -2,6 +2,18 @@
 
 All notable changes to ArenaDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [Unreleased]
+
+### Added
+
+- **Journal filters: mode and date range.** Journal entries now record which mode the battle ran in — the log dialog asks (it starts on the page you last copied a prompt to; change it if the battle ran elsewhere) — and the journal can be filtered by mode and by date (All time, Last 7 days, or Last 30 days) alongside the prompt-name filter. The scoreboard and the Markdown export always describe the filtered view, as they already did for the name filter. Entries logged before this change have no mode recorded and appear in unfiltered views.
+- **Favorite modes in the tray.** The tray menu gains a Favorite modes submenu listing just your favorite modes (up to three, set in Settings → Behavior); clicking one jumps straight to it, through the same dispatch as every other mode jump. With no favorites set, the submenu shows a disabled "No favorites yet".
+- **Import clash strategies.** "Import library…" now asks once, per import, what to do when an incoming prompt's title is already in the library: Skip it, Replace yours (the file's text and category take over; your prompt keeps its identity, so run-queue entries survive), or Keep both (the file's prompt arrives under a "… copy" name). A prompt whose title and text both match is always skipped, new titles are always added, and the 200-prompt library cap still applies to everything that grows the library.
+
+### Changed
+
+- **The Diagnostics route check keeps itself fresh.** While the Diagnostics window is open, the mode-route check re-runs every two minutes, and the last finished check's time ("Last checked 14:32") shows beside the button; closing the window stops the re-checks. The Check mode routes button works exactly as before when you want a check right now.
+
 ## [0.3.1] — 2026-11-02
 
 ### Changed
