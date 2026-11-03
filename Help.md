@@ -85,7 +85,7 @@ Try this:
 1. Wait a few seconds after waking the PC or reconnecting — Wi-Fi often needs a moment, and the automatic one-time retry fires when the connection returns.
 2. Press the toolbar Reload button. If the failure screen is showing, its Retry button does the same thing.
 3. Check another site in your regular browser: if nothing loads anywhere, it's the connection, not the app. If only Arena fails, it may be arena.ai itself — waiting is the fix.
-4. If a proxy is involved (work/school networks), the button below opens Diagnostics, which shows the proxy Windows is configured with — ArenaDesktop never overrides it; WebView2 follows Windows.
+4. If a proxy is involved (work/school networks), the button below opens Diagnostics, which shows the proxy Windows is configured with — ArenaDesktop never overrides it; WebView2 follows Windows. Diagnostics also has a "Check mode routes" button: it asks each Arena mode's page address to answer and reports Reachable, Problem, or Unreachable per mode — handy for telling "Arena moved a page" (a Problem verdict) from "this PC can't get there" (Unreachable). The check only asks the servers to answer; it reads nothing from the pages.
 5. Still stuck every launch? Start ArenaDesktop with --safe-mode (it opens at the home page and skips the update check), or use the guided reset in Settings → Data — it backs your settings up before changing anything.
 
 ## How do I use the Battle Lab?
@@ -95,9 +95,11 @@ The Battle Lab (⋯ menu → Battle Lab…) is where you keep battle prompts and
 Try this:
 1. Pick a prompt from the library on the left, or add your own with "+ New prompt". Edit its name, category, and text in the middle — there is no Save button; edits are stored straight away.
 2. Square brackets in the text, like [topic], are blanks. When you copy the prompt, ArenaDesktop asks you to fill each blank in, so one prompt can serve many runs.
-3. Choose "Copy prompt & open Battle": the finished text goes to your clipboard and the main window comes forward on the Battle page. Click Arena's prompt box and paste (Ctrl+V) — ArenaDesktop never types into the page for you.
-4. To line several prompts up, use "Add to run queue", then "Use next from queue" in the Battle Lab when you're ready for each one.
-5. After a battle, choose "+ Log a result" in the journal and record which side won (A, B, or a tie) with a note. Results are recorded by you — ArenaDesktop does not read anything from the Arena page, so a result only exists once you log it.
+3. Choose "Copy prompt & open Battle": the finished text goes to your clipboard and the main window comes forward on the Battle page. Click Arena's prompt box and paste (Ctrl+V) — ArenaDesktop never types into the page for you. The picker beside the copy button can aim the copy at Direct Chat or Side by Side instead; the button's name follows your pick.
+4. To line several prompts up, use "Add to run queue", then "Use next from queue" in the Battle Lab when you're ready for each one. "Add category to queue" lines up a whole category at once.
+5. After a battle, choose "+ Log a result" in the journal and record which side won (A, B, or a tie) with a note. Results are recorded by you — ArenaDesktop does not read anything from the Arena page, so a result only exists once you log it. The line above the journal is the scoreboard for the entries shown — filter by a prompt name to see that prompt's record — and "Export journal…" saves the shown entries as a Markdown file.
+
+Two more library tools: Duplicate (under Delete) copies a prompt so you can edit a variant without touching the original, and "Export library…" / "Import library…" move the whole prompt library in and out as one JSON file — importing merges, skipping prompts whose name and text are already in the library.
 
 ## How do I use the field pass?
 
