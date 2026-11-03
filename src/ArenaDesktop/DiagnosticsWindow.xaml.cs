@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Threading;
 using ArenaDesktop.Core;
 
 namespace ArenaDesktop;
@@ -19,7 +20,12 @@ namespace ArenaDesktop;
 /// The mode-route check (v0.3.0) follows the same delegate pattern:
 /// the main window owns the probing (and the log), this window owns
 /// the button and keeps the returned section at the end of the
-/// report across refreshes, so Copy report carries it too.
+/// report across refreshes, so Copy report carries it too. While
+/// this window stays open the check also re-runs on a timer (two
+/// minutes — see <see cref="RouteRecheckInterval"/>) and stamps its
+/// last run beside the button, so a verdict the user is reading is
+/// never silently hours old; closing the window stops the timer.
+/// The manual button stays the way to get a result right now.
 /// </summary>
 public partial class DiagnosticsWindow : Window
 {
@@ -31,6 +37,15 @@ public partial class DiagnosticsWindow : Window
     private readonly Action? _onFieldPass;
     private readonly Func<Task<string>>? _onCheckModeRoutes;
     private string? _routeSection;
+
+    // The route re-check cadence while Diagnostics is open. The probe
+    // is nine small HEAD requests run in parallel, so two minutes
+    // keeps the verdicts fresh enough to notice a route dropping
+    // while the window sits open, at negligible traffic — the same
+    // two-minute cadence the tray's blocked-suspend recheck uses.
+    private static readonly TimeSpan RouteRecheckInterval = TimeSpan.FromMinutes(2);
+    private readonly DispatcherTimer? _routeTimer;
+    private bool _routeCheckRunning;
 
     /// <summary>
     /// <paramref name="rollbackLabel"/> + <paramref name="onRollback"/>
@@ -59,7 +74,16 @@ public partial class DiagnosticsWindow : Window
         _onCheckModeRoutes = onCheckModeRoutes;
         InitializeComponent();
         if (onCheckModeRoutes is not null)
+        {
             CheckRoutesButton.Visibility = Visibility.Visible;
+            RouteStatusText.Visibility = Visibility.Visible;
+            // Manual-first: the timer never fires at open — its first
+            // run lands one interval in, and the button covers "now".
+            _routeTimer = new DispatcherTimer { Interval = RouteRecheckInterval };
+            _routeTimer.Tick += async (_, _) => await RunRouteCheckAsync(manual: false);
+            _routeTimer.Start();
+            Closed += (_, _) => _routeTimer.Stop();
+        }
         if (rollbackLabel is not null && onRollback is not null)
         {
             RollbackButton.Content = rollbackLabel;
@@ -126,26 +150,39 @@ public partial class DiagnosticsWindow : Window
     /// formatted section at the end of the report. The probing is
     /// reachability only — the delegate's contract is a finished
     /// section of text, so this window never sees a response body.
+    /// Runs from the button (manual) and from the re-check timer; a
+    /// call that lands while a check is already running is skipped,
+    /// not queued, and every finished run stamps the time beside the
+    /// button so a stale verdict can't pass itself off as fresh.
     /// </summary>
-    private async void OnCheckModeRoutes(object sender, RoutedEventArgs e)
+    private async void OnCheckModeRoutes(object sender, RoutedEventArgs e) =>
+        await RunRouteCheckAsync(manual: true);
+
+    private async Task RunRouteCheckAsync(bool manual)
     {
-        if (_onCheckModeRoutes is null)
+        if (_onCheckModeRoutes is null || _routeCheckRunning)
             return;
+        _routeCheckRunning = true;
         CheckRoutesButton.IsEnabled = false;
-        CopyNote.Text = "Checking the mode routes…";
+        if (manual)
+            CopyNote.Text = "Checking the mode routes…";
         try
         {
             _routeSection = await _onCheckModeRoutes();
             RefreshReport();
             ReportText.ScrollToEnd();
-            CopyNote.Text = "Mode route check finished — the results are at the end of the report.";
+            RouteStatusText.Text = $"Last checked {DateTime.Now:HH:mm}";
+            if (manual)
+                CopyNote.Text = "Mode route check finished — the results are at the end of the report.";
         }
         catch (Exception ex)
         {
-            CopyNote.Text = $"The mode route check failed ({ex.Message}). The log has the details.";
+            if (manual)
+                CopyNote.Text = $"The mode route check failed ({ex.Message}). The log has the details.";
         }
         finally
         {
+            _routeCheckRunning = false;
             CheckRoutesButton.IsEnabled = true;
         }
     }

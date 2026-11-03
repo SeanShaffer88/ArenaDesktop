@@ -471,6 +471,221 @@ public class BattleLabTests
         Assert.Equal(new[] { "keep" }, data.Queue);
     }
 
+    // ─────────── journal filters: mode & date range ───────────
+
+    [Fact]
+    public void Journal_ModeRecorded_CanonicalizedOrUnrecorded()
+    {
+        var library = EmptyLibrary();
+        var t0 = new DateTimeOffset(2026, 11, 2, 12, 0, 0, TimeSpan.Zero);
+        var battle = library.AddJournalEntry("Alpha", BattleOutcome.AWins, "", t0, "Battle");
+        Assert.Equal(ArenaModes.BattleId, battle.ModeId);
+        var bogus = library.AddJournalEntry("Beta", BattleOutcome.Tie, "", t0, "no-such-mode");
+        Assert.Equal("", bogus.ModeId);
+        var unrecorded = library.AddJournalEntry("Gamma", BattleOutcome.Tie, "", t0);
+        Assert.Equal("", unrecorded.ModeId);
+    }
+
+    [Fact]
+    public void Journal_FilterByMode_MatchesRecordedOnly()
+    {
+        var library = EmptyLibrary();
+        var t0 = new DateTimeOffset(2026, 11, 2, 12, 0, 0, TimeSpan.Zero);
+        library.AddJournalEntry("Alpha", BattleOutcome.AWins, "", t0, ArenaModes.BattleId);
+        library.AddJournalEntry("Beta", BattleOutcome.BWins, "", t0, ArenaModes.SideBySideId);
+        library.AddJournalEntry("Gamma", BattleOutcome.Tie, "", t0); // no mode recorded
+        Assert.Equal(3, library.JournalEntries().Count);
+        Assert.Equal(new[] { "Alpha" },
+            library.JournalEntries(modeId: ArenaModes.BattleId).Select(e => e.PromptName));
+        Assert.Equal(new[] { "Beta" },
+            library.JournalEntries(modeId: "side by side").Select(e => e.PromptName));
+        // An unknown mode filter filters nothing out — the registry
+        // lookups fail open everywhere else in the app, too.
+        Assert.Equal(3, library.JournalEntries(modeId: "no-such-mode").Count);
+    }
+
+    [Fact]
+    public void Journal_FilterByDateRange_CutoffIsInclusive()
+    {
+        var library = EmptyLibrary();
+        var now = new DateTimeOffset(2026, 11, 30, 12, 0, 0, TimeSpan.Zero);
+        library.AddJournalEntry("Ancient", BattleOutcome.AWins, "", now.AddDays(-40));
+        library.AddJournalEntry("Edge30", BattleOutcome.AWins, "", now.AddDays(-30));
+        library.AddJournalEntry("Edge7", BattleOutcome.BWins, "", now.AddDays(-7));
+        library.AddJournalEntry("Fresh", BattleOutcome.Tie, "", now.AddHours(-1));
+        Assert.Equal(4, library.JournalEntries(now: now).Count);
+        Assert.Equal(4, library.JournalEntries(range: BattleJournalDateRange.AllTime, now: now).Count);
+        Assert.Equal(new[] { "Fresh", "Edge7" },
+            library.JournalEntries(range: BattleJournalDateRange.Last7Days, now: now).Select(e => e.PromptName));
+        Assert.Equal(new[] { "Fresh", "Edge7", "Edge30" },
+            library.JournalEntries(range: BattleJournalDateRange.Last30Days, now: now).Select(e => e.PromptName));
+    }
+
+    [Fact]
+    public void Tally_FollowsModeAndDateFilters()
+    {
+        var library = EmptyLibrary();
+        var now = new DateTimeOffset(2026, 11, 30, 12, 0, 0, TimeSpan.Zero);
+        library.AddJournalEntry("Alpha", BattleOutcome.AWins, "", now.AddDays(-1), ArenaModes.BattleId);
+        library.AddJournalEntry("Beta", BattleOutcome.BWins, "", now.AddDays(-1), ArenaModes.SideBySideId);
+        library.AddJournalEntry("Alpha old", BattleOutcome.AWins, "", now.AddDays(-20), ArenaModes.BattleId);
+        var byMode = library.Tally(modeId: ArenaModes.BattleId, now: now);
+        Assert.Equal(2, byMode.Total);
+        Assert.Equal(2, byMode.AWins);
+        var recent = library.Tally(range: BattleJournalDateRange.Last7Days, now: now);
+        Assert.Equal(2, recent.Total);
+        var both = library.Tally(modeId: ArenaModes.BattleId, range: BattleJournalDateRange.Last7Days, now: now);
+        Assert.Equal(1, both.Total);
+        // Name, mode and range compose into one filtered view.
+        var named = library.Tally("alpha", ArenaModes.BattleId, BattleJournalDateRange.AllTime, now);
+        Assert.Equal(2, named.Total);
+    }
+
+    [Fact]
+    public void Store_JournalMode_SurvivesRoundTrip_AndBogusModeReadsUnrecorded()
+    {
+        var path = TempFile();
+        var library = BattleLabLibrary.Open(path);
+        foreach (var seeded in library.Prompts.ToList())
+            library.DeletePrompt(seeded.Id);
+        library.AddJournalEntry("Alpha", BattleOutcome.AWins, "",
+            new DateTimeOffset(2026, 11, 2, 9, 30, 0, TimeSpan.Zero), ArenaModes.SideBySideId);
+        var reopened = BattleLabLibrary.Open(path);
+        Assert.Equal(ArenaModes.SideBySideId, Assert.Single(reopened.JournalEntries()).ModeId);
+
+        // A hand-edited file naming a mode that doesn't exist loads
+        // the entry with no mode recorded, not with the bogus id.
+        var path2 = TempFile();
+        File.WriteAllText(path2, """
+            { "prompts": [], "queue": [],
+              "journal": [ { "id": "e1", "recordedUtc": "2026-11-02T09:30:00+00:00",
+                             "promptName": "Alpha", "outcome": 0, "note": "", "modeId": "warp" } ] }
+            """);
+        var data = BattleLabStore.Load(path2);
+        Assert.Equal("", Assert.Single(data.Journal).ModeId);
+    }
+
+    // ─────────── library import strategies (title clashes) ───────────
+
+    [Fact]
+    public void ImportStrategy_Skip_LeavesClashAndReportsIt()
+    {
+        var library = EmptyLibrary();
+        library.AddPrompt("Alpha", "Coding", "Original body");
+        var json = """
+            { "format": "arenadesktop-battle-lab", "version": 1, "prompts": [
+              { "id": "x1", "name": "ALPHA", "category": "Other", "body": "Incoming body" },
+              { "id": "x2", "name": "Fresh", "category": "Writing", "body": "New body" } ] }
+            """;
+        var result = library.ImportPrompts(json, BattleLabImportStrategy.Skip);
+        Assert.True(result.Ok);
+        Assert.Equal(1, result.Added);
+        Assert.Equal(1, result.Skipped);
+        Assert.Equal(0, result.Replaced);
+        var alpha = library.Prompts.Single(p => p.Name == "Alpha");
+        Assert.Equal("Original body", alpha.Body);
+        Assert.Equal("Coding", alpha.Category);
+        Assert.Equal(2, library.Prompts.Count);
+    }
+
+    [Fact]
+    public void ImportStrategy_Replace_TakesOverBodyAndCategory_KeepsIdAndQueue()
+    {
+        var library = EmptyLibrary();
+        var original = library.AddPrompt("Alpha", "Coding", "Original body");
+        library.Enqueue(original.Id);
+        var json = """
+            { "format": "arenadesktop-battle-lab", "version": 1, "prompts": [
+              { "id": "x1", "name": "alpha", "category": "Reasoning", "body": "Incoming body" } ] }
+            """;
+        var result = library.ImportPrompts(json, BattleLabImportStrategy.Replace);
+        Assert.Equal(0, result.Added);
+        Assert.Equal(0, result.Skipped);
+        Assert.Equal(1, result.Replaced);
+        var after = Assert.Single(library.Prompts);
+        Assert.Equal(original.Id, after.Id);
+        Assert.Equal("Alpha", after.Name);
+        Assert.Equal("Reasoning", after.Category);
+        Assert.Equal("Incoming body", after.Body);
+        // The queue entry naming the kept id still resolves.
+        Assert.Equal("Alpha", library.NextUp!.Name);
+    }
+
+    [Fact]
+    public void ImportStrategy_KeepBoth_AddsCopyNamedIncoming()
+    {
+        var library = EmptyLibrary();
+        library.AddPrompt("Alpha", "Coding", "Original body");
+        var json = """
+            { "format": "arenadesktop-battle-lab", "version": 1, "prompts": [
+              { "id": "x1", "name": "Alpha", "category": "Other", "body": "Incoming body" } ] }
+            """;
+        var result = library.ImportPrompts(json, BattleLabImportStrategy.KeepBoth);
+        Assert.Equal(1, result.Added);
+        Assert.Equal(0, result.Skipped);
+        Assert.Equal(0, result.Replaced);
+        Assert.Equal(new[] { "Alpha", "Alpha copy" }, library.Prompts.Select(p => p.Name));
+        Assert.Equal("Incoming body", library.Prompts[1].Body);
+        Assert.Equal("Other", library.Prompts[1].Category);
+        // A second keep-both import of the same file numbers the next copy.
+        var second = library.ImportPrompts(json, BattleLabImportStrategy.KeepBoth);
+        Assert.Equal(1, second.Added);
+        Assert.Contains(library.Prompts, p => p.Name == "Alpha copy 2");
+    }
+
+    [Fact]
+    public void ImportStrategy_ExactDuplicate_SkipsUnderEveryStrategy()
+    {
+        foreach (var strategy in Enum.GetValues<BattleLabImportStrategy>())
+        {
+            var library = EmptyLibrary();
+            library.AddPrompt("Alpha", "Coding", "Same body");
+            var json = """
+                { "format": "arenadesktop-battle-lab", "version": 1, "prompts": [
+                  { "id": "x1", "name": "ALPHA", "category": "Other", "body": "Same body" } ] }
+                """;
+            var result = library.ImportPrompts(json, strategy);
+            Assert.True(result.Ok);
+            Assert.Equal(0, result.Added);
+            Assert.Equal(1, result.Skipped);
+            Assert.Equal(0, result.Replaced);
+            Assert.Single(library.Prompts);
+        }
+    }
+
+    [Fact]
+    public void ImportStrategy_AtCap_FreshAndKeepBothSkip_ReplaceStillWorks()
+    {
+        var library = EmptyLibrary();
+        var first = library.AddPrompt("Alpha", "Coding", "Original body");
+        for (var i = library.Prompts.Count; i < BattleLabLibrary.MaxPrompts; i++)
+            library.AddPrompt($"Filler {i}", "Bulk", "body");
+        Assert.Equal(BattleLabLibrary.MaxPrompts, library.Prompts.Count);
+        var json = """
+            { "format": "arenadesktop-battle-lab", "version": 1, "prompts": [
+              { "id": "x1", "name": "Alpha", "category": "Other", "body": "Incoming body" },
+              { "id": "x2", "name": "Fresh", "category": "Writing", "body": "New body" } ] }
+            """;
+        var keepBoth = library.ImportPrompts(json, BattleLabImportStrategy.KeepBoth);
+        Assert.Equal(0, keepBoth.Added);
+        Assert.Equal(2, keepBoth.Skipped);
+        var replace = library.ImportPrompts(json, BattleLabImportStrategy.Replace);
+        Assert.Equal(1, replace.Replaced);
+        Assert.Equal(1, replace.Skipped); // "Fresh" still can't grow a full library.
+        Assert.Equal("Incoming body", library.FindPrompt(first.Id)!.Body);
+        Assert.Equal(BattleLabLibrary.MaxPrompts, library.Prompts.Count);
+    }
+
+    [Fact]
+    public void ImportStrategy_Malformed_ChangesNothing()
+    {
+        var library = EmptyLibrary();
+        AddSample(library);
+        var result = library.ImportPrompts("{ nope", BattleLabImportStrategy.Replace);
+        Assert.False(result.Ok);
+        Assert.Single(library.Prompts);
+    }
+
     // ──────────────────────── launch surface ────────────────────────
 
     [Fact]

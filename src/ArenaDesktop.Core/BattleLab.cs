@@ -49,6 +49,35 @@ public sealed class BattleJournalEntry
     public string PromptName { get; set; } = "";
     public BattleOutcome Outcome { get; set; } = BattleOutcome.Tie;
     public string Note { get; set; } = "";
+
+    /// <summary>
+    /// The Arena mode the battle ran in (an <see cref="ArenaModes"/>
+    /// registry id), declared by hand in the log dialog — the app
+    /// cannot see the page, so the mode is recorded the same way the
+    /// winner is. Empty on entries logged before modes were
+    /// recorded; those appear only in an unfiltered journal view.
+    /// </summary>
+    public string ModeId { get; set; } = "";
+}
+
+/// <summary>How far back the journal view reaches. The scoreboard and the export always describe the same filtered set.</summary>
+public enum BattleJournalDateRange
+{
+    AllTime,
+    Last7Days,
+    Last30Days,
+}
+
+/// <summary>The date-range cutoffs, kept in Core so the window and the tests share one definition of "last 7 days".</summary>
+public static class BattleJournalDateRanges
+{
+    /// <summary>Entries recorded at or after the cutoff are in range; <see cref="BattleJournalDateRange.AllTime"/> has no cutoff (null).</summary>
+    public static DateTimeOffset? Cutoff(BattleJournalDateRange range, DateTimeOffset now) => range switch
+    {
+        BattleJournalDateRange.Last7Days => now.AddDays(-7),
+        BattleJournalDateRange.Last30Days => now.AddDays(-30),
+        _ => null,
+    };
 }
 
 /// <summary>
@@ -210,7 +239,13 @@ public static class BattleLabStore
         data.Journal ??= new List<BattleJournalEntry>();
         data.Journal.RemoveAll(e => e is null || string.IsNullOrWhiteSpace(e.PromptName));
         foreach (var entry in data.Journal)
+        {
             entry.Note ??= "";
+            // A recorded mode must name a registered mode (canonical
+            // id) or read as unrecorded — a hand-edited file can't
+            // invent a mode the filter would never offer.
+            entry.ModeId = ArenaModes.TryGet(entry.ModeId, out var entryMode) ? entryMode.Id : "";
+        }
         data.Journal = data.Journal.OrderByDescending(e => e.RecordedUtc).ToList();
         return data;
     }
@@ -351,11 +386,7 @@ public sealed class BattleLabLibrary
         var original = FindPrompt(id);
         if (original is null || Data.Prompts.Count >= MaxPrompts)
             return null;
-        var baseName = $"{original.Name} copy";
-        var name = baseName;
-        var suffix = 2;
-        while (Data.Prompts.Any(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)))
-            name = $"{baseName} {suffix++}";
+        var name = CopyNameFor(original.Name);
         var copy = new BattlePrompt
         {
             Id = UniqueId(name),
@@ -366,6 +397,17 @@ public sealed class BattleLabLibrary
         Data.Prompts.Add(copy);
         Persist();
         return copy;
+    }
+
+    /// <summary>"X copy", or "X copy 2", "X copy 3", … — the first name in the series no prompt already has. Shared by Duplicate and by import's keep-both strategy, so a kept import is named exactly like a duplicate.</summary>
+    private string CopyNameFor(string baseName)
+    {
+        var copyBase = $"{baseName} copy";
+        var name = copyBase;
+        var suffix = 2;
+        while (Data.Prompts.Any(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)))
+            name = $"{copyBase} {suffix++}";
+        return name;
     }
 
     /// <summary>Delete a prompt and any queue entries naming it. Journal entries keep their name snapshots and are untouched.</summary>
@@ -489,8 +531,20 @@ public sealed class BattleLabLibrary
 
     // ─────────────────────────── journal ───────────────────────────
 
-    /// <summary>Journal entries, newest first; a non-blank filter matches the recorded prompt name (contains, case-insensitive).</summary>
-    public IReadOnlyList<BattleJournalEntry> JournalEntries(string? promptNameFilter = null)
+    /// <summary>
+    /// Journal entries, newest first. A non-blank name filter matches
+    /// the recorded prompt name (contains, case-insensitive); a mode
+    /// filter matches only entries that recorded that mode (entries
+    /// logged before modes were recorded appear unfiltered only);
+    /// the date range keeps entries at or after its cutoff, measured
+    /// from <paramref name="now"/> (the current time when not given —
+    /// a parameter so tests can pin "today").
+    /// </summary>
+    public IReadOnlyList<BattleJournalEntry> JournalEntries(
+        string? promptNameFilter = null,
+        string? modeId = null,
+        BattleJournalDateRange range = BattleJournalDateRange.AllTime,
+        DateTimeOffset? now = null)
     {
         IEnumerable<BattleJournalEntry> query = Data.Journal;
         if (!string.IsNullOrWhiteSpace(promptNameFilter))
@@ -498,10 +552,14 @@ public sealed class BattleLabLibrary
             var term = promptNameFilter.Trim();
             query = query.Where(e => e.PromptName.Contains(term, StringComparison.OrdinalIgnoreCase));
         }
+        if (ArenaModes.TryGet(modeId, out var mode))
+            query = query.Where(e => e.ModeId.Equals(mode.Id, StringComparison.OrdinalIgnoreCase));
+        if (BattleJournalDateRanges.Cutoff(range, now ?? DateTimeOffset.UtcNow) is { } cutoff)
+            query = query.Where(e => e.RecordedUtc >= cutoff);
         return query.OrderByDescending(e => e.RecordedUtc).ToList();
     }
 
-    public BattleJournalEntry AddJournalEntry(string promptName, BattleOutcome outcome, string note, DateTimeOffset? recordedUtc = null)
+    public BattleJournalEntry AddJournalEntry(string promptName, BattleOutcome outcome, string note, DateTimeOffset? recordedUtc = null, string? modeId = null)
     {
         var entry = new BattleJournalEntry
         {
@@ -510,6 +568,9 @@ public sealed class BattleLabLibrary
             PromptName = promptName?.Trim() ?? "",
             Outcome = outcome,
             Note = note?.Trim() ?? "",
+            // An unrecognized mode id records as "not recorded",
+            // never as a mode the registry doesn't know.
+            ModeId = ArenaModes.TryGet(modeId, out var mode) ? mode.Id : "",
         };
         Data.Journal.Insert(0, entry);
         Data.Journal = Data.Journal.OrderByDescending(e => e.RecordedUtc).ToList();
@@ -525,9 +586,13 @@ public sealed class BattleLabLibrary
         return removed;
     }
 
-    /// <summary>The scoreboard over the journal, or over the filtered view when a filter is given.</summary>
-    public BattleJournalTally Tally(string? promptNameFilter = null) =>
-        BattleJournalTally.Of(JournalEntries(promptNameFilter));
+    /// <summary>The scoreboard over the journal, or over the filtered view (name, mode and/or date range) when filters are given.</summary>
+    public BattleJournalTally Tally(
+        string? promptNameFilter = null,
+        string? modeId = null,
+        BattleJournalDateRange range = BattleJournalDateRange.AllTime,
+        DateTimeOffset? now = null) =>
+        BattleJournalTally.Of(JournalEntries(promptNameFilter, modeId, range, now));
 
     // ────────────────────── library transfer ──────────────────────
 
@@ -542,6 +607,8 @@ public sealed class BattleLabLibrary
     /// already here, or when the library reaches
     /// <see cref="MaxPrompts"/>. A malformed file imports nothing
     /// and reports <see cref="BattleLabImportResult.Ok"/> = false.
+    /// This is the long-standing merge; the strategy overload below
+    /// is what the import flow offers.
     /// </summary>
     public BattleLabImportResult ImportPrompts(string? json)
     {
@@ -559,25 +626,112 @@ public sealed class BattleLabLibrary
                 skipped++;
                 continue;
             }
-            Data.Prompts.Add(new BattlePrompt
-            {
-                // alsoTaken: the id recorded in the file — an imported
-                // prompt always lands under a fresh id of its own.
-                Id = UniqueId(candidate.Name, candidate.Id),
-                Name = candidate.Name,
-                Category = candidate.Category,
-                Body = candidate.Body,
-            });
+            AddImported(candidate, candidate.Name);
             added++;
         }
         if (added > 0)
             Persist();
         return new BattleLabImportResult(true, added, skipped);
     }
+
+    /// <summary>
+    /// Merge a library export, resolving TITLE clashes (an incoming
+    /// prompt whose name matches an existing prompt's, case-insensitive)
+    /// by one user-chosen <see cref="BattleLabImportStrategy"/>
+    /// applied to the whole import. A prompt whose name AND body both
+    /// match an existing one is the same prompt, not a clash: it is
+    /// skipped under every strategy. Fresh titles are added (subject
+    /// to <see cref="MaxPrompts"/>); Replace never grows the library,
+    /// so it still works at the cap. Incoming prompts are considered
+    /// in file order against the live library, so two clashing titles
+    /// inside one file resolve against each other's results too.
+    /// </summary>
+    public BattleLabImportResult ImportPrompts(string? json, BattleLabImportStrategy strategy)
+    {
+        if (!BattleLabTransfer.TryRead(json, out var incoming))
+            return new BattleLabImportResult(false, 0, 0);
+        var added = 0;
+        var skipped = 0;
+        var replaced = 0;
+        foreach (var candidate in incoming)
+        {
+            var clash = Data.Prompts.FirstOrDefault(p =>
+                string.Equals(p.Name.Trim(), candidate.Name, StringComparison.OrdinalIgnoreCase));
+            if (clash is not null && string.Equals(clash.Body, candidate.Body, StringComparison.Ordinal))
+            {
+                skipped++;
+                continue;
+            }
+            if (clash is null)
+            {
+                if (Data.Prompts.Count >= MaxPrompts)
+                {
+                    skipped++;
+                    continue;
+                }
+                AddImported(candidate, candidate.Name);
+                added++;
+                continue;
+            }
+            switch (strategy)
+            {
+                case BattleLabImportStrategy.Replace:
+                    // The existing prompt keeps its id (and any
+                    // queue entries naming it); the incoming category
+                    // and body take over. The name is the clash key
+                    // itself, so it stays as the user already has it.
+                    clash.Category = candidate.Category;
+                    clash.Body = candidate.Body;
+                    replaced++;
+                    break;
+                case BattleLabImportStrategy.KeepBoth:
+                    if (Data.Prompts.Count >= MaxPrompts)
+                    {
+                        skipped++;
+                        break;
+                    }
+                    AddImported(candidate, CopyNameFor(candidate.Name));
+                    added++;
+                    break;
+                default: // Skip
+                    skipped++;
+                    break;
+            }
+        }
+        if (added > 0 || replaced > 0)
+            Persist();
+        return new BattleLabImportResult(true, added, skipped, replaced);
+    }
+
+    private void AddImported(BattlePrompt candidate, string name)
+    {
+        Data.Prompts.Add(new BattlePrompt
+        {
+            // alsoTaken: the id recorded in the file — an imported
+            // prompt always lands under a fresh id of its own.
+            Id = UniqueId(name, candidate.Id),
+            Name = name,
+            Category = candidate.Category,
+            Body = candidate.Body,
+        });
+    }
 }
 
-/// <summary>The outcome of a library import: whether the file read at all, and how its prompts split between added and skipped (duplicates or the size cap).</summary>
-public sealed record BattleLabImportResult(bool Ok, int Added, int Skipped);
+/// <summary>How a library import resolves a title clash — one choice, asked once, applied to the whole import.</summary>
+public enum BattleLabImportStrategy
+{
+    /// <summary>Leave the existing prompt untouched; the incoming one is skipped.</summary>
+    Skip,
+
+    /// <summary>The incoming prompt's category and body take over the existing prompt, which keeps its id.</summary>
+    Replace,
+
+    /// <summary>Keep the existing prompt and add the incoming one under a "… copy" name, like Duplicate names it.</summary>
+    KeepBoth,
+}
+
+/// <summary>The outcome of a library import: whether the file read at all, and how its prompts split between added, skipped (exact duplicates, strategy-skips, or the size cap) and replaced (the Replace strategy).</summary>
+public sealed record BattleLabImportResult(bool Ok, int Added, int Skipped, int Replaced = 0);
 
 /// <summary>
 /// The portable Battle Lab library format (ArenaDesktop v0.3.0):
