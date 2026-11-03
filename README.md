@@ -88,7 +88,7 @@ In **portable mode**, Settings, Download history, and the Diagnostic log live un
 
 ## Command line & links
 
-Every capability in the window is also available from the command line — desktop shortcuts, the taskbar Jump List, and your own scripts all use this one surface. If ArenaDesktop is already running, a second launch hands its flags to the running app instead of opening a duplicate. While the app is locked, flags and links wait behind the lock.
+Every capability in the window is also available from the command line — desktop shortcuts, the taskbar Jump List, and your own scripts all use this one surface. If ArenaDesktop is already running, a second launch hands its flags to the running app instead of opening a duplicate. While the app is locked, flags and links wait behind the lock — except `--exit-for-update`, which applies at once.
 
 | Flag | What it does |
 | --- | --- |
@@ -104,6 +104,7 @@ Every capability in the window is also available from the command line — deskt
 | `--ask` / `--dictate` | Quick ask: show the window with the Arena page focused, ready to type (`--dictate` is kept as an alias) |
 | `--safe-mode` | Start at the home page with no automatic update check |
 | `--help` / `--version` | Show usage / the app version and exit |
+| `--exit-for-update` | Ask the running instance to close so an update can install (the installer uses this, then reopens the app); applies at once, even while locked, and just exits when nothing is running |
 
 Links work the same way: `arenadesktop://open`, `arenadesktop://home`, `arenadesktop://settings`, `arenadesktop://downloads`, `arenadesktop://battle-lab`, `arenadesktop://field-pass`, `arenadesktop://help`, `arenadesktop://profile/<id>`, `arenadesktop://battle`, `arenadesktop://direct`, `arenadesktop://side-by-side`, `arenadesktop://leaderboard`. That's the complete list, on purpose: a link can never carry a web address or open anything else.
 
