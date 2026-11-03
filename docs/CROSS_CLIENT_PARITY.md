@@ -14,7 +14,7 @@ reason) · **Decide** (no decision recorded yet).
 | --- | --- | --- | --- |
 | Shell layouts: Standard / Compact Focus / Left Rail | Has it (2.0.0) | Has it (0.2.0) | Ported 2026-11-02 with the same Core layout model and the same default rules (Compact Focus for new installs, saved choice always kept). |
 | Approval alerts (beep + toast) | Has it (1.9.0) | Not applicable | Arena has no approval cards; its pages never ask the user to approve an action. |
-| Page-health check (Diagnostics) | Has it (2.0.0) | Decide | Arena's page-dependent surface is smaller (mode routes only); a route-health check is the Arena-shaped version of this idea. |
+| Page-health check (Diagnostics) | Has it (2.0.0) | Has it (0.3.0, route-health form) | The route check is the Arena-shaped version of this idea: Diagnostics asks each mode route's server to answer and reports Reachable / Problem / Unreachable per mode — reachability of mode routes, no page reading (Arena's shell never reads its pages, where MuseDesktop's check runs its own in-page detectors). |
 | Conversation tools (bookmarks, drafts, export) | Has it | Not applicable | These target the Muse page's conversation structure; Arena pages have no equivalent surface the shell may touch (the shell never injects into Arena pages). |
 | Arena modes registry + Ctrl+1…9 jumps | Not applicable | Has it | Muse has no modes; its equivalent jumps are profile/window commands. |
 | Battle Lab (prompt library, run queue, results journal) | Not applicable | Has it (0.2.0) | Arena-specific: model battles have no Muse equivalent. MuseDesktop's snippet library covers its own prompt-reuse need. |
