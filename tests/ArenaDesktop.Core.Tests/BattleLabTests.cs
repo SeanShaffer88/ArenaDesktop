@@ -185,6 +185,213 @@ public class BattleLabTests
         Assert.False(library.DeleteJournalEntry(second.Id));
     }
 
+    // ─────────────────────── duplicate (v0.3.0) ───────────────────────
+
+    [Fact]
+    public void Duplicate_CopiesBodyAndCategory_WithCopyName()
+    {
+        var library = EmptyLibrary();
+        var original = library.AddPrompt("Gauntlet", "Coding", "Body with [blank]");
+        var copy = library.DuplicatePrompt(original.Id);
+        Assert.NotNull(copy);
+        Assert.NotEqual(original.Id, copy!.Id);
+        Assert.Equal("Gauntlet copy", copy.Name);
+        Assert.Equal("Coding", copy.Category);
+        Assert.Equal("Body with [blank]", copy.Body);
+        Assert.Equal(2, library.Prompts.Count);
+    }
+
+    [Fact]
+    public void Duplicate_NameIncrements_CopyThenCopy2()
+    {
+        var library = EmptyLibrary();
+        var original = AddSample(library, "Gauntlet");
+        var first = library.DuplicatePrompt(original.Id);
+        var second = library.DuplicatePrompt(original.Id);
+        Assert.Equal("Gauntlet copy", first!.Name);
+        Assert.Equal("Gauntlet copy 2", second!.Name);
+    }
+
+    [Fact]
+    public void Duplicate_UnknownIdAndAtCap_ReturnNull()
+    {
+        var library = EmptyLibrary();
+        Assert.Null(library.DuplicatePrompt("no-such-id"));
+        var original = AddSample(library);
+        for (var i = library.Prompts.Count; i < BattleLabLibrary.MaxPrompts; i++)
+            library.AddPrompt($"Filler {i}", "Bulk", "body");
+        Assert.Equal(BattleLabLibrary.MaxPrompts, library.Prompts.Count);
+        Assert.Null(library.DuplicatePrompt(original.Id));
+    }
+
+    // ─────────────────── library transfer (v0.3.0) ───────────────────
+
+    [Fact]
+    public void Transfer_ExportImport_RoundTrip_IntoEmptyLibrary()
+    {
+        var source = EmptyLibrary();
+        var a = source.AddPrompt("Alpha", "Coding", "Body A with [blank]");
+        var b = source.AddPrompt("Beta", "Writing", "Body B");
+        var json = source.ExportPromptsJson();
+        Assert.Contains("arenadesktop-battle-lab", json);
+
+        var target = EmptyLibrary();
+        var result = target.ImportPrompts(json);
+        Assert.True(result.Ok);
+        Assert.Equal(2, result.Added);
+        Assert.Equal(0, result.Skipped);
+        Assert.Equal(new[] { "Alpha", "Beta" }, target.Prompts.Select(p => p.Name));
+        Assert.Equal("Coding", target.Prompts[0].Category);
+        Assert.Equal("Body A with [blank]", target.Prompts[0].Body);
+        // Imported prompts carry new ids — the file's ids never move in.
+        Assert.NotEqual(a.Id, target.Prompts[0].Id);
+        Assert.NotEqual(b.Id, target.Prompts[1].Id);
+    }
+
+    [Fact]
+    public void Transfer_Import_SkipsDuplicates_NameCaseInsensitive()
+    {
+        var library = EmptyLibrary();
+        library.AddPrompt("Alpha", "Coding", "Same body");
+        var json = """
+            { "format": "arenadesktop-battle-lab", "version": 1, "prompts": [
+              { "id": "x1", "name": "ALPHA", "category": "Other", "body": "Same body" },
+              { "id": "x2", "name": "Alpha", "category": "Coding", "body": "Different body" },
+              { "id": "x3", "name": "Fresh", "category": "Writing", "body": "New body" } ] }
+            """;
+        var result = library.ImportPrompts(json);
+        Assert.True(result.Ok);
+        Assert.Equal(2, result.Added);
+        Assert.Equal(1, result.Skipped);
+        Assert.Equal(3, library.Prompts.Count);
+    }
+
+    [Fact]
+    public void Transfer_ImportTwice_SecondImportAddsNothing()
+    {
+        var source = EmptyLibrary();
+        source.AddPrompt("Alpha", "Coding", "Body A");
+        var json = source.ExportPromptsJson();
+        var target = EmptyLibrary();
+        Assert.Equal(1, target.ImportPrompts(json).Added);
+        var second = target.ImportPrompts(json);
+        Assert.True(second.Ok);
+        Assert.Equal(0, second.Added);
+        Assert.Equal(1, second.Skipped);
+        Assert.Single(target.Prompts);
+    }
+
+    [Fact]
+    public void Transfer_Import_Malformed_ChangesNothing()
+    {
+        var library = EmptyLibrary();
+        AddSample(library);
+        foreach (var bad in new[]
+                 {
+                     "{ this is not json ]",
+                     "",
+                     "   ",
+                     "[1,2,3]",
+                     """{ "format": "something-else", "version": 1, "prompts": [] }""",
+                     """{ "format": "arenadesktop-battle-lab", "version": 99, "prompts": [] }""",
+                     """{ "format": "arenadesktop-battle-lab", "version": 1 }""",
+                 })
+        {
+            var result = library.ImportPrompts(bad);
+            Assert.False(result.Ok, $"Expected refusal for: {bad}");
+            Assert.Equal(0, result.Added);
+        }
+        Assert.False(library.ImportPrompts(null).Ok);
+        Assert.Single(library.Prompts);
+    }
+
+    // ─────────────────── enqueue category (v0.3.0) ───────────────────
+
+    [Fact]
+    public void Queue_EnqueueCategory_AddsMissingInLibraryOrder_CountsAdded()
+    {
+        var library = EmptyLibrary();
+        library.AddPrompt("A", "Coding", "body");
+        library.AddPrompt("B", "Writing", "body");
+        var c = library.AddPrompt("C", "Coding", "body");
+        library.Enqueue(c.Id);
+        var added = library.EnqueueCategory("coding");
+        Assert.Equal(1, added);
+        Assert.Equal(new[] { "C", "A" }, library.QueuePrompts.Select(p => p.Name));
+        Assert.Equal(0, library.EnqueueCategory("Coding"));
+        Assert.Equal(0, library.EnqueueCategory("No such category"));
+    }
+
+    [Fact]
+    public void Queue_EnqueueCategory_BlankCategoryReadsGeneral()
+    {
+        var library = EmptyLibrary();
+        library.AddPrompt("Loose", "", "body");
+        library.AddPrompt("Filed", "General", "body");
+        library.AddPrompt("Other", "Coding", "body");
+        Assert.Equal(2, library.EnqueueCategory(null));
+        Assert.Equal(new[] { "Loose", "Filed" }, library.QueuePrompts.Select(p => p.Name));
+    }
+
+    // ────────────────────── journal tally (v0.3.0) ──────────────────────
+
+    [Fact]
+    public void Tally_CountsOutcomes_AndScoreboardLine()
+    {
+        var t0 = new DateTimeOffset(2026, 11, 2, 12, 0, 0, TimeSpan.Zero);
+        var entries = new[]
+        {
+            new BattleJournalEntry { PromptName = "A", Outcome = BattleOutcome.AWins, RecordedUtc = t0 },
+            new BattleJournalEntry { PromptName = "B", Outcome = BattleOutcome.BWins, RecordedUtc = t0 },
+            new BattleJournalEntry { PromptName = "C", Outcome = BattleOutcome.Tie, RecordedUtc = t0 },
+            new BattleJournalEntry { PromptName = "D", Outcome = BattleOutcome.Tie, RecordedUtc = t0 },
+        };
+        var tally = BattleJournalTally.Of(entries);
+        Assert.Equal(4, tally.Total);
+        Assert.Equal(1, tally.AWins);
+        Assert.Equal(1, tally.BWins);
+        Assert.Equal(2, tally.Ties);
+        Assert.Equal("4 battles · A won 1 · B won 1 · Ties 2", tally.ScoreboardLine);
+
+        var empty = BattleJournalTally.Of(Array.Empty<BattleJournalEntry>());
+        Assert.Equal(0, empty.Total);
+        Assert.Equal("0 battles · A won 0 · B won 0 · Ties 0", empty.ScoreboardLine);
+    }
+
+    [Fact]
+    public void Tally_FollowsTheJournalFilter()
+    {
+        var library = EmptyLibrary();
+        var t0 = new DateTimeOffset(2026, 11, 2, 12, 0, 0, TimeSpan.Zero);
+        library.AddJournalEntry("Alpha", BattleOutcome.AWins, "", t0);
+        library.AddJournalEntry("Beta", BattleOutcome.BWins, "", t0.AddHours(1));
+        library.AddJournalEntry("Alpha two", BattleOutcome.Tie, "", t0.AddHours(2));
+        var all = library.Tally();
+        Assert.Equal(3, all.Total);
+        var filtered = library.Tally("alpha");
+        Assert.Equal(2, filtered.Total);
+        Assert.Equal(1, filtered.AWins);
+        Assert.Equal(1, filtered.Ties);
+    }
+
+    [Fact]
+    public void JournalMarkdown_RowsScoreboardAndLabels()
+    {
+        var t0 = new DateTimeOffset(2026, 11, 2, 12, 0, 0, TimeSpan.Zero);
+        var entries = new[]
+        {
+            new BattleJournalEntry { PromptName = "Alpha", Outcome = BattleOutcome.AWins, Note = "clean win", RecordedUtc = t0 },
+            new BattleJournalEntry { PromptName = "Beta", Outcome = BattleOutcome.Tie, Note = "", RecordedUtc = t0.AddHours(1) },
+        };
+        var markdown = BattleJournalMarkdown.RenderJournalMarkdown(entries, BattleJournalTally.Of(entries));
+        Assert.Contains("# Battle Lab journal", markdown);
+        Assert.Contains("2 battles · A won 1 · B won 0 · Ties 1", markdown);
+        Assert.Contains("Alpha", markdown);
+        Assert.Contains("A won", markdown);
+        Assert.Contains("clean win", markdown);
+        Assert.EndsWith("\n", markdown);
+    }
+
     // ─────────────────────────── store ───────────────────────────
 
     private static string TempFile()
