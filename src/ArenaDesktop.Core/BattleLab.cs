@@ -51,6 +51,39 @@ public sealed class BattleJournalEntry
     public string Note { get; set; } = "";
 }
 
+/// <summary>
+/// The journal scoreboard (ArenaDesktop v0.3.0): how many battles
+/// were recorded and how they split between A, B and ties. Computed
+/// over whatever set of entries the caller passes — the window
+/// tallies the currently filtered view, so the line always describes
+/// exactly what is on screen.
+/// </summary>
+public sealed record BattleJournalTally(int Total, int AWins, int BWins, int Ties)
+{
+    public static BattleJournalTally Of(IEnumerable<BattleJournalEntry> entries)
+    {
+        var total = 0;
+        var aWins = 0;
+        var bWins = 0;
+        var ties = 0;
+        foreach (var entry in entries)
+        {
+            total++;
+            switch (entry.Outcome)
+            {
+                case BattleOutcome.AWins: aWins++; break;
+                case BattleOutcome.BWins: bWins++; break;
+                default: ties++; break;
+            }
+        }
+        return new BattleJournalTally(total, aWins, bWins, ties);
+    }
+
+    /// <summary>The scoreboard as one line: "12 battles · A won 5 · B won 4 · Ties 3".</summary>
+    public string ScoreboardLine =>
+        $"{Total} {(Total == 1 ? "battle" : "battles")} · A won {AWins} · B won {BWins} · Ties {Ties}";
+}
+
 /// <summary>Everything Battle Lab keeps: the prompt library, the run queue (prompt ids, in order), and the results journal (newest first).</summary>
 public sealed class BattleLabData
 {
@@ -237,6 +270,13 @@ public static class BattleLabStore
 /// </summary>
 public sealed class BattleLabLibrary
 {
+    /// <summary>
+    /// The library size cap the merge operations respect (ArenaDesktop
+    /// v0.3.0): duplicating and importing stop here, so a paste of a
+    /// huge export file can't grow the library without bound.
+    /// </summary>
+    public const int MaxPrompts = 200;
+
     private readonly string? _path;
 
     public BattleLabLibrary(BattleLabData data, string? path = null)
@@ -300,6 +340,34 @@ public sealed class BattleLabLibrary
         return true;
     }
 
+    /// <summary>
+    /// Copy a prompt (ArenaDesktop v0.3.0): same category and body,
+    /// a new id, and the name "X copy" — or "X copy 2", "X copy 3", …
+    /// when that name is already taken. Returns null when the prompt
+    /// doesn't exist or the library is at <see cref="MaxPrompts"/>.
+    /// </summary>
+    public BattlePrompt? DuplicatePrompt(string id)
+    {
+        var original = FindPrompt(id);
+        if (original is null || Data.Prompts.Count >= MaxPrompts)
+            return null;
+        var baseName = $"{original.Name} copy";
+        var name = baseName;
+        var suffix = 2;
+        while (Data.Prompts.Any(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)))
+            name = $"{baseName} {suffix++}";
+        var copy = new BattlePrompt
+        {
+            Id = UniqueId(name),
+            Name = name,
+            Category = original.Category,
+            Body = original.Body,
+        };
+        Data.Prompts.Add(copy);
+        Persist();
+        return copy;
+    }
+
     /// <summary>Delete a prompt and any queue entries naming it. Journal entries keep their name snapshots and are untouched.</summary>
     public bool DeletePrompt(string id)
     {
@@ -330,7 +398,7 @@ public sealed class BattleLabLibrary
         .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
         .ToList();
 
-    private string UniqueId(string name)
+    private string UniqueId(string name, string? alsoTaken = null)
     {
         var slug = new string((name ?? "").Trim().ToLowerInvariant()
             .Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray());
@@ -339,7 +407,8 @@ public sealed class BattleLabLibrary
             slug = "prompt";
         var candidate = slug;
         var suffix = 2;
-        while (FindPrompt(candidate) is not null)
+        while (FindPrompt(candidate) is not null
+               || (alsoTaken is not null && candidate.Equals(alsoTaken, StringComparison.OrdinalIgnoreCase)))
             candidate = $"{slug}-{suffix++}";
         return candidate;
     }
@@ -360,6 +429,34 @@ public sealed class BattleLabLibrary
         Data.Queue.Add(FindPrompt(promptId)!.Id);
         Persist();
         return true;
+    }
+
+    /// <summary>
+    /// Line up a whole category (ArenaDesktop v0.3.0): every prompt
+    /// in the category, in library order, that is not already queued
+    /// (a prompt queued twice by hand stays twice — only the prompts
+    /// missing entirely are added). A blank category reads as
+    /// "General", like everywhere else in Battle Lab. Returns how
+    /// many prompts were added.
+    /// </summary>
+    public int EnqueueCategory(string? category)
+    {
+        var wanted = string.IsNullOrWhiteSpace(category) ? "General" : category.Trim();
+        var queued = new HashSet<string>(Data.Queue, StringComparer.OrdinalIgnoreCase);
+        var added = 0;
+        foreach (var prompt in Data.Prompts)
+        {
+            var own = string.IsNullOrWhiteSpace(prompt.Category) ? "General" : prompt.Category.Trim();
+            if (!string.Equals(own, wanted, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (!queued.Add(prompt.Id))
+                continue;
+            Data.Queue.Add(prompt.Id);
+            added++;
+        }
+        if (added > 0)
+            Persist();
+        return added;
     }
 
     public bool RemoveFromQueueAt(int index)
@@ -427,4 +524,193 @@ public sealed class BattleLabLibrary
             Persist();
         return removed;
     }
+
+    /// <summary>The scoreboard over the journal, or over the filtered view when a filter is given.</summary>
+    public BattleJournalTally Tally(string? promptNameFilter = null) =>
+        BattleJournalTally.Of(JournalEntries(promptNameFilter));
+
+    // ────────────────────── library transfer ──────────────────────
+
+    /// <summary>The whole prompt library as a portable JSON document (see <see cref="BattleLabTransfer"/>). Queue and journal stay behind — they are this PC's run state, not the library.</summary>
+    public string ExportPromptsJson() => BattleLabTransfer.ExportJson(Data.Prompts);
+
+    /// <summary>
+    /// Merge a library export into this library (ArenaDesktop
+    /// v0.3.0). Incoming prompts are sanitized, given NEW ids (the
+    /// file's ids never enter this library), and skipped when one
+    /// with the same name (case-insensitive) and the same body is
+    /// already here, or when the library reaches
+    /// <see cref="MaxPrompts"/>. A malformed file imports nothing
+    /// and reports <see cref="BattleLabImportResult.Ok"/> = false.
+    /// </summary>
+    public BattleLabImportResult ImportPrompts(string? json)
+    {
+        if (!BattleLabTransfer.TryRead(json, out var incoming))
+            return new BattleLabImportResult(false, 0, 0);
+        var added = 0;
+        var skipped = 0;
+        foreach (var candidate in incoming)
+        {
+            var isDuplicate = Data.Prompts.Any(p =>
+                string.Equals(p.Name.Trim(), candidate.Name, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(p.Body, candidate.Body, StringComparison.Ordinal));
+            if (isDuplicate || Data.Prompts.Count >= MaxPrompts)
+            {
+                skipped++;
+                continue;
+            }
+            Data.Prompts.Add(new BattlePrompt
+            {
+                // alsoTaken: the id recorded in the file — an imported
+                // prompt always lands under a fresh id of its own.
+                Id = UniqueId(candidate.Name, candidate.Id),
+                Name = candidate.Name,
+                Category = candidate.Category,
+                Body = candidate.Body,
+            });
+            added++;
+        }
+        if (added > 0)
+            Persist();
+        return new BattleLabImportResult(true, added, skipped);
+    }
+}
+
+/// <summary>The outcome of a library import: whether the file read at all, and how its prompts split between added and skipped (duplicates or the size cap).</summary>
+public sealed record BattleLabImportResult(bool Ok, int Added, int Skipped);
+
+/// <summary>
+/// The portable Battle Lab library format (ArenaDesktop v0.3.0):
+/// only the prompts travel, as
+/// <c>{ "format": "arenadesktop-battle-lab", "version": 1, "prompts": [ … ] }</c>.
+/// The format marker and version are checked on read, so a settings
+/// export or a random JSON file is refused rather than half-merged.
+/// Rows are cleaned the way the store cleans: names and categories
+/// trimmed, null text read as empty, and a row with no usable name
+/// dropped.
+/// </summary>
+public static class BattleLabTransfer
+{
+    public const string FormatMarker = "arenadesktop-battle-lab";
+    public const int FormatVersion = 1;
+
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
+    private sealed class TransferFile
+    {
+        public string Format { get; set; } = "";
+        public int Version { get; set; }
+        // Null when the file has no prompts array at all — that is a
+        // malformed file, not an empty library.
+        public List<TransferPrompt>? Prompts { get; set; }
+    }
+
+    private sealed class TransferPrompt
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Category { get; set; } = "";
+        public string Body { get; set; } = "";
+    }
+
+    public static string ExportJson(IEnumerable<BattlePrompt> prompts)
+    {
+        var file = new TransferFile
+        {
+            Format = FormatMarker,
+            Version = FormatVersion,
+            Prompts = prompts.Select(p => new TransferPrompt
+            {
+                Id = p.Id,
+                Name = p.Name,
+                Category = p.Category,
+                Body = p.Body,
+            }).ToList(),
+        };
+        return JsonSerializer.Serialize(file, Options);
+    }
+
+    /// <summary>Parse a library export. False — with an empty list — when the text is not a Battle Lab library file at all.</summary>
+    public static bool TryRead(string? json, out IReadOnlyList<BattlePrompt> prompts)
+    {
+        prompts = Array.Empty<BattlePrompt>();
+        if (string.IsNullOrWhiteSpace(json))
+            return false;
+        TransferFile? file;
+        try
+        {
+            file = JsonSerializer.Deserialize<TransferFile>(json, Options);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+        if (file is null
+            || !string.Equals(file.Format, FormatMarker, StringComparison.Ordinal)
+            || file.Version != FormatVersion
+            || file.Prompts is null)
+            return false;
+        var cleaned = new List<BattlePrompt>();
+        foreach (var row in file.Prompts!)
+        {
+            if (row is null)
+                continue;
+            var name = (row.Name ?? "").Trim();
+            if (name.Length == 0)
+                continue;
+            cleaned.Add(new BattlePrompt
+            {
+                Id = (row.Id ?? "").Trim(),
+                Name = name,
+                Category = (row.Category ?? "").Trim(),
+                Body = row.Body ?? "",
+            });
+        }
+        prompts = cleaned;
+        return true;
+    }
+}
+
+/// <summary>
+/// The journal as a Markdown document (ArenaDesktop v0.3.0): the
+/// scoreboard line, then one table row per entry in the order given
+/// (the window passes its currently filtered, newest-first view).
+/// Pipes and newlines in names and notes are flattened so a note can
+/// never break the table.
+/// </summary>
+public static class BattleJournalMarkdown
+{
+    public static string RenderJournalMarkdown(IEnumerable<BattleJournalEntry> entries, BattleJournalTally tally)
+    {
+        var list = entries as IReadOnlyList<BattleJournalEntry> ?? entries.ToList();
+        var lines = new List<string>
+        {
+            "# Battle Lab journal",
+            "",
+            tally.ScoreboardLine,
+            "",
+        };
+        if (list.Count == 0)
+        {
+            lines.Add("No battles recorded.");
+        }
+        else
+        {
+            lines.Add("| Date | Prompt | Result | Note |");
+            lines.Add("| --- | --- | --- | --- |");
+            foreach (var entry in list)
+            {
+                var date = entry.RecordedUtc.ToLocalTime().ToString("yyyy-MM-dd");
+                lines.Add($"| {date} | {Cell(entry.PromptName)} | {BattleOutcomeText.Label(entry.Outcome)} | {Cell(entry.Note)} |");
+            }
+        }
+        return string.Join("\n", lines).TrimEnd() + "\n";
+    }
+
+    private static string Cell(string? text) =>
+        (text ?? "").Replace("|", "\\|").Replace("\r", " ").Replace("\n", " ").Trim();
 }

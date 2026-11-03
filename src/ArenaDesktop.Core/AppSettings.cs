@@ -172,6 +172,33 @@ public sealed class AppSettings
     /// <summary>Toolbar items the user hid (S5 #45). Sanitized by ToolbarLayout (Back can never be hidden).</summary>
     public List<string> ToolbarHidden { get; set; } = new();
 
+    // Modes pack (v0.3.0): startup mode + favorite modes.
+    /// <summary>
+    /// Which Arena mode a launch opens with when it would otherwise
+    /// land on the Arena home page (v0.3.0): "battle" (default — the
+    /// long-standing behavior), "last", or "mode:&lt;id&gt;". Shapes
+    /// and resolution live in <see cref="StartupModes"/>; Sanitized
+    /// repairs anything else to "battle". The per-profile start page
+    /// (S5 #47) still wins wherever it names a page of its own.
+    /// </summary>
+    public string StartupMode { get; set; } = StartupModes.Battle;
+
+    /// <summary>
+    /// The mode each profile last navigated to (v0.3.0), keyed by
+    /// profile id like <see cref="LastUrlByProfile"/>: mode jumps are
+    /// account-scoped in the same way pages are, so one profile's
+    /// last mode is never another's startup suggestion. Session
+    /// state, not a preference: reset-all-settings preserves it.
+    /// </summary>
+    public Dictionary<string, string> LastModeIdByProfile { get; set; } = new();
+
+    /// <summary>The active profile's last-used mode id, or null when it has never jumped to a mode.</summary>
+    public string? ActiveLastModeId =>
+        LastModeIdByProfile.TryGetValue(ActiveProfileId, out var id) ? id : null;
+
+    /// <summary>Favorite mode ids (v0.3.0): at most <see cref="FavoriteModes.MaxFavorites"/>, in the user's order. Sanitized by <see cref="FavoriteModes"/>.</summary>
+    public List<string> FavoriteModeIds { get; set; } = new();
+
     // Settings-window memory (v0.9.0, S5 #48).
     /// <summary>The Settings section last in view (a SettingsSearch section id), so Settings reopens where it was left. Sanitized to a known id or null.</summary>
     public string? SettingsLastSection { get; set; }
@@ -351,6 +378,23 @@ public sealed class AppSettings
         var (order, hidden) = ToolbarLayout.Sanitize(ToolbarOrder, ToolbarHidden);
         ToolbarOrder = order;
         ToolbarHidden = hidden;
+        // Modes pack (v0.3.0): the startup-mode string must be one of
+        // the three shapes (unknown mode ids inside "mode:" fall back
+        // to Battle); favorites are sanitized by their own model; and
+        // the per-profile last-mode map — repaired here, after the
+        // profile list is final — drops entries for profiles that no
+        // longer exist and ids that name no mode.
+        StartupMode = StartupModes.Sanitize(StartupMode);
+        FavoriteModeIds = FavoriteModes.Sanitize(FavoriteModeIds);
+        LastModeIdByProfile ??= new Dictionary<string, string>();
+        foreach (var key in LastModeIdByProfile.Keys.ToList())
+        {
+            if (Profiles.All(p => p.Id != key)
+                || !ArenaModes.TryGet(LastModeIdByProfile[key], out var mode))
+                LastModeIdByProfile.Remove(key);
+            else
+                LastModeIdByProfile[key] = mode.Id;
+        }
         // S5 #48: Settings-window memory — a known section id or
         // nothing; sizes clamped to what a real monitor could show.
         if (!SettingsSearch.IsKnownSection(SettingsLastSection))
