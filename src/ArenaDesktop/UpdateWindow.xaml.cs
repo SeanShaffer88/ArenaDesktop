@@ -8,8 +8,14 @@ namespace ArenaDesktop;
 /// The update window (v0.13.0, S9 #81/#83): download the new installer
 /// in-app with progress, verify its SHA-256 against the release's
 /// SHA256SUMS.txt, and launch it — only ever on the user's click.
-/// Nothing here is silent: no auto-download, no auto-launch, and a
-/// hash mismatch deletes the file with a plain explanation. Snooze
+/// Nothing here is automatic before that click: no auto-download, no
+/// auto-launch, and a hash mismatch deletes the file with a plain
+/// explanation. Since the seamless-update port the click is the LAST
+/// one: Install launches the installer silently (/S) and the
+/// installer itself closes the app (the --exit-for-update handshake),
+/// installs, and reopens it — this window deliberately does not exit
+/// the app itself, so the installer's running-instance detection
+/// still sees the app and knows to relaunch it. Snooze
 /// (tomorrow / next week) also lives here, writing the timestamp the
 /// Core schedule consults before any automatic reminder.
 /// </summary>
@@ -19,18 +25,16 @@ public partial class UpdateWindow : Window
     private readonly AppSettings _settings;
     private readonly DiagnosticLog _log;
     private readonly Action _persistSettings;
-    private readonly Action _exitApp;
     private CancellationTokenSource? _downloadCts;
     private string? _verifiedInstallerPath;
 
     public UpdateWindow(GitHubRelease release, AppSettings settings, DiagnosticLog log,
-        Action persistSettings, Action exitApp)
+        Action persistSettings)
     {
         _release = release;
         _settings = settings;
         _log = log;
         _persistSettings = persistSettings;
-        _exitApp = exitApp;
         InitializeComponent();
         SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
         HeadlineText.Text = $"ArenaDesktop {_release.Tag} is available";
@@ -112,20 +116,34 @@ public partial class UpdateWindow : Window
         // over — after it starts, this process is on its way out.
         UpdateService.PrepareRollback(_settings, AppPaths.UpdatesDir, newVersion, _verifiedInstallerPath, _log);
         _persistSettings();
+        // Seamless update: the status line goes up BEFORE the
+        // installer starts — it is the last thing the user sees from
+        // this version, and it says exactly what is about to happen.
+        InstallButton.Visibility = Visibility.Collapsed;
+        StatusText.Text = "Updating — ArenaDesktop will close and reopen on the new version.";
         try
         {
-            Process.Start(new ProcessStartInfo(_verifiedInstallerPath) { UseShellExecute = true });
-            _log.Info($"Update installer launched ({_release.Tag}) — exiting so setup can take over");
+            // Silent (/S): no wizard. The installer detects the
+            // running instance (process check), asks it to close via
+            // --exit-for-update, installs, and relaunches it. This
+            // process must NOT exit first: if it did, the installer
+            // would find nothing running and would skip the relaunch.
+            // This window closes when the app does.
+            Process.Start(new ProcessStartInfo(_verifiedInstallerPath)
+            {
+                UseShellExecute = true,
+                Arguments = "/S",
+            });
+            _log.Info($"Update installer launched silently ({_release.Tag}) — it will close ArenaDesktop and reopen it on the new version");
         }
         catch (Exception ex)
         {
             _log.Warn($"Launching the update installer failed: {ex.Message}");
             StatusText.Text = "The installer couldn't be started. The verified installer is kept in the " +
                               $"updates folder ({AppPaths.UpdatesDir}) — you can run it from there.";
+            InstallButton.Visibility = Visibility.Visible;
             return;
         }
-        Close();
-        _exitApp();
     }
 
     private void OnSnoozeTomorrow(object sender, RoutedEventArgs e) => Snooze(UpdateSnooze.Tomorrow);
