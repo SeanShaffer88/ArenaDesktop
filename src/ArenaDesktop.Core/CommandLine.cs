@@ -55,6 +55,9 @@ public sealed class CommandLineOptions
     /// <summary>Show the app version and exit (S11 #100). Answered in the launching process, before single-instance.</summary>
     public bool ShowVersion { get; init; }
 
+    /// <summary>Exit for update (seamless update, ported from MuseDesktop's R7D): the installer, mid-update, asks the running instance to close cleanly so the install can replace the program files; the installer reopens the app afterwards. On a running instance this becomes the exit intent (see <see cref="LaunchIntentKind.ExitForUpdate"/>) — the one intent that applies immediately, even behind the app lock. With no instance running there is nothing to close, and the launching process simply exits.</summary>
+    public bool ExitForUpdate { get; init; }
+
     /// <summary>A <c>arenadesktop://</c> link handed to this launch (S11 #99), raw as received. Parsed and validated by <see cref="LaunchIntent.ParseProtocolUri"/> against the profile list — never opened as a web address.</summary>
     public string? ProtocolUri { get; init; }
 
@@ -78,6 +81,7 @@ public static class CommandLine
         string? arenaModeId = null;
         var showHelp = false;
         var showVersion = false;
+        var exitForUpdate = false;
         string? profileId = null;
         string? protocolUri = null;
         var unknown = new List<string>();
@@ -186,6 +190,10 @@ public static class CommandLine
             {
                 showVersion = true;
             }
+            else if (arg.Equals("--exit-for-update", StringComparison.OrdinalIgnoreCase))
+            {
+                exitForUpdate = true;
+            }
             else if (arg.StartsWith(ProtocolLinks.Scheme + ":", StringComparison.OrdinalIgnoreCase))
             {
                 // A arenadesktop:// link (S11 #99). The first one wins;
@@ -229,6 +237,7 @@ public static class CommandLine
             ArenaModeId = arenaModeId,
             ShowHelp = showHelp,
             ShowVersion = showVersion,
+            ExitForUpdate = exitForUpdate,
             ProtocolUri = protocolUri,
             Unknown = unknown,
         };
@@ -273,6 +282,11 @@ public static class CommandLineUsage
         "                   no effect on an instance that is already running.\n" +
         "  --help           Show this text and exit.\n" +
         "  --version        Show the ArenaDesktop version and exit.\n" +
+        "  --exit-for-update\n" +
+        "                   Ask the running instance to close (the installer\n" +
+        "                   uses this during an update, then reopens the app).\n" +
+        "                   Applies at once, even while locked; with nothing\n" +
+        "                   running, it just exits.\n" +
         "\n" +
         "Links (registered for the current Windows user):\n" +
         "  arenadesktop://open            Show the window\n" +
@@ -296,5 +310,7 @@ public static class CommandLineUsage
         "Links can only name these actions — a arenadesktop:// link can never\n" +
         "carry a web address or open an arbitrary page. When ArenaDesktop is\n" +
         "already running, options and links are handed to the running instance;\n" +
-        "while it is locked, they wait and apply after you unlock.";
+        "while it is locked, they wait and apply after you unlock — all except\n" +
+        "--exit-for-update, which applies at once (closing shows nothing, and\n" +
+        "the lock returns at the next launch).";
 }
