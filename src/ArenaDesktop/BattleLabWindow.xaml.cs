@@ -29,7 +29,22 @@ public partial class BattleLabWindow : Window
     private bool _populating;
     private string? _selectedPromptId;
     private string? _lastCopiedPromptName;
+    private string? _lastCopiedModeId;
     private string? _startedQueuePromptId;
+
+    /// <summary>One journal mode-filter choice: a label and the mode id it filters by (null = all modes).</summary>
+    private sealed class ModeFilterOption
+    {
+        public required string Label { get; init; }
+        public string? ModeId { get; init; }
+    }
+
+    /// <summary>One journal date-filter choice: a label and the Core range it applies.</summary>
+    private sealed class RangeFilterOption
+    {
+        public required string Label { get; init; }
+        public BattleJournalDateRange Range { get; init; }
+    }
 
     /// <summary>One library row: the prompt plus its display category.</summary>
     public sealed class PromptRow
@@ -54,6 +69,8 @@ public partial class BattleLabWindow : Window
         public required Brush ChipBrush { get; init; }
         public string PromptName => Entry.PromptName;
         public string OutcomeLabel => BattleOutcomeText.Label(Entry.Outcome);
+        /// <summary>The recorded mode's label, or nothing for entries logged before modes were recorded.</summary>
+        public string ModeLabel => ArenaModes.TryGet(Entry.ModeId, out var mode) ? mode.Label : "";
         public string Note => Entry.Note;
         public string When
         {
@@ -85,6 +102,21 @@ public partial class BattleLabWindow : Window
             ArenaModes.All.First(m => m.Id == ArenaModes.SideBySideId),
         };
         CopyTargetCombo.SelectedIndex = 0;
+        JournalModeCombo.ItemsSource = new[]
+        {
+            new ModeFilterOption { Label = "All modes", ModeId = null },
+            new ModeFilterOption { Label = "Battle", ModeId = ArenaModes.BattleId },
+            new ModeFilterOption { Label = "Direct Chat", ModeId = ArenaModes.DirectId },
+            new ModeFilterOption { Label = "Side by Side", ModeId = ArenaModes.SideBySideId },
+        };
+        JournalModeCombo.SelectedIndex = 0;
+        JournalRangeCombo.ItemsSource = new[]
+        {
+            new RangeFilterOption { Label = "All time", Range = BattleJournalDateRange.AllTime },
+            new RangeFilterOption { Label = "Last 7 days", Range = BattleJournalDateRange.Last7Days },
+            new RangeFilterOption { Label = "Last 30 days", Range = BattleJournalDateRange.Last30Days },
+        };
+        JournalRangeCombo.SelectedIndex = 0;
         RefreshLibrary();
         RefreshQueue();
         RefreshJournal();
@@ -289,17 +321,37 @@ public partial class BattleLabWindow : Window
             SetStatus("That file couldn't be read — nothing was imported.");
             return;
         }
-        var result = _library.ImportPrompts(json);
+        // One choice per import, applied to the whole file: how
+        // title clashes resolve (the merge itself is Core's).
+        var strategyDialog = new ImportStrategyWindow { Owner = this };
+        strategyDialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(strategyDialog);
+        if (strategyDialog.ShowDialog() != true)
+            return;
+        var result = _library.ImportPrompts(json, strategyDialog.Strategy);
         if (!result.Ok)
         {
             SetStatus("That isn't a Battle Lab library file — nothing was imported.");
             return;
         }
         RefreshLibrary();
-        SetStatus(result.Added > 0
-            ? $"Imported {result.Added} {(result.Added == 1 ? "prompt" : "prompts")}"
-              + (result.Skipped > 0 ? $"; {result.Skipped} already in the library, skipped." : ".")
-            : $"Nothing new to import — {result.Skipped} {(result.Skipped == 1 ? "prompt was" : "prompts were")} already in the library.");
+        SetStatus(ImportStatusText(result));
+    }
+
+    /// <summary>The import outcome in one line, naming whichever of added / replaced / skipped actually happened.</summary>
+    private static string ImportStatusText(BattleLabImportResult result)
+    {
+        var parts = new List<string>();
+        if (result.Added > 0)
+            parts.Add($"imported {result.Added} {(result.Added == 1 ? "prompt" : "prompts")}");
+        if (result.Replaced > 0)
+            parts.Add($"replaced {result.Replaced} {(result.Replaced == 1 ? "prompt" : "prompts")} already in the library");
+        if (parts.Count == 0)
+            return $"Nothing new to import — {result.Skipped} {(result.Skipped == 1 ? "prompt was" : "prompts were")} already in the library, skipped.";
+        var text = string.Join("; ", parts);
+        text = char.ToUpperInvariant(text[0]) + text[1..];
+        if (result.Skipped > 0)
+            text += $"; {result.Skipped} skipped";
+        return text + ".";
     }
 
     // ──────────────────────── copy & open a mode ────────────────────────
@@ -334,6 +386,7 @@ public partial class BattleLabWindow : Window
         }
         var target = CopyTarget;
         _lastCopiedPromptName = prompt.Name;
+        _lastCopiedModeId = target.Id;
         if (fromQueue)
             _startedQueuePromptId = prompt.Id;
         _log.Info($"Battle Lab: copied prompt '{prompt.Name}' and opened {target.Label}");
@@ -426,6 +479,16 @@ public partial class BattleLabWindow : Window
 
     // ─────────────────────────── journal ───────────────────────────
 
+    private string? JournalModeFilter =>
+        (JournalModeCombo?.SelectedItem as ModeFilterOption)?.ModeId;
+
+    private BattleJournalDateRange JournalRangeFilter =>
+        (JournalRangeCombo?.SelectedItem as RangeFilterOption)?.Range ?? BattleJournalDateRange.AllTime;
+
+    /// <summary>The journal exactly as the three filters (name, mode, date range) shape it — the list, the scoreboard and the Markdown export all read this one view, so they can never disagree.</summary>
+    private IReadOnlyList<BattleJournalEntry> CurrentJournalEntries() =>
+        _library.JournalEntries(JournalFilterText?.Text, JournalModeFilter, JournalRangeFilter);
+
     private void RefreshJournal()
     {
         var chipBrushes = new Dictionary<BattleOutcome, Brush>
@@ -434,7 +497,7 @@ public partial class BattleLabWindow : Window
             [BattleOutcome.BWins] = (Brush)FindResource("AccentFillBrush"),
             [BattleOutcome.Tie] = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x42)),
         };
-        var entries = _library.JournalEntries(JournalFilterText?.Text);
+        var entries = CurrentJournalEntries();
         JournalList.ItemsSource = entries
             .Select(e => new JournalRow { Entry = e, ChipBrush = chipBrushes[e.Outcome] }).ToList();
         if (ScoreboardText is not null)
@@ -442,6 +505,12 @@ public partial class BattleLabWindow : Window
     }
 
     private void OnJournalFilterChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (IsLoaded)
+            RefreshJournal();
+    }
+
+    private void OnJournalFilterControlChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         if (IsLoaded)
             RefreshJournal();
@@ -458,11 +527,14 @@ public partial class BattleLabWindow : Window
         var fallback = _lastCopiedPromptName
                        ?? SelectedPrompt?.Name
                        ?? _library.NextUp?.Name;
-        var dialog = new LogResultWindow(names, fallback) { Owner = this };
+        // The mode defaults to the page the prompt was last copied
+        // to (or the copy picker's current target when nothing has
+        // been copied yet); the dialog lets the user correct it.
+        var dialog = new LogResultWindow(names, fallback, _lastCopiedModeId ?? CopyTarget.Id) { Owner = this };
         dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
         if (dialog.ShowDialog() != true)
             return;
-        var entry = _library.AddJournalEntry(dialog.PromptName, dialog.Outcome, dialog.Note);
+        var entry = _library.AddJournalEntry(dialog.PromptName, dialog.Outcome, dialog.Note, modeId: dialog.ModeId);
 
         // The queue flow completes itself: when the result just logged
         // is for the prompt "Use next from queue" started, and that
@@ -497,7 +569,7 @@ public partial class BattleLabWindow : Window
 
     private void OnExportJournal(object sender, RoutedEventArgs e)
     {
-        var entries = _library.JournalEntries(JournalFilterText?.Text);
+        var entries = CurrentJournalEntries();
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
             Filter = "Markdown files (*.md)|*.md|All files (*.*)|*.*",

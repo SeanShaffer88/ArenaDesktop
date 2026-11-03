@@ -19,6 +19,10 @@
             <RadioButton x:Name="TieRadio" Content="Tie" GroupName="Outcome" Margin="16,0,0,0"
                          Foreground="{StaticResource TextBrush}" AutomationProperties.Name="Tie"/>
         </StackPanel>
+        <TextBlock Text="Which mode was it run in?" Margin="0,12,0,0"/>
+        <ComboBox x:Name="ModeCombo" Margin="0,6,0,0"
+                  DisplayMemberPath="Label"
+                  AutomationProperties.Name="Mode"/>
         <TextBlock Text="Note (optional)" Margin="0,12,0,0"/>
         <TextBox x:Name="NoteText" Margin="0,6,0,0" Height="54" TextWrapping="Wrap"
                  AcceptsReturn="True" VerticalScrollBarVisibility="Auto"

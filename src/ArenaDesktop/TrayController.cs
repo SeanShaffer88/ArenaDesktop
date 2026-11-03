@@ -62,6 +62,7 @@ public sealed class TrayController : IDisposable
     private readonly Action? _openBattleLab;
     private Forms.ToolStripMenuItem? _battleLabItem;
     private Forms.ToolStripMenuItem? _modesItem;
+    private Forms.ToolStripMenuItem? _favoritesItem;
 
     private Forms.NotifyIcon? _icon;
     private Forms.ToolStripMenuItem? _openItem;
@@ -188,6 +189,14 @@ public sealed class TrayController : IDisposable
                 _modesItem = new Forms.ToolStripMenuItem("Arena modes");
                 RebuildModesMenu();
                 menu.Items.Add(_modesItem);
+                // Favorite modes: a second submenu holding ONLY the
+                // favorites, so a favorite is never more than two
+                // clicks away even though the full list lives next
+                // door. Same delegate, same dispatch (see
+                // RebuildFavoritesMenu).
+                _favoritesItem = new Forms.ToolStripMenuItem("Favorite modes");
+                RebuildFavoritesMenu();
+                menu.Items.Add(_favoritesItem);
             }
             _newWindowItem = new Forms.ToolStripMenuItem("New window");
             _newWindowItem.Click += (_, _) => _dispatcher.Invoke(_openNewWindow);
@@ -230,6 +239,7 @@ public sealed class TrayController : IDisposable
                 RebuildDownloadsMenu();
                 RebuildSwitchMenu();
                 RebuildModesMenu();
+                RebuildFavoritesMenu();
                 RefreshLockState();
                 RefreshStatusItem();
             };
@@ -315,6 +325,46 @@ public sealed class TrayController : IDisposable
             var item = new Forms.ToolStripMenuItem(isFavorite ? $"★ {mode.Label}" : mode.Label);
             item.Click += (_, _) => _dispatcher.Invoke(() => _openArenaMode(modeId));
             _modesItem.DropDownItems.Add(item);
+        }
+    }
+
+    /// <summary>
+    /// (Re)build the Favorite modes submenu: one item per favorite,
+    /// in the user's order, and nothing else. Clicking one switches
+    /// mode through the very same delegate the Arena modes submenu
+    /// uses — the main window's NavigateArenaMode, the dispatch the
+    /// window's own mode jumps, the keyboard shortcuts and the
+    /// arenadesktop:// links all share. With no favorites set, the
+    /// submenu holds a single disabled "No favorites yet" item, so
+    /// the menu's shape is stable and the feature is discoverable.
+    /// Runs at Build and on every menu open (like the other
+    /// rebuilds), so a Settings change shows up without a restart.
+    /// </summary>
+    private void RebuildFavoritesMenu()
+    {
+        if (_favoritesItem is null || _openArenaMode is null)
+            return;
+        while (_favoritesItem.DropDownItems.Count > 0)
+        {
+            var old = _favoritesItem.DropDownItems[0];
+            _favoritesItem.DropDownItems.RemoveAt(0);
+            old.Dispose();
+        }
+        var favorites = FavoriteModes.Sanitize(_favoriteModeIds?.Invoke());
+        if (favorites.Count == 0)
+        {
+            _favoritesItem.DropDownItems.Add(
+                new Forms.ToolStripMenuItem("No favorites yet") { Enabled = false });
+            return;
+        }
+        foreach (var favoriteId in favorites)
+        {
+            if (!ArenaModes.TryGet(favoriteId, out var mode))
+                continue;
+            var modeId = mode.Id;
+            var item = new Forms.ToolStripMenuItem(mode.Label);
+            item.Click += (_, _) => _dispatcher.Invoke(() => _openArenaMode(modeId));
+            _favoritesItem.DropDownItems.Add(item);
         }
     }
 

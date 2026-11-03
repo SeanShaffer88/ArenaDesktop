@@ -71,7 +71,7 @@
                                 Click="OnExportLibrary" ToolTip="Save the whole prompt library as a JSON file you can share or keep"
                                 AutomationProperties.Name="Export library"/>
                         <Button x:Name="ImportLibraryButton" Content="Import library…" Height="28" Margin="0,6,0,0"
-                                Click="OnImportLibrary" ToolTip="Merge a library file into this one — prompts already here are skipped"
+                                Click="OnImportLibrary" ToolTip="Merge a library file into this one — you choose what happens when a title is already here"
                                 AutomationProperties.Name="Import library"/>
                     </StackPanel>
                     <TextBox x:Name="SearchText" DockPanel.Dock="Top" Height="26" Margin="0,0,0,8"
@@ -203,6 +203,16 @@
                     <TextBox x:Name="JournalFilterText" DockPanel.Dock="Top" Height="26" Margin="0,0,0,8"
                              Style="{StaticResource Field}" TextChanged="OnJournalFilterChanged"
                              ToolTip="Filter the journal by prompt name" AutomationProperties.Name="Filter journal by prompt name"/>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <ComboBox x:Name="JournalModeCombo" Width="126" Height="26"
+                                  DisplayMemberPath="Label" SelectionChanged="OnJournalFilterControlChanged"
+                                  VerticalContentAlignment="Center"
+                                  ToolTip="Show only battles recorded in one mode" AutomationProperties.Name="Filter journal by mode"/>
+                        <ComboBox x:Name="JournalRangeCombo" Width="118" Height="26" Margin="8,0,0,0"
+                                  DisplayMemberPath="Label" SelectionChanged="OnJournalFilterControlChanged"
+                                  VerticalContentAlignment="Center"
+                                  ToolTip="Show only battles from the last 7 or 30 days" AutomationProperties.Name="Filter journal by date range"/>
+                    </StackPanel>
                     <TextBlock x:Name="ScoreboardText" DockPanel.Dock="Top" Margin="0,0,0,8"
                                FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
                                AutomationProperties.Name="Journal scoreboard"/>
@@ -231,6 +241,8 @@
                                                 <TextBlock Text="{Binding OutcomeLabel}" FontSize="11" FontWeight="Bold"
                                                            Foreground="White"/>
                                             </Border>
+                                            <TextBlock Text="{Binding ModeLabel}" FontSize="11" Margin="8,2,0,0"
+                                                       Foreground="{StaticResource MutedBrush}"/>
                                             <TextBlock Text="{Binding Note}" FontSize="11" Margin="8,2,0,0"
                                                        Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
                                         </StackPanel>

@@ -22,6 +22,8 @@
             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                 <Button x:Name="CheckRoutesButton" Content="Check mode routes" Width="140" Height="30" Click="OnCheckModeRoutes" Visibility="Collapsed"
                         ToolTip="Ask each Arena mode route's server to answer (HEAD, or GET where HEAD is refused) and report Reachable / Problem / Unreachable at the end of the report. Reachability only — nothing is read from the pages"/>
+                <TextBlock x:Name="RouteStatusText" Style="{StaticResource Note}" Margin="10,8,0,0" Visibility="Collapsed"
+                           AutomationProperties.Name="Mode route last checked"/>
                 <Button x:Name="FieldPassButton" Content="Field pass…" Width="104" Height="30" Margin="8,0,0,0" Click="OnFieldPass" Visibility="Collapsed"
                         ToolTip="Walk the nine guided checks that prove the app on this PC (this window closes and the field pass opens)"/>
                 <Button x:Name="ExportBundleButton" Content="Export support bundle…" Width="170" Height="30" Margin="8,0,0,0" Click="OnExportBundle" Visibility="Collapsed"
