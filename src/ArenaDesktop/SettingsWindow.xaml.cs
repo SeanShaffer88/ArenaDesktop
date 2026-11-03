@@ -147,6 +147,26 @@ public partial class SettingsWindow : Window
             QuietEndCombo.Items.Add($"{hour:00}:00");
         }
 
+        // Modes pack (v0.3.0): the startup-mode shapes, the specific
+        // mode list, and the three favorite pickers ("None" first,
+        // then the registry's labels — the parallel id lists below
+        // turn a combo index back into a mode id).
+        StartupModeCombo.Items.Add("Battle (Arena home)");
+        StartupModeCombo.Items.Add("Last mode I used");
+        StartupModeCombo.Items.Add("A specific mode");
+        foreach (var mode in ArenaModes.All)
+        {
+            _startupSpecificModeIds.Add(mode.Id);
+            StartupSpecificModeCombo.Items.Add(mode.Label);
+            _favoriteModeIds.Add(mode.Id);
+        }
+        foreach (var combo in new[] { FavoriteMode1Combo, FavoriteMode2Combo, FavoriteMode3Combo })
+        {
+            combo.Items.Add("None");
+            foreach (var mode in ArenaModes.All)
+                combo.Items.Add(mode.Label);
+        }
+
         LoadControls();
     }
 
@@ -181,6 +201,12 @@ public partial class SettingsWindow : Window
         (UpdateChannel.IncludePrereleases, "Stable + pre-releases"),
     };
 
+    /// <summary>Mode ids parallel to StartupSpecificModeCombo's items (v0.3.0).</summary>
+    private readonly List<string> _startupSpecificModeIds = new();
+
+    /// <summary>Mode ids parallel to the favorite combos' items after "None" (v0.3.0).</summary>
+    private readonly List<string> _favoriteModeIds = new();
+
     /// <summary>(Re)fill every control from the working settings — at open and after an import.</summary>
     private void LoadControls()
     {
@@ -203,6 +229,26 @@ public partial class SettingsWindow : Window
         UpdateChannelCombo.SelectedIndex = channelIndex >= 0 ? channelIndex : 0;
         ShowWhatsNewCheck.IsChecked = _working.ShowWhatsNew;
         RefreshUpdateSnoozeNote();
+        // Modes pack (v0.3.0): the startup-mode shape picks the combo;
+        // the specific combo follows the stored mode id; each
+        // favorite combo shows its stored pick (or "None").
+        StartupModeCombo.SelectedIndex = StartupModes.KindOf(_working.StartupMode) switch
+        {
+            StartupModeKind.Last => 1,
+            StartupModeKind.Specific => 2,
+            _ => 0,
+        };
+        var specificIndex = _startupSpecificModeIds.IndexOf(
+            StartupModes.SpecificModeId(_working.StartupMode) ?? ArenaModes.BattleId);
+        StartupSpecificModeCombo.SelectedIndex = specificIndex >= 0 ? specificIndex : 0;
+        var favoriteCombos = new[] { FavoriteMode1Combo, FavoriteMode2Combo, FavoriteMode3Combo };
+        for (var i = 0; i < favoriteCombos.Length; i++)
+        {
+            var favoriteId = i < _working.FavoriteModeIds.Count ? _working.FavoriteModeIds[i] : null;
+            var favoriteIndex = favoriteId is null ? -1 : _favoriteModeIds.IndexOf(favoriteId);
+            favoriteCombos[i].SelectedIndex = favoriteIndex >= 0 ? favoriteIndex + 1 : 0;
+        }
+        RefreshStartupSpecificEnabled();
         AskWhereToSaveCheck.IsChecked = _working.AskWhereToSave;
         NotifyDownloadCompleteCheck.IsChecked = _working.NotifyWhenDownloadCompletes;
         CollisionPolicyCombo.SelectedIndex = _working.CollisionPolicy == DownloadCollisionPolicy.AskWhereToSave ? 1 : 0;
@@ -280,6 +326,16 @@ public partial class SettingsWindow : Window
         RefreshUpdateSnoozeNote();
     }
 
+    /// <summary>The specific-mode picker only means something with "A specific mode" chosen (v0.3.0).</summary>
+    private void OnStartupModeChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) =>
+        RefreshStartupSpecificEnabled();
+
+    private void RefreshStartupSpecificEnabled()
+    {
+        if (StartupSpecificModeCombo is not null)
+            StartupSpecificModeCombo.IsEnabled = StartupModeCombo.SelectedIndex == 2;
+    }
+
     /// <summary>Read the plain controls back into the working settings (OK and Export share this).</summary>
     private void HarvestControls()
     {
@@ -304,6 +360,24 @@ public partial class SettingsWindow : Window
         if (UpdateChannelCombo.SelectedIndex >= 0 && UpdateChannelCombo.SelectedIndex < UpdateChannelChoices.Length)
             _working.UpdateChannel = UpdateChannelChoices[UpdateChannelCombo.SelectedIndex].Value;
         _working.ShowWhatsNew = ShowWhatsNewCheck.IsChecked == true;
+        // Modes pack (v0.3.0): the startup shape + the specific mode
+        // become the one stored string; the favorite pickers become
+        // the ordered id list (Core sanitizes on save/load anyway).
+        _working.StartupMode = StartupModeCombo.SelectedIndex switch
+        {
+            1 => StartupModes.Last,
+            2 when StartupSpecificModeCombo.SelectedIndex >= 0
+                   && StartupSpecificModeCombo.SelectedIndex < _startupSpecificModeIds.Count
+                => StartupModes.ForMode(_startupSpecificModeIds[StartupSpecificModeCombo.SelectedIndex]),
+            _ => StartupModes.Battle,
+        };
+        _working.FavoriteModeIds = new[] { FavoriteMode1Combo, FavoriteMode2Combo, FavoriteMode3Combo }
+            .Select(combo => combo.SelectedIndex > 0 && combo.SelectedIndex <= _favoriteModeIds.Count
+                ? _favoriteModeIds[combo.SelectedIndex - 1]
+                : null)
+            .Where(id => id is not null)
+            .Cast<string>()
+            .ToList();
         // S11: links toggle (the hotkey's enabled box is harvested
         // with its editor below; its gesture is write-through in the
         // capture handler, like the shortcut overrides).

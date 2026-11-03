@@ -5,7 +5,8 @@ namespace ArenaDesktop;
 
 /// <summary>
 /// The taskbar Jump List (S4 #33): right-click the taskbar button for
-/// Open Arena, Settings, Battle & Leaderboard (Arena modes), Quick ask (S11 #97), and one task per
+/// Open Arena, Settings, the Arena modes category (Battle & Leaderboard,
+/// led by the user's favorite modes since v0.3.0), Quick ask (S11 #97), and one task per
 /// profile (most recently used first). Tasks launch this exe with the
 /// command-line flags, so they ride the one intent surface (S11
 /// #100): on a cold start --profile persists as the active profile;
@@ -19,6 +20,22 @@ public static class JumpListBuilder
 {
     /// <summary>Jump Lists get crowded fast; the most recent handful of profiles is plenty.</summary>
     private const int MaxProfileTasks = 8;
+
+    /// <summary>The modes category's modes (v0.3.0): favorites first (user order), then Battle and Leaderboard when not already listed.</summary>
+    private static IReadOnlyList<ArenaMode> JumpListModes(IReadOnlyList<string>? favoriteModeIds)
+    {
+        var modes = FavoriteModes.Sanitize(favoriteModeIds)
+            .Select(id => ArenaModes.TryGet(id, out var mode) ? mode : null)
+            .Where(m => m is not null)
+            .Cast<ArenaMode>()
+            .ToList();
+        foreach (var id in new[] { ArenaModes.BattleId, ArenaModes.LeaderboardId })
+        {
+            if (modes.All(m => m.Id != id) && ArenaModes.TryGet(id, out var standing))
+                modes.Add(standing);
+        }
+        return modes;
+    }
 
     public static void Apply(AppSettings settings, DiagnosticLog log)
     {
@@ -50,24 +67,33 @@ public static class JumpListBuilder
                 Arguments = "--settings",
                 IconResourcePath = exe,
             });
-            list.JumpItems.Add(new JumpTask
+            // Arena modes category (v0.3.0): the favorite modes lead,
+            // in the user's order; Battle and Leaderboard — the pair
+            // the list has always carried — follow when they aren't
+            // already favorites. No favorites = exactly that pair, in
+            // that order, as before.
+            foreach (var mode in JumpListModes(settings.FavoriteModeIds))
             {
-                Title = "Battle",
-                Description = "Open ArenaDesktop at Battle — two anonymous models, you vote",
-                ApplicationPath = exe,
-                Arguments = "--battle",
-                IconResourcePath = exe,
-                CustomCategory = "Arena modes",
-            });
-            list.JumpItems.Add(new JumpTask
-            {
-                Title = "Leaderboard",
-                Description = "Open ArenaDesktop at the public model Leaderboard",
-                ApplicationPath = exe,
-                Arguments = "--leaderboard",
-                IconResourcePath = exe,
-                CustomCategory = "Arena modes",
-            });
+                list.JumpItems.Add(new JumpTask
+                {
+                    Title = mode.Label,
+                    Description = mode.Id switch
+                    {
+                        ArenaModes.BattleId => "Open ArenaDesktop at Battle — two anonymous models, you vote",
+                        ArenaModes.LeaderboardId => "Open ArenaDesktop at the public model Leaderboard",
+                        _ => mode.Note,
+                    },
+                    ApplicationPath = exe,
+                    Arguments = mode.Id switch
+                    {
+                        ArenaModes.BattleId => "--battle",
+                        ArenaModes.LeaderboardId => "--leaderboard",
+                        _ => $"--mode {mode.Id}",
+                    },
+                    IconResourcePath = exe,
+                    CustomCategory = "Arena modes",
+                });
+            }
             list.JumpItems.Add(new JumpTask
             {
                 Title = "Quick ask",

@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Windows.Threading;
 using ContextMenu = System.Windows.Controls.ContextMenu;
@@ -205,7 +206,8 @@ public partial class MainWindow : Window
             LockNow,
             quickDictate: QuickDictate,
             openArenaMode: NavigateArenaMode,
-            openBattleLab: OpenBattleLabFromTray);
+            openBattleLab: OpenBattleLabFromTray,
+            favoriteModeIds: () => _settings.FavoriteModeIds);
 
         // S6 #54: live regions for assistive-tech announcements, and
         // the download events that feed them (the wording is Core's).
@@ -532,9 +534,9 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Battle Lab (v0.2.0): a single modeless window. Copying a prompt
-    /// there brings this window forward on the Battle page (see
-    /// <see cref="OpenBattleWithCopiedPrompt"/>), so the Lab must not
-    /// be a modal dialog.
+    /// there brings this window forward on the page the Lab picked
+    /// (see <see cref="OpenBattleWithCopiedPrompt"/>), so the Lab must
+    /// not be a modal dialog.
     /// </summary>
     public void OpenBattleLabWindow()
     {
@@ -614,11 +616,13 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Battle Lab copied a prompt: come forward on Battle, ready for the paste.</summary>
-    private void OpenBattleWithCopiedPrompt()
+    /// <summary>Battle Lab copied a prompt: come forward on the page the Lab picked (Battle, Direct Chat or Side by Side), ready for the paste. Unknown ids fall back to Battle.</summary>
+    private void OpenBattleWithCopiedPrompt(string modeId)
     {
-        NavigateArenaMode(ArenaModes.BattleId);
-        SetStatus("Battle Lab prompt copied — click the prompt box and paste (Ctrl+V).");
+        if (!ArenaModes.TryGet(modeId, out var mode))
+            mode = ArenaModes.All[0];
+        NavigateArenaMode(mode.Id);
+        SetStatus($"Battle Lab prompt copied — click the prompt box on {mode.Label} and paste (Ctrl+V).");
     }
 
     /// <summary>Open Settings on a visible window (tray menu and the --settings launch flag, S4 #32/#33).</summary>
@@ -948,6 +952,21 @@ public partial class MainWindow : Window
         // S8 #72: safe mode ignores the start-page resolution entirely
         // and lands on Home; #71 recovery restores the crashed page.
         var navigateTo = restoreUrl ?? SafeModePolicy.StartupUrl(_safeMode, startupUrl);
+        // Modes pack (v0.3.0): when the launch would land on the Arena
+        // home page anyway — no crash restore, no safe mode, no
+        // custom-page fallback — the startup-mode choice picks the
+        // mode page that stands in for Battle. A restored last page or
+        // a valid custom start page (S5 #47) is a page the user named,
+        // and it still wins.
+        if (restoreUrl is null && !_safeMode && !customFellBack
+            && navigateTo == UrlPolicy.HomeUrl
+            && StartupModes.ResolveStartupMode(_settings.StartupMode, _settings.ActiveLastModeId)
+                is { } startupMode
+            && startupMode.Id != ArenaModes.BattleId)
+        {
+            navigateTo = startupMode.Url;
+            _log.Info($"Startup mode: '{_settings.StartupMode}' opened {startupMode.Id} -> {UrlPolicy.RedactForLog(startupMode.Url)}");
+        }
         if (_safeMode && restoreUrl is null)
             _log.Info("Safe mode: starting at the Arena home page (no last-page restore, update check skipped)");
         core.Navigate(navigateTo);
@@ -2420,6 +2439,15 @@ public partial class MainWindow : Window
         ShowFromTray();
         if (!ArenaModes.TryGet(modeId, out var mode))
             mode = ArenaModes.All[0];
+        // Modes pack (v0.3.0): record the mode for the ACTIVE profile —
+        // the "Last mode I used" startup choice resolves from this.
+        // Every surface funnels through here, so one recording point
+        // covers them all; the save rides along only when it changed.
+        if (_settings.ActiveLastModeId != mode.Id)
+        {
+            _settings.LastModeIdByProfile[_settings.ActiveProfileId] = mode.Id;
+            SaveSettings();
+        }
         if (_webReady)
             Browser.CoreWebView2.Navigate(mode.Url);
         SetStatus(mode.Note);
@@ -3163,7 +3191,9 @@ public partial class MainWindow : Window
             {
                 openFieldPassAfter = true;
                 window.Close();
-            })
+            },
+            // Modes pack (v0.3.0): the route-reachability probe.
+            onCheckModeRoutes: CheckModeRoutesAsync)
         { Owner = this };
         ThemeManager.ApplyTitleBar(window);
         ShellTextScaling.Apply(window, _settings.ShellFontScale);
@@ -3171,6 +3201,84 @@ public partial class MainWindow : Window
         FocusReturn.Restore(invoker);
         if (openFieldPassAfter)
             OpenFieldPassWindow();
+    }
+
+    // ───────────────────── mode route check (v0.3.0) ─────────────────────
+
+    /// <summary>Per-route probe timeout: long enough for a slow network, short enough that nine routes at once stay snappy.</summary>
+    private static readonly TimeSpan RouteProbeTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>The route probe's one client (desktop user-agent; the per-request timeout rides on each call's cancellation token).</summary>
+    private static readonly HttpClient RouteProbeHttp = CreateRouteProbeHttp();
+
+    private static HttpClient CreateRouteProbeHttp()
+    {
+        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        http.DefaultRequestHeaders.UserAgent.ParseAdd(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 ArenaDesktop");
+        return http;
+    }
+
+    /// <summary>
+    /// The Diagnostics "Check mode routes" action (v0.3.0): probe
+    /// every registered mode's route CONCURRENTLY and return Core's
+    /// formatted verdict section for the report. Reachability only —
+    /// response bodies are discarded unread (headers-only reads), and
+    /// the log gets host + path and the verdict class, never a full
+    /// URL with its query.
+    /// </summary>
+    private async Task<string> CheckModeRoutesAsync()
+    {
+        var entries = await Task.WhenAll(ArenaModes.All.Select(ProbeModeRouteAsync));
+        return RouteHealth.FormatSection(entries);
+    }
+
+    private async Task<RouteHealthEntry> ProbeModeRouteAsync(ArenaMode mode)
+    {
+        var (status, failure) = await ProbeRouteAsync(mode.Url);
+        var verdict = RouteHealth.Classify(status, failure);
+        _log.Info($"Route check: {UrlPolicy.RedactForLog(mode.Url)} -> {verdict}"
+            + (status is { } code ? $" (HTTP {code})" : $" ({failure})"));
+        return new RouteHealthEntry(mode, verdict, status);
+    }
+
+    /// <summary>
+    /// One route probe: HEAD first; a 405 (the server refuses HEAD)
+    /// falls back to GET — still headers-only, so no body is ever
+    /// read. Any exception becomes a <see cref="RouteProbeFailure"/>
+    /// for Core's classification; this method never throws.
+    /// </summary>
+    private static async Task<(int? Status, RouteProbeFailure Failure)> ProbeRouteAsync(string url)
+    {
+        var head = await SendRouteProbeAsync(HttpMethod.Head, url);
+        if (head.Failure == RouteProbeFailure.None && head.Status == 405)
+            return await SendRouteProbeAsync(HttpMethod.Get, url);
+        return head;
+    }
+
+    private static async Task<(int? Status, RouteProbeFailure Failure)> SendRouteProbeAsync(
+        HttpMethod method, string url)
+    {
+        try
+        {
+            using var timeout = new CancellationTokenSource(RouteProbeTimeout);
+            using var request = new HttpRequestMessage(method, url);
+            using var response = await RouteProbeHttp.SendAsync(
+                request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            return ((int)response.StatusCode, RouteProbeFailure.None);
+        }
+        catch (OperationCanceledException)
+        {
+            return (null, RouteProbeFailure.Timeout);
+        }
+        catch (HttpRequestException)
+        {
+            return (null, RouteProbeFailure.NetworkError);
+        }
+        catch (Exception)
+        {
+            return (null, RouteProbeFailure.Other);
+        }
     }
 
     /// <summary>

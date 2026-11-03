@@ -81,6 +81,29 @@
                     <Button x:Name="StopSnoozeButton" Content="Stop snoozing update reminders" Width="210" HorizontalAlignment="Left"
                             Margin="0,4,0,0" Click="OnStopUpdateSnooze" Visibility="Collapsed"
                             ToolTip="Cancel the snooze set from the update window (Remind me tomorrow / next week)"/>
+                    <!-- Modes pack (v0.3.0): the startup mode + favorite
+                         modes. The startup choice only picks the mode
+                         page a launch opens with when it would land on
+                         the Arena home page anyway — each profile's own
+                         start page (Account profiles) still wins. -->
+                    <TextBlock Style="{StaticResource Note}" Margin="0,14,0,2"
+                               Text="Arena modes — pick the mode ArenaDesktop opens with, and pin up to three favorites. Favorites come first in the tray's Arena modes menu and the taskbar Jump List."/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <TextBlock Text="Startup mode:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="StartupModeCombo" Width="190" SelectionChanged="OnStartupModeChanged"
+                                  ToolTip="Which Arena mode a launch opens with when it starts at the Arena home page. A profile's restored last page or custom start page (Account profiles) still wins"/>
+                        <ComboBox x:Name="StartupSpecificModeCombo" Width="150" Margin="8,0,0,0"
+                                  ToolTip="The mode to open with when “A specific mode” is chosen"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <TextBlock Text="Favorite modes:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="FavoriteMode1Combo" Width="120"
+                                  ToolTip="First favorite mode — leads the tray menu and the Jump List"/>
+                        <ComboBox x:Name="FavoriteMode2Combo" Width="120" Margin="8,0,0,0"
+                                  ToolTip="Second favorite mode"/>
+                        <ComboBox x:Name="FavoriteMode3Combo" Width="120" Margin="8,0,0,0"
+                                  ToolTip="Third favorite mode"/>
+                    </StackPanel>
                     <!-- S11 #99: arenadesktop:// links. The installer
                          registers the scheme; this toggle keeps the
                          registration in line with it (and is how
