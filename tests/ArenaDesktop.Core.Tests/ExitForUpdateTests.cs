@@ -95,6 +95,22 @@ public class ExitForUpdateIntentTests
     }
 
     [Fact]
+    public void Intent_JsonKindNameIsPinnedForCrossVersionHandoff()
+    {
+        // The pending-intent file crosses builds: the installer's
+        // handshake process (new build) writes it, the running
+        // instance (possibly an older build) reads it. Kinds travel
+        // by NAME, so the literal string is a wire contract — a
+        // rename here must fail loudly, not degrade silently to a
+        // plain wake (round-trip tests cannot catch it: both sides
+        // rename together).
+        var intent = new LaunchIntent(LaunchIntentKind.ExitForUpdate);
+        Assert.Contains("\"ExitForUpdate\"", intent.ToJson());
+        Assert.Equal(intent,
+            LaunchIntent.TryFromJson("{\"kind\":\"ExitForUpdate\"}"));
+    }
+
+    [Fact]
     public void Intent_RoundTripsThroughThePendingIntentStore()
     {
         var dir = Path.Combine(Path.GetTempPath(), "ad-efu-" + Guid.NewGuid().ToString("N"));
