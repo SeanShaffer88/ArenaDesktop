@@ -16,6 +16,10 @@ namespace ArenaDesktop;
 /// The field-pass launch (v0.2.0) is one more: the pass is modeless
 /// and this window is modal, so the delegate closes this window and
 /// the main window opens the pass once this one has unwound.
+/// The mode-route check (v0.3.0) follows the same delegate pattern:
+/// the main window owns the probing (and the log), this window owns
+/// the button and keeps the returned section at the end of the
+/// report across refreshes, so Copy report carries it too.
 /// </summary>
 public partial class DiagnosticsWindow : Window
 {
@@ -25,6 +29,8 @@ public partial class DiagnosticsWindow : Window
     private readonly Action? _onOpenLog;
     private readonly Func<string?>? _lastErrorProvider;
     private readonly Action? _onFieldPass;
+    private readonly Func<Task<string>>? _onCheckModeRoutes;
+    private string? _routeSection;
 
     /// <summary>
     /// <paramref name="rollbackLabel"/> + <paramref name="onRollback"/>
@@ -41,7 +47,8 @@ public partial class DiagnosticsWindow : Window
         string? rollbackLabel = null, Action? onRollback = null,
         Action? onExportBundle = null, Action? onOpenLog = null,
         Func<string?>? lastErrorProvider = null,
-        Action? onFieldPass = null)
+        Action? onFieldPass = null,
+        Func<Task<string>>? onCheckModeRoutes = null)
     {
         _reportProvider = reportProvider;
         _onRollback = onRollback;
@@ -49,7 +56,10 @@ public partial class DiagnosticsWindow : Window
         _onOpenLog = onOpenLog;
         _lastErrorProvider = lastErrorProvider;
         _onFieldPass = onFieldPass;
+        _onCheckModeRoutes = onCheckModeRoutes;
         InitializeComponent();
+        if (onCheckModeRoutes is not null)
+            CheckRoutesButton.Visibility = Visibility.Visible;
         if (rollbackLabel is not null && onRollback is not null)
         {
             RollbackButton.Content = rollbackLabel;
@@ -103,6 +113,40 @@ public partial class DiagnosticsWindow : Window
         catch (Exception ex)
         {
             ReportText.Text = $"Diagnostics couldn't be collected ({ex.Message}). The log has the details.";
+        }
+        // The mode-route section (v0.3.0) is collected on demand, not
+        // by the provider — re-attach the latest one so a Refresh (or
+        // a Copy) never silently drops it.
+        if (_routeSection is not null)
+            ReportText.Text += Environment.NewLine + Environment.NewLine + _routeSection;
+    }
+
+    /// <summary>
+    /// Mode routes (v0.3.0): run the main window's probe and put its
+    /// formatted section at the end of the report. The probing is
+    /// reachability only — the delegate's contract is a finished
+    /// section of text, so this window never sees a response body.
+    /// </summary>
+    private async void OnCheckModeRoutes(object sender, RoutedEventArgs e)
+    {
+        if (_onCheckModeRoutes is null)
+            return;
+        CheckRoutesButton.IsEnabled = false;
+        CopyNote.Text = "Checking the mode routes…";
+        try
+        {
+            _routeSection = await _onCheckModeRoutes();
+            RefreshReport();
+            ReportText.ScrollToEnd();
+            CopyNote.Text = "Mode route check finished — the results are at the end of the report.";
+        }
+        catch (Exception ex)
+        {
+            CopyNote.Text = $"The mode route check failed ({ex.Message}). The log has the details.";
+        }
+        finally
+        {
+            CheckRoutesButton.IsEnabled = true;
         }
     }
 

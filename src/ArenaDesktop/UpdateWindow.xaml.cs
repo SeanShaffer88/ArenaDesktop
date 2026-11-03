@@ -34,6 +34,19 @@ public partial class UpdateWindow : Window
         InitializeComponent();
         SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
         HeadlineText.Text = $"ArenaDesktop {_release.Tag} is available";
+        // v0.3.0: show what changed in the offered version before the
+        // user decides — the notes rode in on the check's release
+        // payload. No notes (empty body, older flow) = the window
+        // looks exactly as it did before they existed. The notes
+        // themselves are never logged, only that they were there.
+        var notes = ReleaseNotesFormatter.Format(_release.Notes);
+        if (notes.Length > 0)
+        {
+            NotesHeadingText.Visibility = Visibility.Visible;
+            NotesText.Visibility = Visibility.Visible;
+            NotesText.Text = notes;
+        }
+        _log.Info($"Update window: {_release.Tag} offered, release notes {(notes.Length > 0 ? "shown" : "not available")}");
         if (_settings.UpdateSnoozedUntilUtc is { } until && DateTimeOffset.UtcNow < until)
             SnoozeNoteText.Text = UpdateSchedule.DescribeSnooze(until);
         Closing += (_, _) => _downloadCts?.Cancel();

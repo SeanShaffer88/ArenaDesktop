@@ -64,6 +64,15 @@
                         <Button x:Name="DeletePromptButton" Content="Delete prompt" Height="28" Margin="0,6,0,0"
                                 Click="OnDeletePrompt" ToolTip="Delete the selected prompt (journal entries keep their history)"
                                 AutomationProperties.Name="Delete prompt"/>
+                        <Button x:Name="DuplicatePromptButton" Content="Duplicate" Height="28" Margin="0,6,0,0"
+                                Click="OnDuplicatePrompt" ToolTip="Copy the selected prompt — the copy is named '… copy'"
+                                AutomationProperties.Name="Duplicate prompt"/>
+                        <Button x:Name="ExportLibraryButton" Content="Export library…" Height="28" Margin="0,6,0,0"
+                                Click="OnExportLibrary" ToolTip="Save the whole prompt library as a JSON file you can share or keep"
+                                AutomationProperties.Name="Export library"/>
+                        <Button x:Name="ImportLibraryButton" Content="Import library…" Height="28" Margin="0,6,0,0"
+                                Click="OnImportLibrary" ToolTip="Merge a library file into this one — prompts already here are skipped"
+                                AutomationProperties.Name="Import library"/>
                     </StackPanel>
                     <TextBox x:Name="SearchText" DockPanel.Dock="Top" Height="26" Margin="0,0,0,8"
                              Style="{StaticResource Field}" TextChanged="OnSearchChanged"
@@ -121,8 +130,13 @@
                                     Click="OnCopyAndOpenBattle" IsDefault="True"
                                     Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}"
                                     BorderThickness="0" FontWeight="SemiBold"
-                                    ToolTip="Fill in any blanks, copy the finished prompt, and bring Battle forward so you can paste it"
+                                    ToolTip="Fill in any blanks, copy the finished prompt, and bring the picked page forward so you can paste it"
                                     AutomationProperties.Name="Copy prompt and open Battle"/>
+                            <ComboBox x:Name="CopyTargetCombo" Height="36" Width="132" Margin="8,0,0,0"
+                                      DisplayMemberPath="Label" SelectionChanged="OnCopyTargetChanged"
+                                      VerticalContentAlignment="Center"
+                                      ToolTip="The page the copy button opens: Battle, Direct Chat, or Side by Side"
+                                      AutomationProperties.Name="Copy target page"/>
                             <Button x:Name="QueueButton" Content="Add to run queue" Height="36" Padding="16,0"
                                     Margin="10,0,0,0" Click="OnAddToQueue"
                                     ToolTip="Line this prompt up in the run queue" AutomationProperties.Name="Add to run queue"/>
@@ -135,7 +149,7 @@
                         <TextBlock Text="Run queue" Style="{StaticResource Section}" DockPanel.Dock="Top"/>
                         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
                             <Button x:Name="UseNextButton" Content="Use next from queue" Height="28" Padding="10,0"
-                                    Click="OnUseNext" ToolTip="Fill in and copy the first prompt in the queue, and open Battle"
+                                    Click="OnUseNext" ToolTip="Fill in and copy the first prompt in the queue, and open the page picked beside the copy button"
                                     AutomationProperties.Name="Use next from queue"/>
                             <Button Content="↑" Width="30" Height="28" Margin="8,0,0,0" Click="OnQueueMoveUp"
                                     ToolTip="Move the selected prompt up" AutomationProperties.Name="Move queue item up"/>
@@ -145,6 +159,10 @@
                                     ToolTip="Take the selected prompt out of the queue" AutomationProperties.Name="Remove from queue"/>
                             <Button Content="Clear" Height="28" Padding="10,0" Margin="4,0,0,0" Click="OnQueueClear"
                                     ToolTip="Empty the run queue" AutomationProperties.Name="Clear queue"/>
+                            <Button x:Name="EnqueueCategoryButton" Content="Add category to queue" Height="28" Padding="10,0"
+                                    Margin="8,0,0,0" Click="OnEnqueueCategory"
+                                    ToolTip="Line up every prompt in the selected prompt's category that isn't queued yet"
+                                    AutomationProperties.Name="Add category to queue"/>
                         </StackPanel>
                         <ListBox x:Name="QueueList" Background="Transparent" BorderThickness="0"
                                  Foreground="{StaticResource TextBrush}"
@@ -178,10 +196,16 @@
                                 ToolTip="Record a Battle result by hand" AutomationProperties.Name="Log a result"/>
                         <Button Content="Delete entry" Height="28" Margin="0,6,0,0" Click="OnDeleteJournalEntry"
                                 ToolTip="Delete the selected journal entry" AutomationProperties.Name="Delete journal entry"/>
+                        <Button x:Name="ExportJournalButton" Content="Export journal…" Height="28" Margin="0,6,0,0"
+                                Click="OnExportJournal" ToolTip="Save the journal entries shown (after the filter) as a Markdown file"
+                                AutomationProperties.Name="Export journal"/>
                     </StackPanel>
                     <TextBox x:Name="JournalFilterText" DockPanel.Dock="Top" Height="26" Margin="0,0,0,8"
                              Style="{StaticResource Field}" TextChanged="OnJournalFilterChanged"
                              ToolTip="Filter the journal by prompt name" AutomationProperties.Name="Filter journal by prompt name"/>
+                    <TextBlock x:Name="ScoreboardText" DockPanel.Dock="Top" Margin="0,0,0,8"
+                               FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
+                               AutomationProperties.Name="Journal scoreboard"/>
                     <ListBox x:Name="JournalList" Background="Transparent" BorderThickness="0"
                              Foreground="{StaticResource TextBrush}"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"

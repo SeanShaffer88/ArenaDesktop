@@ -29,7 +29,7 @@ public static class SettingsSearch
     public static readonly IReadOnlyList<SettingsSectionInfo> Sections = new[]
     {
         new SettingsSectionInfo(BehaviorId, "Behavior",
-            "start with windows startup sign in autostart start in tray minimized close to tray suspend memory timeout check for updates update updates channel release pre-release prerelease beta snooze remind later frequency daily weekly manual rollback previous version what's new setup wizard first run welcome protocol links arenadesktop links url handler command line launching"),
+            "start with windows startup sign in autostart start in tray minimized close to tray suspend memory timeout check for updates update updates channel release pre-release prerelease beta snooze remind later frequency daily weekly manual rollback previous version what's new setup wizard first run welcome protocol links arenadesktop links url handler command line launching startup mode modes favorite favorites open mode battle last used"),
         new SettingsSectionInfo(TrayId, "Tray & notifications",
             "tray icon single click double click reopen flash taskbar attention quiet hours do not disturb notifications balloon silent night"),
         new SettingsSectionInfo(ProfilesId, "Account profiles",
@@ -162,6 +162,13 @@ public static class SettingsReset
         target.ShellLayout = fresh.ShellLayout;
         target.ToolbarOrder = fresh.ToolbarOrder;
         target.ToolbarHidden = fresh.ToolbarHidden;
+        // Modes pack (v0.3.0): the startup-mode choice and the
+        // favorite modes are preferences and reset with the rest.
+        // NOT copied (preserved, session state like LastUrlByProfile):
+        // LastModeIdByProfile — a reset must not erase where each
+        // profile has been.
+        target.StartupMode = fresh.StartupMode;
+        target.FavoriteModeIds = fresh.FavoriteModeIds;
         // A reset returns the app to its first-run state, wizard
         // included: the setup wizard offers itself again next launch.
         target.FirstRunCompleted = fresh.FirstRunCompleted;

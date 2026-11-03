@@ -55,6 +55,9 @@ public sealed class TrayController : IDisposable
     private readonly Action? _quickDictate;
     // Arena modes (ArenaDesktop v0.1.0): optional like Quick ask.
     private readonly Action<string>? _openArenaMode;
+    // Favorite modes (v0.3.0): the live favorite-id list, read on
+    // every menu open like the profiles/downloads delegates.
+    private readonly Func<IReadOnlyList<string>>? _favoriteModeIds;
     // Battle Lab (v0.2.0): optional like Quick ask.
     private readonly Action? _openBattleLab;
     private Forms.ToolStripMenuItem? _battleLabItem;
@@ -114,7 +117,8 @@ public sealed class TrayController : IDisposable
         Action? lockNow = null,
         Action? quickDictate = null,
         Action<string>? openArenaMode = null,
-        Action? openBattleLab = null)
+        Action? openBattleLab = null,
+        Func<IReadOnlyList<string>>? favoriteModeIds = null)
     {
         _log = log;
         _dispatcher = dispatcher;
@@ -144,6 +148,7 @@ public sealed class TrayController : IDisposable
         _quickDictate = quickDictate;
         _openArenaMode = openArenaMode;
         _openBattleLab = openBattleLab;
+        _favoriteModeIds = favoriteModeIds;
     }
 
     public bool IsSuspended => _suspended;
@@ -176,17 +181,12 @@ public sealed class TrayController : IDisposable
                 _dictateItem.Click += (_, _) => _dispatcher.Invoke(_quickDictate);
                 menu.Items.Add(_dictateItem);
             }
-            // Arena modes: one submenu, rebuilt from Core's registry.
+            // Arena modes: one submenu, rebuilt from Core's registry
+            // (favorites first — see RebuildModesMenu).
             if (_openArenaMode is not null)
             {
                 _modesItem = new Forms.ToolStripMenuItem("Arena modes");
-                foreach (var mode in ArenaModes.All)
-                {
-                    var modeId = mode.Id;
-                    var item = new Forms.ToolStripMenuItem(mode.Label);
-                    item.Click += (_, _) => _dispatcher.Invoke(() => _openArenaMode(modeId));
-                    _modesItem.DropDownItems.Add(item);
-                }
+                RebuildModesMenu();
                 menu.Items.Add(_modesItem);
             }
             _newWindowItem = new Forms.ToolStripMenuItem("New window");
@@ -229,6 +229,7 @@ public sealed class TrayController : IDisposable
             {
                 RebuildDownloadsMenu();
                 RebuildSwitchMenu();
+                RebuildModesMenu();
                 RefreshLockState();
                 RefreshStatusItem();
             };
@@ -278,6 +279,43 @@ public sealed class TrayController : IDisposable
             _dispatcher.Invoke(_showWindow);
         };
         _clickTimer.Start();
+    }
+
+    /// <summary>
+    /// (Re)build the Arena modes submenu (v0.3.0): the user's
+    /// favorite modes first — starred, in their order, with one
+    /// separator before the rest — then the remaining modes in
+    /// registry order. No favorites = the registry order the menu
+    /// has always had, with no separator. Runs at Build and on every
+    /// menu open (like the downloads/profile rebuilds), so a Settings
+    /// change shows up without a restart.
+    /// </summary>
+    private void RebuildModesMenu()
+    {
+        if (_modesItem is null || _openArenaMode is null)
+            return;
+        while (_modesItem.DropDownItems.Count > 0)
+        {
+            var old = _modesItem.DropDownItems[0];
+            _modesItem.DropDownItems.RemoveAt(0);
+            old.Dispose();
+        }
+        var favorites = FavoriteModes.Sanitize(_favoriteModeIds?.Invoke());
+        var favoriteSet = new HashSet<string>(favorites);
+        var separatorAdded = false;
+        foreach (var mode in FavoriteModes.Ordered(favorites))
+        {
+            var isFavorite = favoriteSet.Contains(mode.Id);
+            if (!isFavorite && favorites.Count > 0 && !separatorAdded)
+            {
+                _modesItem.DropDownItems.Add(new Forms.ToolStripSeparator());
+                separatorAdded = true;
+            }
+            var modeId = mode.Id;
+            var item = new Forms.ToolStripMenuItem(isFavorite ? $"★ {mode.Label}" : mode.Label);
+            item.Click += (_, _) => _dispatcher.Invoke(() => _openArenaMode(modeId));
+            _modesItem.DropDownItems.Add(item);
+        }
     }
 
     // ───────────────────────── app lock (S7 #64) ─────────────────────────

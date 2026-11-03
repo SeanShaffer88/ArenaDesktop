@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace ArenaDesktop.Core;
 
@@ -62,13 +64,18 @@ public sealed record ReleaseAsset(string Name, string DownloadUrl, long Size);
 /// One GitHub release as the update checker needs it (v0.13.0, S9 #88):
 /// tag, pre-release flag, page URL, and its assets. Parsed from the
 /// releases LIST endpoint (the check can no longer use /latest, which
-/// structurally hides pre-releases from the opt-in channel).
+/// structurally hides pre-releases from the opt-in channel). Since
+/// v0.3.0 the release also carries its notes (the GitHub release body,
+/// markdown) — the list payload already includes it, so the update
+/// window can show what changed without a second call. The body is
+/// public release text; it is never logged.
 /// </summary>
 public sealed record GitHubRelease(
     string Tag,
     bool IsPrerelease,
     string PageUrl,
-    IReadOnlyList<ReleaseAsset> Assets)
+    IReadOnlyList<ReleaseAsset> Assets,
+    string Notes = "")
 {
     /// <summary>The release's assets by exact name (ordinal — asset names are exact).</summary>
     public ReleaseAsset? FindAsset(string name) =>
@@ -123,7 +130,8 @@ public static class ReleaseSelection
                     tag,
                     entry.TryGetProperty("prerelease", out var pre) && pre.ValueKind == JsonValueKind.True,
                     GetString(entry, "html_url") ?? "",
-                    assets));
+                    assets,
+                    GetString(entry, "body") ?? ""));
             }
         }
         catch
@@ -511,5 +519,119 @@ public static class WhatsNew
     {
         var body = string.Join("\n", lines[from..to]).Trim();
         return body.Length == 0 ? null : body;
+    }
+}
+
+// ──────────────────── update-window release notes (v0.3.0) ────────────────────
+
+/// <summary>
+/// Turns a GitHub release body (markdown) into the plain text the
+/// update window shows before the user decides (v0.3.0): headings
+/// become plain lines, bold/italic markers and inline-code backticks
+/// are removed, links collapse to their text, list bullets become a
+/// simple "•", and the result is capped so a long release can't push
+/// the buttons off the window — the tail says the full notes live on
+/// the release page. Malformed markdown never throws: the worst case
+/// is a few stray markers in otherwise readable text, and an empty
+/// body formats to an empty string (the window then shows no notes
+/// area at all).
+/// </summary>
+public static class ReleaseNotesFormatter
+{
+    /// <summary>The most text the update window shows; longer notes are cut cleanly and end with <see cref="MoreTail"/>.</summary>
+    public const int MaxLength = 2000;
+
+    /// <summary>The closing line of a truncated summary, pointing at the full notes.</summary>
+    public const string MoreTail = "…and more in the full notes on the release page.";
+
+    private static readonly Regex HtmlComment = new(@"<!--.*?-->", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex HtmlTag = new(@"<[^>]+>", RegexOptions.Compiled);
+    private static readonly Regex ImageOrLink = new(@"!?\[([^\]]*)\]\([^)]*\)", RegexOptions.Compiled);
+    private static readonly Regex RefLink = new(@"\[([^\]]+)\]\[[^\]]*\]", RegexOptions.Compiled);
+    private static readonly Regex Bold = new(@"\*\*([^*]+)\*\*|__([^_]+)__", RegexOptions.Compiled);
+    private static readonly Regex Italic = new(@"\*([^*]+)\*|(?<![\w])_([^_]+)_(?![\w])", RegexOptions.Compiled);
+    private static readonly Regex Strike = new(@"~~([^~]+)~~", RegexOptions.Compiled);
+    private static readonly Regex InlineCode = new(@"`([^`]+)`", RegexOptions.Compiled);
+    private static readonly Regex Heading = new(@"^#{1,6}\s+", RegexOptions.Compiled);
+    private static readonly Regex Bullet = new(@"^\s*[-*+]\s+", RegexOptions.Compiled);
+    private static readonly Regex Rule = new(@"^\s*([-*_])(\s*\1){2,}\s*$", RegexOptions.Compiled);
+
+    /// <summary>The window-ready summary of a release body; "" when there is nothing to show.</summary>
+    public static string Format(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+            return "";
+        try
+        {
+            var text = HtmlComment.Replace(markdown.Replace("\r\n", "\n").Replace('\r', '\n'), "");
+            var sb = new StringBuilder();
+            var blankPending = false;
+            foreach (var rawLine in text.Split('\n'))
+            {
+                var line = FormatLine(rawLine);
+                if (line is null)
+                    continue; // a horizontal rule — dropped
+                if (line.Length == 0)
+                {
+                    // Remember a blank line; it is emitted only when
+                    // real content follows, and never twice in a row.
+                    blankPending = sb.Length > 0;
+                    continue;
+                }
+                if (blankPending)
+                    sb.Append('\n');
+                if (sb.Length > 0)
+                    sb.Append('\n');
+                sb.Append(line);
+                blankPending = false;
+            }
+            return Cap(sb.ToString());
+        }
+        catch
+        {
+            // Formatting is a courtesy on top of the update offer —
+            // any surprise reads as "no notes", never as an error.
+            return "";
+        }
+    }
+
+    /// <summary>One display line, or null for a line that should disappear entirely.</summary>
+    private static string? FormatLine(string rawLine)
+    {
+        var line = rawLine.TrimEnd();
+        if (Rule.IsMatch(line))
+            return null;
+        line = Heading.Replace(line, "");
+        // Blockquote markers: "> text" reads as just the text.
+        var trimmed = line.TrimStart();
+        while (trimmed.StartsWith('>'))
+        {
+            trimmed = trimmed[1..].TrimStart();
+            line = trimmed;
+        }
+        if (Bullet.IsMatch(line))
+            line = "• " + Bullet.Replace(line, "").TrimStart();
+        line = ImageOrLink.Replace(line, "$1");
+        line = RefLink.Replace(line, "$1");
+        line = Bold.Replace(line, m => m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value);
+        line = Italic.Replace(line, m => m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value);
+        line = Strike.Replace(line, "$1");
+        line = InlineCode.Replace(line, "$1");
+        line = HtmlTag.Replace(line, "");
+        return line.Trim();
+    }
+
+    /// <summary>Cut at the last line (or word) boundary that leaves room for the tail.</summary>
+    private static string Cap(string text)
+    {
+        if (text.Length <= MaxLength)
+            return text;
+        var budget = MaxLength - MoreTail.Length - 2; // room for "\n\n" + tail
+        var cut = text.LastIndexOf('\n', Math.Min(budget, text.Length - 1));
+        if (cut < MaxLength / 2)
+            cut = text.LastIndexOf(' ', Math.Min(budget, text.Length - 1));
+        if (cut <= 0)
+            cut = budget;
+        return text[..cut].TrimEnd() + "\n\n" + MoreTail;
     }
 }
