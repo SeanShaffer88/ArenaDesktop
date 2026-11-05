@@ -21,4 +21,5 @@ Honest list of what ArenaDesktop does not do or has not proven yet. Kept current
 - **Unsigned binaries.** There is no code-signing certificate; Windows SmartScreen may warn on first run (More info → Run anyway).
 - **Architectures:** x64 and ARM64 only in this version. No x86 (32-bit) build and no MSI installer yet.
 - **No screenshots yet.** README captures come from real Windows runs only; the capture list is in docs/screenshots/CAPTURE.md.
+- **Downloads history follows this app's activity.** While the window is open, ArenaDesktop refreshes history after a download completes or fails and after local delete or clear actions. Reopen the window to refresh after external edits.
 - **Downloads history never stores source URLs** — a downloaded file can be opened, shown in its folder, or deleted, but not re-downloaded from history after the session's retry window.

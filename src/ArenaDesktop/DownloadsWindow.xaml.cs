@@ -20,7 +20,11 @@ public partial class DownloadsWindow : Window
     private readonly DownloadTracker? _tracker;
     private readonly Func<string, Task>? _retryAsync;
     private readonly int _historyCap;
-    private readonly DispatcherTimer? _refreshTimer;
+    private const int ActiveRefresh = 1;
+    private const int HistoryRefresh = 2;
+    private readonly DispatcherTimer _etaTimer = new() { Interval = TimeSpan.FromMilliseconds(750) };
+    private int _pendingRefresh;
+    private volatile bool _closed;
     private List<DownloadRecord> _allRecords = new();
 
     /// <summary>One history row: the record plus its pre-formatted detail line.</summary>
@@ -62,17 +66,59 @@ public partial class DownloadsWindow : Window
         _retryAsync = retryAsync;
         _historyCap = DownloadHistoryStore.SanitizeCap(historyCap);
         InitializeComponent();
-        Refresh();
-        RefreshActive();
+        _etaTimer.Tick += (_, _) => RefreshActive();
+        IsVisibleChanged += (_, _) =>
+        {
+            if (IsVisible && !_closed)
+                RefreshActive();
+            else
+                _etaTimer.Stop();
+        };
         if (_tracker is not null)
         {
-            // Live progress without event plumbing: poll the tracker models
-            // while the window is open; the list is small by construction.
-            _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(750) };
-            _refreshTimer.Tick += (_, _) => { RefreshActive(); RefreshHistoryOnly(); };
-            _refreshTimer.Start();
-            Closed += (_, _) => _refreshTimer.Stop();
+            _tracker.Changed += OnTrackerChanged;
+            _tracker.Completed += OnTrackerFinished;
+            _tracker.Failed += OnTrackerFinished;
         }
+        Refresh();
+        RefreshActive();
+    }
+
+    private void OnTrackerChanged() => QueueRefresh(ActiveRefresh);
+
+    private void OnTrackerFinished() => QueueRefresh(ActiveRefresh | HistoryRefresh);
+
+    private void QueueRefresh(int refresh)
+    {
+        if (_closed || Dispatcher.HasShutdownStarted)
+            return;
+        // Keep one dispatcher operation pending, even when progress arrives in bursts.
+        if (Interlocked.Or(ref _pendingRefresh, refresh) == 0)
+            Dispatcher.InvokeAsync(ApplyPendingRefresh, DispatcherPriority.Background);
+    }
+
+    private void ApplyPendingRefresh()
+    {
+        var refresh = Interlocked.Exchange(ref _pendingRefresh, 0);
+        if (_closed)
+            return;
+        if ((refresh & ActiveRefresh) != 0)
+            RefreshActive();
+        if ((refresh & HistoryRefresh) != 0)
+            RefreshHistoryOnly();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _closed = true;
+        _etaTimer.Stop();
+        if (_tracker is not null)
+        {
+            _tracker.Changed -= OnTrackerChanged;
+            _tracker.Completed -= OnTrackerFinished;
+            _tracker.Failed -= OnTrackerFinished;
+        }
+        base.OnClosed(e);
     }
 
     private Row? Selected => DownloadsList.SelectedItem as Row;
@@ -88,9 +134,8 @@ public partial class DownloadsWindow : Window
     }
 
     /// <summary>
-    /// Reload history from disk (a download may have finished while this
-    /// window is open) — but only rebind when something actually changed,
-    /// so the 750 ms poll doesn't steal the user's selection mid-click.
+    /// Reload history after the tracker writes a finished download.
+    /// Keep a selected record if it is still in the filtered list.
     /// </summary>
     private void RefreshHistoryOnly()
     {
@@ -101,8 +146,16 @@ public partial class DownloadsWindow : Window
             || pair.First.State != pair.Second.State);
         if (!changed)
             return;
+        var selected = Selected?.Record;
         _allRecords = loaded;
         ApplyHistoryQuery();
+        if (selected is not null)
+        {
+            DownloadsList.SelectedItem = DownloadsList.Items.Cast<Row>().FirstOrDefault(row =>
+                row.Record.FullPath == selected.FullPath
+                && row.Record.CompletedUtc == selected.CompletedUtc
+                && row.Record.State == selected.State);
+        }
     }
 
     private void ApplyHistoryQuery()
@@ -309,7 +362,11 @@ public partial class DownloadsWindow : Window
         }
         var selectedId = SelectedActive?.Id;
         var now = DateTimeOffset.Now;
-        var rows = _tracker.Snapshot()
+        var downloads = _tracker.Snapshot();
+        // A displayed relative ETA changes with the clock even without tracker events.
+        _etaTimer.IsEnabled = IsVisible && downloads.Any(download =>
+            download.State == DownloadActivityState.InProgress && download.EstimatedEnd > now);
+        var rows = downloads
             .Select(d => new ActiveRow
             {
                 Id = d.Id,
