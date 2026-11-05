@@ -2,6 +2,10 @@
 
 A living log of significant architecture, UX, security, and dependency decisions.
 
+## 2026-11-05 — Downloads refresh on tracker notifications
+
+The Downloads window coalesces tracker progress on the WPF dispatcher. Completion and failure refresh persisted history after the tracker records the outcome. Opening the window still loads history, and local delete and clear actions refresh it directly. The window unsubscribes when closed. A timer updates the countdown only while a visible in-progress row has a future ETA. Its tick reads the in-memory tracker, and idle windows perform no recurring history reads.
+
 ## 2026-11-03 — Enhancement pack: journal mode + date filters, import strategies, tray favorites, route re-check
 
 - **Journal entries record the mode they ran in — declared by hand, like the winner.** The journal's standing rule is that nothing is read from the Arena page, so the mode is asked in the log dialog (defaulting to the page the prompt was last copied to, correctable before saving) and stored as a canonical registry id on the entry; an unrecognized id sanitizes to "not recorded". Entries logged before this change carry no mode and appear only in an unfiltered view. The window's three filters — prompt name, mode, date range (All time / Last 7 days / Last 30 days, cutoffs computed in Core and inclusive) — shape ONE view shared by the list, the scoreboard and the Markdown export, extending the v0.3.0 rule that the tally always describes what is on screen.
