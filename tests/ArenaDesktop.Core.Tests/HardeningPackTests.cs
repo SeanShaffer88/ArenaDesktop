@@ -966,12 +966,28 @@ public class HardeningPackTests
 
     // ─────────────────────── 15. write tally in the report ───────────────────────
 
+    /// <summary>
+    /// DiagnosticsData has required path members (the report prints them),
+    /// so every instance here has to supply them even when the test is
+    /// only interested in one optional field.
+    /// </summary>
+    private static DiagnosticsData MinimalReport() => new()
+    {
+        AppVersion = "1.0.0",
+        SettingsPath = @"C:\profiles\main\settings.json",
+        LogPath = @"C:\profiles\main\arena.log",
+        ProfileDir = @"C:\profiles\main",
+    };
+
     [Fact]
     public void DiagnosticsReport_IncludesTheWriteTally_WhenItHasOne()
     {
         var data = new DiagnosticsData
         {
             AppVersion = "1.0.0",
+            SettingsPath = @"C:\profiles\main\settings.json",
+            LogPath = @"C:\profiles\main\arena.log",
+            ProfileDir = @"C:\profiles\main",
             SettingsWriteLine = "  Settings writes 4 · deferred 12 · coalesced 8 · failures 0",
         };
         var text = DiagnosticsReport.Compose(data);
@@ -987,9 +1003,11 @@ public class HardeningPackTests
     {
         // ReportLine is null until the first write; the heading must not
         // appear on its own.
-        var text = DiagnosticsReport.Compose(new DiagnosticsData { AppVersion = "1.0.0", SettingsWriteLine = null });
-        Assert.DoesNotContain("Settings writes this session", text);
-        var blank = DiagnosticsReport.Compose(new DiagnosticsData { AppVersion = "1.0.0", SettingsWriteLine = "   " });
-        Assert.DoesNotContain("Settings writes this session", blank);
+        var none = MinimalReport();
+        none.SettingsWriteLine = null;
+        Assert.DoesNotContain("Settings writes this session", DiagnosticsReport.Compose(none));
+        var blank = MinimalReport();
+        blank.SettingsWriteLine = "   ";
+        Assert.DoesNotContain("Settings writes this session", DiagnosticsReport.Compose(blank));
     }
 }

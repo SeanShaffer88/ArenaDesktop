@@ -57,7 +57,7 @@ public class EnhancementPackTests
         Assert.True(FindBarKeys.NeedsRestart("", "x"));
         Assert.Equal("", FindBarKeys.NormalizeTerm(null));
         Assert.Contains("nothing to step through", FindBarKeys.NextTooltip(0));
-        Assert.False(FindBarKeys.NextTooltip(3).Contains("nothing"));
+        Assert.DoesNotContain("nothing", FindBarKeys.NextTooltip(3));
     }
 
     // ─────────────────────── 2. zoom presets ───────────────────────
@@ -508,7 +508,8 @@ public class EnhancementPackTests
         Assert.Equal(1.0, ShellQuiet.ToolbarOpacity(true, false, false));
         Assert.Equal(1.0, ShellQuiet.ToolbarOpacity(true, true, true));
         Assert.Equal(ShellQuiet.DimmedToolbarOpacity, ShellQuiet.ToolbarOpacity(true, true, false));
-        Assert.True(ShellQuiet.DimmedToolbarOpacity is >= 0.6 and < 1.0);
+        Assert.InRange(ShellQuiet.DimmedToolbarOpacity, 0.6, 0.99);
+        Assert.True(ShellQuiet.ToolbarOpacity(true, true, false) < ShellQuiet.ToolbarOpacity(true, true, true));
         Assert.Contains("never", ShellQuiet.DimSettingNote);
     }
 

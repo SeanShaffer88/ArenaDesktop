@@ -42,13 +42,12 @@ public partial class MainWindow : Window
 
     // v0.2.0 — update check (the check itself lives in UpdateService)
     /// <summary>
-    /// Re-entry guard for the update check (hardening pack). Kept alongside
-    /// <see cref="_checkingUpdate"/> because the bool is what the menu's
-    /// enabled state reads; the guard is what actually refuses a second run.
+    /// Re-entry guard for the update check (hardening pack). Disposing the
+    /// scope is what clears it, so no return or throw path can leave the
+    /// check permanently refused.
     /// </summary>
     private readonly BusyGuard _updateCheckGuard = new();
 
-    private bool _checkingUpdate;
     private string? _updateTag;
     private string? _updateUrl;
     // v0.13.0 (S9 #81/#88) — the full selected release (assets included),
@@ -3214,10 +3213,6 @@ public partial class MainWindow : Window
             // Persist the check stamp (and anything the update window
             // changed) — SaveSettings is the window's ordinary path.
             SaveSettings();
-        }
-        finally
-        {
-            _checkingUpdate = false;
         }
     }
 

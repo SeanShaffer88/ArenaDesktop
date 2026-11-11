@@ -72,7 +72,10 @@ public partial class SessionWindow : Window
     {
         try
         {
-            Clipboard.SetText(SummaryTextForClipboard());
+            // Fully qualified: the project sets UseWindowsForms (the tray
+            // needs it), so a bare Clipboard is ambiguous between the WPF
+            // and WinForms types.
+            System.Windows.Clipboard.SetText(SummaryTextForClipboard());
             CopyButton.Content = "Copied";
         }
         catch
