@@ -838,8 +838,10 @@ public partial class MainWindow : Window
     /// <summary>The ⋯ item names the action it will perform: show the pane, or hide the one on screen.</summary>
     private void RefreshBattleLabItem()
     {
-        BattleLabItem.Header = SidePaneShowing ? "Hide Battle Lab pane" : "Show Battle Lab pane";
-        System.Windows.Automation.AutomationProperties.SetName(BattleLabItem, BattleLabItem.Header);
+        // MenuItem.Header is an object; the automation name is a string.
+        var label = SidePaneShowing ? "Hide Battle Lab pane" : "Show Battle Lab pane";
+        BattleLabItem.Header = label;
+        System.Windows.Automation.AutomationProperties.SetName(BattleLabItem, label);
     }
 
     /// <summary>
