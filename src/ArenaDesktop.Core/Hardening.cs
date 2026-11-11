@@ -42,7 +42,11 @@ public sealed class BusyGuard
     {
         private readonly BusyGuard? _owner;
 
-        private Scope(BusyGuard owner) => _owner = owner;
+        // internal, not private: a nested type's private members are not
+        // visible to the enclosing class, and TryEnter (on BusyGuard)
+        // is what grants a scope. External callers still cannot build
+        // one themselves — they only ever get what TryEnter hands back.
+        internal Scope(BusyGuard owner) => _owner = owner;
 
         /// <summary>A scope that never held the guard.</summary>
         internal static readonly Scope Refused = default;
