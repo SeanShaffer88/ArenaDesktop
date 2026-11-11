@@ -73,6 +73,8 @@ public class S6Tests
             // Hardening pack: the two page/status keys the shell dispatches
             // before the remappable block.
             "focus-page", "status-line",
+            // v0.8.0: Battle Lab is a pane, so it has its own toggle.
+            "side-pane",
         };
         Assert.Equal(
             expected.OrderBy(x => x),
