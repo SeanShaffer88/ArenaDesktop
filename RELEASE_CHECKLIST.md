@@ -13,7 +13,14 @@ Releases are built by `.github/workflows/release.yml`, on Windows runners, from 
 5. **It then runs the full gate** (build at 0/0 and the FULL Core suite — never a subset, per AGENTS.md), publishes both architectures, builds both NSIS installers from the same staged folder the zips use, writes `SHA256SUMS.txt` over all four, verifies the sums against the files on disk, smoke-tests the real exe, publishes the release, and **re-downloads the published assets and re-verifies every hash** — the checklist's "a release is not shipped until its assets are hash-verified".
 6. **The pipeline refuses to overwrite a published release.** Re-running for an existing tag is a hard stop; delete the release or bump the version.
 
-The five assets are `ArenaDesktop-v<version>-windows-{x64,arm64}.zip`, `ArenaDesktop-Setup-v<version>-{x64,arm64}.exe`, and `SHA256SUMS.txt`. The installer names are a contract the in-app updater depends on; `S9Tests` pins them.
+The five assets are `ArenaDesktop-v<version>-windows-{x64,arm64}.zip`, `ArenaDesktop-Setup-v<version>-{x64,arm64}.exe`, and `SHA256SUMS.txt`. The installer names are a contract the in-app updater depends on; `ReleaseWorkflowTests` pins the workflow to them.
+
+### Node the pipeline needed (learned cutting 0.6.0)
+
+- **`windows-latest` is Windows Server 2025 and no longer ships NSIS.** The workflow installs it with `negrutiu/nsis-install@v2` and uses that action's `instdir` output directly.
+- **`choco install nsis` is not a substitute.** choco only updates the *machine* PATH, and a later step's process environment is a snapshot taken at runner start — so `makensis` never appears. That failure looks exactly like "makensis is not on PATH" one step after a green install step.
+- **NSIS resolves a relative `OutFile` against the `.nsi` file's directory**, not the working directory, so the installer lands in `installer/`; the workflow moves it into the staging folder.
+- **`SHA256SUMS.txt` must be written as ASCII with LF and no BOM.** `SumsFile.Parse` takes the first 64 bytes of each line as the hash, so a BOM makes every line unreadable and the release is refused by its own updater.
 
 ## Automated gate (run by the maintainer's agent, every slice)
 

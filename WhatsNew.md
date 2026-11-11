@@ -38,7 +38,7 @@ The release notes ArenaDesktop shows on the first launch of a new version. This 
 
 - **The Diagnostics route check keeps itself fresh.** While the Diagnostics window is open, the mode-route check re-runs every two minutes, and the last finished check's time ("Last checked 14:32") shows beside the button; closing the window stops the re-checks. The Check mode routes button works exactly as before when you want a check right now.
 
-## [0.6.0] — Unreleased
+## [0.6.0] — 2026-11-11
 
 A second small pack on the same theme as 0.5.0: things that were silent now speak, and things that were one-at-a-time now take the whole selection. The idle lock is the one genuinely new capability — the app could lock itself on startup or when it hid to the tray, but not when you simply walked away.
 
