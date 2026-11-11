@@ -212,7 +212,10 @@ public sealed class TrayController : IDisposable
             // Battle Lab (v0.2.0): present only when the shell wired it.
             if (_openBattleLab is not null)
             {
-                _battleLabItem = new Forms.ToolStripMenuItem("Battle Lab…");
+                // v0.8.0: the Lab is a pane in the main window, not a
+                // dialog — no ellipsis, and the tray always shows it
+                // rather than toggling what you cannot see from here.
+                _battleLabItem = new Forms.ToolStripMenuItem("Battle Lab");
                 _battleLabItem.Click += (_, _) => _dispatcher.Invoke(_openBattleLab);
                 menu.Items.Add(_battleLabItem);
             }

@@ -10,6 +10,7 @@ Honest list of what ArenaDesktop does not do or has not proven yet. Kept current
 ## Product limits
 
 - **Inside Direct Chat and Side by Side, you pick the model(s).** ArenaDesktop takes you to the right page; the model choice at the top of those pages is Arena's own picker — the app never injects script into the page, so it cannot choose for you.
+- **Battle Lab lives in the main window.** Since v0.8.0 it is a side pane, not a window, so it cannot be dragged to a second monitor — the page and the Lab share one window by design. In a narrow window the pane folds to one tabbed column, and below 706px of content width the split is refused outright (the status bar says so) rather than showing two unusable columns.
 - **Battle Lab results are recorded by hand.** The app never reads anything from the Arena page, so the results journal only contains what you log yourself (A won / B won / Tie plus your note); winners are never detected automatically.
 - **The field pass records your own verdicts.** Its nine checks are steps you perform by hand; the pass stores the Pass / Problem / Skip marks and notes you enter and does not verify anything by itself.
 - **Arena has no voice dictation.** There is no microphone button in Arena's prompt box (checked on the live site, 2026-10-27). For voice, click in the prompt box and use Windows dictation (Win+H); ArenaDesktop's Quick ask (tray / `--ask`) just gets you to the page, focused and ready to type.

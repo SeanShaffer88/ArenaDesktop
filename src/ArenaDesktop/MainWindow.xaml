@@ -178,7 +178,13 @@
 
                                 <MenuItem Header="Tools">
                                     <MenuItem Header="Downloads…" Click="OnDownloads"/>
-                                    <MenuItem Header="Battle Lab…" Click="OnBattleLab"/>
+                                    <!-- v0.8.0: the Lab is a side pane now, so
+                                         the item says "Hide" while it is open
+                                         (RefreshBattleLabItem) rather than
+                                         reopening something already there. -->
+                                    <MenuItem x:Name="BattleLabItem" Header="Show Battle Lab pane" Click="OnBattleLab"
+                                              InputGestureText="Ctrl+Shift+B"
+                                              ToolTip="Open Battle Lab beside the Arena page — prompt library, run queue and results journal, without leaving the page"/>
                                     <MenuItem Header="Field pass…" Click="OnFieldPass"/>
                                     <Separator/>
                                     <MenuItem Header="Keyboard shortcuts…" Click="OnShortcuts" InputGestureText="Ctrl+/"
@@ -327,7 +333,19 @@
         <!-- Web content. The first-run / error overlay sits above it until the page loads.
              ContentGrid is named because S8 #71's recovery replaces the web
              view controls inside it when the browser process exits. -->
-        <Grid Grid.Row="2" Grid.Column="1" x:Name="ContentGrid">
+        <!-- v0.8.0: the content area is a two-pane split. The Arena page
+             keeps column 0 and takes all the space while the side pane is
+             closed — same grid, same row, so nothing about the page's
+             layout changes when the pane is hidden. SplitWorkspace owns
+             the arithmetic for how wide the pane may be. -->
+        <Grid Grid.Row="2" Grid.Column="1" x:Name="ContentSplit" SizeChanged="OnContentSplitSizeChanged">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="PageColumn" Width="*"/>
+                <ColumnDefinition x:Name="PaneSplitterColumn" Width="0"/>
+                <ColumnDefinition x:Name="PaneColumn" Width="0"/>
+            </Grid.ColumnDefinitions>
+
+            <Grid x:Name="ContentGrid" Grid.Column="0">
             <!-- Focus ring (S6 #58): the border is always 2px (so the
                  page never shifts); its brush turns accent-colored
                  while keyboard focus is inside the page, transparent
@@ -389,6 +407,31 @@
                             Visibility="Collapsed" Click="OnReload" HorizontalAlignment="Center"
                             Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"/>
                 </StackPanel>
+            </Border>
+            </Grid>
+
+            <!-- The divider. It is a real splitter, not a fixed gutter:
+                 dragging it is the only way to change the pane width, and
+                 SplitWorkspace clamps the result so the page keeps its
+                 floor. Collapsed with the pane, so the page gets the full
+                 width back rather than a dead 6px strip. -->
+            <GridSplitter x:Name="PaneSplitter" Grid.Column="1" Width="6"
+                          HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                          Background="{StaticResource HairlineBrush}"
+                          Visibility="Collapsed"
+                          ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
+                          ShowsPreview="False"
+                          ToolTip="Drag to resize the Battle Lab pane"
+                          AutomationProperties.Name="Resize the Battle Lab pane"
+                          DragCompleted="OnPaneSplitterDragCompleted"/>
+
+            <!-- The side pane itself. Built once and kept, so closing and
+                 reopening it lands on the same prompt, filters and scroll
+                 position rather than starting over. -->
+            <Border x:Name="SidePane" Grid.Column="2" Visibility="Collapsed"
+                    Background="{StaticResource BgBrush}"
+                    BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1,0,0,0">
+                <Grid x:Name="SidePaneHost"/>
             </Border>
         </Grid>
 

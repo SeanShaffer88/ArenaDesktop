@@ -100,9 +100,13 @@ public partial class MainWindow : Window
     private readonly AppLockThrottle _lockThrottle = new();
     private LockWindow? _lockWindow;
 
-    // Battle Lab (v0.2.0): one modeless window per main window, so a
-    // copied prompt can bring Battle forward while the Lab stays open.
-    private BattleLabWindow? _battleLabWindow;
+    // Battle Lab (v0.8.0): a side pane of this window, not a window of
+    // its own — a prompt can be read while writing the battle it
+    // belongs to. Built on first open and kept afterwards, so closing
+    // and reopening lands back on the same prompt and filters.
+    private BattleLabView? _battleLab;
+    private bool _sidePaneOpen;
+    private double _paneWidthRemembered;
 
     // Field pass (v0.2.0): also modeless, for the same reason — its
     // "Open feature" buttons bring Settings / Battle Lab / Downloads
@@ -733,7 +737,15 @@ public partial class MainWindow : Window
         OnDownloads(this, new RoutedEventArgs());
     }
 
-    private void OnBattleLab(object sender, RoutedEventArgs e) => OpenBattleLabWindow();
+    private void OnBattleLab(object sender, RoutedEventArgs e)
+    {
+        // One item, two states: open the pane, or close it if it is
+        // already on screen. The label follows (RefreshBattleLabItem).
+        if (SidePaneShowing)
+            HideSidePane();
+        else
+            OpenBattleLabPane();
+    }
 
     /// <summary>Open Battle Lab from the tray — behind the lock like every other window (S7 #64).</summary>
     private void OpenBattleLabFromTray()
@@ -744,35 +756,182 @@ public partial class MainWindow : Window
             return;
         }
         ShowFromTray();
-        OpenBattleLabWindow();
+        OpenBattleLabPane();
     }
 
     /// <summary>
-    /// Battle Lab (v0.2.0): a single modeless window. Copying a prompt
-    /// there brings this window forward on the page the Lab picked
-    /// (see <see cref="OpenBattleWithCopiedPrompt"/>), so the Lab must
-    /// not be a modal dialog.
+    /// Battle Lab (v0.8.0): a side pane of THIS window, not a window of
+    /// its own. Copying a prompt still brings the page the Lab picked
+    /// forward (see <see cref="OpenBattleWithCopiedPrompt"/>), so the
+    /// two-ways-at-once promise is now literal: the page and the Lab are
+    /// side by side in one window. Every entry point — the ⋯ menu, the
+    /// tray, --battle-lab and arenadesktop://battle-lab — lands here.
     /// </summary>
-    public void OpenBattleLabWindow()
+    public void OpenBattleLabPane()
     {
         if (_isLocked)
         {
             PresentLockWindow();
             return;
         }
-        if (_battleLabWindow is not null)
+        ShowSidePane();
+    }
+
+    /// <summary>
+    /// Open the Battle Lab pane. When the window is too narrow to hold
+    /// both panes at their floors it widens first rather than squeezing
+    /// the page — SplitWorkspace owns that arithmetic and refuses the
+    /// split outright below its minimum.
+    /// </summary>
+    public void ShowSidePane()
+    {
+        if (_battleLab is null)
         {
-            _battleLabWindow.Activate();
+            // The Lab reads the clipboard lifetime from the live
+            // settings, so a change made in Settings applies the next
+            // time it is built.
+            _battleLab = new BattleLabView(_log, OpenBattleWithCopiedPrompt, _settings);
+            _battleLab.CloseRequested += (_, _) => HideSidePane();
+            SidePaneHost.Children.Add(_battleLab);
+        }
+        if (!SplitWorkspace.CanSplit(ContentSplit.ActualWidth))
+            WidenForSidePane();
+        _sidePaneOpen = true;
+        // A window too narrow even after widening keeps the single-pane
+        // promise: say so instead of showing two slivers.
+        if (!SplitWorkspace.CanSplit(ContentSplit.ActualWidth))
+        {
+            _sidePaneOpen = false;
+            RefreshBattleLabItem();
+            SetStatus("Battle Lab needs a wider window — enlarge it and try again");
             return;
         }
-        // The Lab reads the clipboard lifetime from the live settings, so
-        // a change made in Settings applies the next time it opens.
-        var window = new BattleLabWindow(_log, OpenBattleWithCopiedPrompt, _settings) { Owner = this };
-        window.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(window);
-        ShellTextScaling.Apply(window, _settings.ShellFontScale);
-        window.Closed += (_, _) => _battleLabWindow = null;
-        _battleLabWindow = window;
-        window.Show();
+        ApplySidePaneWidth();
+        ShellTextScaling.Apply(_battleLab, _settings.ShellFontScale);
+        RefreshBattleLabItem();
+        _log.Info("Battle Lab opened in the side pane");
+    }
+
+    /// <summary>Close the Lab pane and give the page its full width back (the control and its state are kept).</summary>
+    public void HideSidePane()
+    {
+        if (!_sidePaneOpen)
+            return;
+        _sidePaneOpen = false;
+        ApplySidePaneWidth();
+        RefreshBattleLabItem();
+        Browser.Focus();
+        SetStatus("Battle Lab closed");
+    }
+
+    /// <summary>Whether the Lab pane is on screen. One answer, used by every caller — including the field pass.</summary>
+    public bool SidePaneOpen => SidePaneShowing;
+
+    /// <summary>
+    /// True only when the Lab is actually on screen. The pane can be open
+    /// by intent and still hidden — a window shrunk below the split floor
+    /// keeps the Lab loaded but gives the page the width — and the menu
+    /// must not claim "Hide" for something the user cannot see.
+    /// </summary>
+    private bool SidePaneShowing => _sidePaneOpen && SidePane.Visibility == Visibility.Visible;
+
+    /// <summary>The ⋯ item names the action it will perform: show the pane, or hide the one on screen.</summary>
+    private void RefreshBattleLabItem()
+    {
+        BattleLabItem.Header = SidePaneShowing ? "Hide Battle Lab pane" : "Show Battle Lab pane";
+        System.Windows.Automation.AutomationProperties.SetName(BattleLabItem, BattleLabItem.Header);
+    }
+
+    /// <summary>
+    /// Put the split in its current state: the remembered (or default)
+    /// pane width, clamped by Core so the page keeps its floor, and the
+    /// columns collapsed to nothing when the pane is closed so the page
+    /// gets the whole width rather than a dead gutter.
+    /// </summary>
+    private void ApplySidePaneWidth()
+    {
+        if (!_sidePaneOpen)
+        {
+            PageColumn.Width = new GridLength(1, GridUnitType.Star);
+            PaneSplitterColumn.Width = new GridLength(0);
+            PaneColumn.Width = new GridLength(0);
+            PaneSplitter.Visibility = Visibility.Collapsed;
+            SidePane.Visibility = Visibility.Collapsed;
+            return;
+        }
+        var paneWidth = SplitWorkspace.ResolvePaneWidth(ContentSplit.ActualWidth, _paneWidthRemembered);
+        if (paneWidth <= 0)
+        {
+            _sidePaneOpen = false;
+            SetStatus("Battle Lab needs a wider window — enlarge it and try again");
+            return;
+        }
+        PaneSplitter.Visibility = Visibility.Visible;
+        SidePane.Visibility = Visibility.Visible;
+        PaneSplitterColumn.Width = new GridLength(SplitWorkspace.SplitterWidth);
+        PaneColumn.Width = new GridLength(paneWidth, GridUnitType.Pixel);
+        PageColumn.Width = new GridLength(1, GridUnitType.Star);
+        _battleLab?.ApplyArrangement(paneWidth);
+    }
+
+    /// <summary>
+    /// Widening for the pane: grow the window by however much the split
+    /// is short, up to the screen it is on. The user asked for the Lab,
+    /// so it is better to give them room than to refuse on a window they
+    /// simply had not sized for two panes yet.
+    /// </summary>
+    private void WidenForSidePane()
+    {
+        var deficit = SplitWorkspace.MinSplitContentWidth - ContentSplit.ActualWidth;
+        if (deficit <= 0 || WindowState != WindowState.Normal)
+            return;
+        var work = SystemParameters.WorkArea;
+        var grown = Math.Min(Width + deficit + 12, work.Width);
+        if (grown <= Width)
+            return;
+        Width = grown;
+        UpdateLayout();
+    }
+
+    /// <summary>
+    /// The splitter moved. The new width is the pane's, clamped by Core
+    /// and remembered so reopening the pane comes back to it — this is
+    /// the only place the remembered width changes.
+    /// </summary>
+    private void OnPaneSplitterDragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+    {
+        if (!_sidePaneOpen || PaneColumn.Width.GridUnitType != GridUnitType.Pixel)
+            return;
+        var wanted = PaneColumn.Width.Value;
+        _paneWidthRemembered = wanted;
+        ApplySidePaneWidth();
+        _battleLab?.ApplyArrangement(PaneColumn.Width.Value);
+    }
+
+    /// <summary>Keep the split legal as the window resizes: the page never drops below its floor, and the Lab reflows.</summary>
+    private void OnContentSplitSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (!_sidePaneOpen)
+            return;
+        var paneWidth = SplitWorkspace.ResolvePaneWidth(e.NewSize.Width, _paneWidthRemembered);
+        if (paneWidth <= 0)
+        {
+            // Too narrow to hold both: keep the Lab loaded but hand the
+            // page the width, rather than showing two unusable columns.
+            PaneSplitter.Visibility = Visibility.Collapsed;
+            SidePane.Visibility = Visibility.Collapsed;
+            PaneSplitterColumn.Width = new GridLength(0);
+            PaneColumn.Width = new GridLength(0);
+            PageColumn.Width = new GridLength(1, GridUnitType.Star);
+            RefreshBattleLabItem();
+            return;
+        }
+        PaneSplitter.Visibility = Visibility.Visible;
+        SidePane.Visibility = Visibility.Visible;
+        PaneSplitterColumn.Width = new GridLength(SplitWorkspace.SplitterWidth);
+        PaneColumn.Width = new GridLength(paneWidth, GridUnitType.Pixel);
+        _battleLab?.ApplyArrangement(paneWidth);
+        RefreshBattleLabItem();
     }
 
     private void OnFieldPass(object sender, RoutedEventArgs e) => OpenFieldPassWindow();
@@ -825,7 +984,7 @@ public partial class MainWindow : Window
                 OpenSettings();
                 break;
             case FieldPassTarget.BattleLab:
-                OpenBattleLabWindow();
+                OpenBattleLabPane();
                 break;
             case FieldPassTarget.Downloads:
                 OnDownloads(this, new RoutedEventArgs());
@@ -833,12 +992,20 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Battle Lab copied a prompt: come forward on the page the Lab picked (Battle, Direct Chat or Side by Side), ready for the paste. Unknown ids fall back to Battle.</summary>
+    /// <summary>
+    /// Battle Lab copied a prompt: the page the Lab picked (Battle,
+    /// Direct Chat or Side by Side) comes forward ready for the paste.
+    /// Unknown ids fall back to Battle. Since v0.8.0 the Lab is a pane
+    /// rather than a window, so this only navigates — the pane is
+    /// already beside the page, and moving keyboard focus into the page
+    /// puts the paste one Ctrl+V away.
+    /// </summary>
     private void OpenBattleWithCopiedPrompt(string modeId)
     {
         if (!ArenaModes.TryGet(modeId, out var mode))
             mode = ArenaModes.All[0];
         NavigateArenaMode(mode.Id);
+        Browser.Focus();
         SetStatus($"Battle Lab prompt copied — click the prompt box on {mode.Label} and paste (Ctrl+V).");
     }
 
@@ -1230,6 +1397,7 @@ public partial class MainWindow : Window
         _visibleSince = IsVisible ? DateTimeOffset.UtcNow : null;
         RefreshPinnedModeChrome();
         RefreshMenuGestures();
+        RefreshBattleLabItem();
         StartSessionClock();
         RefreshToolbarOpacity();
         // Start page (S5 #47): an invalid custom page falls back to
@@ -4234,6 +4402,19 @@ public partial class MainWindow : Window
         if (e.Key == Key.Escape && _focusMode)
         {
             SetFocusMode(false);
+            e.Handled = true;
+            return;
+        }
+        // v0.8.0: the Battle Lab pane's own key. Ctrl+B alone is the
+        // page's bold, so this is Ctrl+Shift+B — and it toggles, because
+        // a pane you can only open one way needs a second gesture to
+        // get your width back.
+        if (e.Key == Key.B && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            if (SidePaneShowing)
+                HideSidePane();
+            else
+                OpenBattleLabPane();
             e.Handled = true;
             return;
         }

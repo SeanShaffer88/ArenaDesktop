@@ -90,7 +90,7 @@ Try this:
 
 ## How do I use the Battle Lab?
 
-The Battle Lab (⋯ menu → **Tools** → Battle Lab…) is where you keep battle prompts and track which side wins. It has three parts: a prompt library, a run queue, and a results journal. Everything you type is saved as you go, on this PC only.
+The Battle Lab (⋯ menu → **Tools** → Battle Lab, the tray menu, or Ctrl+Shift+B) opens as a pane beside the Arena page, so you can read a prompt while you write the battle it belongs to. It is where you keep battle prompts and track which side wins. It has three parts: a prompt library, a run queue, and a results journal. Everything you type is saved as you go, on this PC only.
 
 Try this:
 1. Pick a prompt from the library on the left, or add your own with "+ New prompt". Edit its name, category, and text in the middle — there is no Save button; edits are stored straight away.
