@@ -133,59 +133,136 @@ jobs:
       - name: Publish, package and hash both architectures
         shell: pwsh
         run: |
+          # Wrapped so a failure reports WHY. A bare "exit code 1" from a
+          # packaging step is close to useless to whoever has to fix it.
           $ErrorActionPreference = 'Stop'
           $version = $env:VERSION
-          New-Item -ItemType Directory -Force out | Out-Null
 
-          foreach ($arch in @('x64', 'arm64')) {
-            $publish = "publish/$arch"
-            dotnet publish src/ArenaDesktop/ArenaDesktop.csproj -c Release -r "win-$arch" --self-contained true -o $publish
-            if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed for win-$arch." }
+          $pack = {
+            New-Item -ItemType Directory -Force out | Out-Null
 
-            # The portable zip carries the docs a user needs beside the exe,
-            # the same set ci.yml stages for its artifact.
-            Copy-Item README.md, LICENSE, KNOWN_LIMITATIONS.md, RELEASE_CHECKLIST.md $publish/
-            $zip = "out/ArenaDesktop-v$version-windows-$arch.zip"
-            Compress-Archive -Path "$publish/*" -DestinationPath $zip -CompressionLevel Optimal
-            Write-Host "$zip  $((Get-Item $zip).Length) bytes"
+            # ZipFile rather than Compress-Archive: a self-contained WPF
+            # publish is a few hundred files and ~70 MB, and ZipFile is
+            # both faster and predictable about preserving the folder
+            # structure a portable build needs beside its exe.
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-            # The installer stages exactly that same folder, so the two
-            # channels cannot ship different files.
-            #
-            # The script carries a relative OutFile, and NSIS resolves that
-            # against the .nsi file's own directory — not the working
-            # directory — so the exe lands in installer/. Search both so
-            # this keeps working whichever way the script is written, then
-            # move it into the staging folder.
-            $setupName = "ArenaDesktop-Setup-v$version-$arch.exe"
-            makensis "/DVERSION=$version" "/DARCH=$arch" "/DSTAGE=$((Resolve-Path $publish).Path)" installer/ArenaDesktop.nsi
-            if ($LASTEXITCODE -ne 0) { throw "makensis failed for $arch." }
-            $produced = @("installer/$setupName", "./$setupName", "out/$setupName") |
-              Where-Object { Test-Path $_ } | Select-Object -First 1
-            if (-not $produced) { throw "makensis reported success but $setupName was not produced." }
-            $setup = "out/$setupName"
-            Move-Item -Path $produced -Destination $setup -Force
-            Write-Host "$setup  $((Get-Item $setup).Length) bytes"
+            foreach ($arch in @('x64', 'arm64')) {
+              $publish = "publish/$arch"
+              Write-Host "::group::publish win-$arch"
+              dotnet publish src/ArenaDesktop/ArenaDesktop.csproj -c Release -r "win-$arch" --self-contained true -o $publish
+              if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed for win-$arch (exit $LASTEXITCODE)." }
+              if (-not (Test-Path (Join-Path $publish 'ArenaDesktop.exe'))) {
+                throw "dotnet publish for win-$arch produced no ArenaDesktop.exe in $publish."
+              }
+              Write-Host "::endgroup::"
+
+              # The portable zip carries the docs a user needs beside the
+              # exe, the same set ci.yml stages for its artifact.
+              Copy-Item README.md, LICENSE, KNOWN_LIMITATIONS.md, RELEASE_CHECKLIST.md $publish/
+              $zip = "out/ArenaDesktop-v$version-windows-$arch.zip"
+              if (Test-Path $zip) { Remove-Item $zip -Force }
+              [System.IO.Compression.ZipFile]::CreateFromDirectory(
+                (Resolve-Path $publish).Path,
+                (Join-Path (Get-Location) $zip),
+                [System.IO.Compression.CompressionLevel]::Optimal,
+                $false)
+              Write-Host "$zip  $((Get-Item $zip).Length) bytes"
+
+              # The installer stages exactly that same folder, so the two
+              # channels cannot ship different files.
+              #
+              # The script carries a relative OutFile, and NSIS resolves
+              # that against the .nsi file's own directory — not the
+              # working directory — so the exe lands in installer/.
+              $setupName = "ArenaDesktop-Setup-v$version-$arch.exe"
+              Write-Host "::group::makensis $arch"
+              $makensis = (Get-Command makensis -ErrorAction SilentlyContinue).Source
+              if (-not $makensis) { throw "makensis is not on PATH; the Install NSIS step did not expose it." }
+              Write-Host "makensis: $makensis"
+              & $makensis "/DVERSION=$version" "/DARCH=$arch" "/DSTAGE=$((Resolve-Path $publish).Path)" "installer/ArenaDesktop.nsi"
+              if ($LASTEXITCODE -ne 0) { throw "makensis failed for $arch (exit $LASTEXITCODE)." }
+              Write-Host "::endgroup::"
+              $produced = @("installer/$setupName", "./$setupName", "out/$setupName") |
+                Where-Object { Test-Path $_ } | Select-Object -First 1
+              if (-not $produced) { throw "makensis reported success but $setupName was not produced." }
+              $setup = "out/$setupName"
+              Move-Item -Path $produced -Destination $setup -Force
+              Write-Host "$setup  $((Get-Item $setup).Length) bytes"
+            }
+
+            # Every asset, in a stable order, lower-case hashes: exactly
+            # the shape SumsFile parses (`<64 hex>  <name>`, no spaces).
+            $names = @(
+              "ArenaDesktop-v$version-windows-x64.zip",
+              "ArenaDesktop-v$version-windows-arm64.zip",
+              "ArenaDesktop-Setup-v$version-x64.exe",
+              "ArenaDesktop-Setup-v$version-arm64.exe"
+            )
+            $lines = foreach ($name in $names) {
+              $path = Join-Path out $name
+              if (-not (Test-Path $path)) { throw "Missing asset $name." }
+              "$((Get-FileHash $path -Algorithm SHA256).Hash.ToLower())  $name"
+            }
+            # Explicit LF and no BOM: SumsFile splits on '\n' and takes the
+            # first 64 bytes of each line as the hash, so a BOM or CRLF
+            # would make every line unreadable to the updater.
+            $text = ($lines -join "`n") + "`n"
+            [IO.File]::WriteAllText((Join-Path (Get-Location) 'out/SHA256SUMS.txt'), $text, [Text.Encoding]::ASCII)
           }
 
-          # Every asset, in a stable order, lower-case hashes: exactly the
-          # shape SumsFile parses (`<64 hex>  <name>`, no spaces in names).
-          $names = @(
-            "ArenaDesktop-v$version-windows-x64.zip",
-            "ArenaDesktop-v$version-windows-arm64.zip",
-            "ArenaDesktop-Setup-v$version-x64.exe",
-            "ArenaDesktop-Setup-v$version-arm64.exe"
-          )
-          $lines = foreach ($name in $names) {
-            $path = Join-Path out $name
-            if (-not (Test-Path $path)) { throw "Missing asset $name." }
-            "$((Get-FileHash $path -Algorithm SHA256).Hash.ToLower())  $name"
+          try {
+            & $pack
+          } catch {
+            # One line, in the annotation, where it can actually be read.
+            $m = $_.Exception.Message -replace "`r", " " -replace "`n", " "
+            Write-Host "::error title=Packaging failed::$m"
+            throw
           }
-          # Explicit LF and no BOM: SumsFile splits on '\n' and takes the
-          # first 64 bytes of each line as the hash, so a BOM or CRLF would
-          # make every line unreadable to the updater that has to parse it.
-          $text = ($lines -join "`n") + "`n"
-          [IO.File]::WriteAllText((Join-Path (Get-Location) 'out/SHA256SUMS.txt'), $text, [Text.Encoding]::ASCII)
+
+      # TEMPORARY DIAGNOSTIC — remove before the release is real.
+      - name: Diagnostic — publish the failure into the check summary
+        if: failure()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $text = @()
+          foreach ($f in @('out/*.zip','out/*.exe','out/SHA256SUMS.txt')) {
+            $text += "exists $f : $(Test-Path $f)"
+          }
+          $text += "--- publish/x64 probe ---"
+          if (Test-Path 'publish/x64') {
+            $text += "ArenaDesktop.exe: $(Test-Path 'publish/x64/ArenaDesktop.exe')"
+            $text += "file count: $((Get-ChildItem publish/x64 -Recurse -File).Count)"
+          } else { $text += "publish/x64 missing" }
+          $text += "--- publish/arm64 probe ---"
+          if (Test-Path 'publish/arm64') {
+            $text += "ArenaDesktop.exe: $(Test-Path 'publish/arm64/ArenaDesktop.exe')"
+            $text += "file count: $((Get-ChildItem publish/arm64 -Recurse -File).Count)"
+          } else { $text += "publish/arm64 missing" }
+          $text += "--- makensis ---"
+          $mk = (Get-Command makensis -ErrorAction SilentlyContinue).Source
+          $text += "makensis on PATH: $mk"
+          $text += "--- NSIS probe run ---"
+          if ($mk) {
+            & $mk "/DVERSION=0.0.0" "/DARCH=x64" "/DSTAGE=$((Resolve-Path 'publish/x64' -ErrorAction SilentlyContinue).Path)" 'installer/ArenaDesktop.nsi' *>&1 | ForEach-Object { $text += "NSIS: $_" }
+            $text += "NSIS exit: $LASTEXITCODE"
+          }
+          $summary = ($text -join "`n")
+          Set-Content -Path diag.txt -Value $summary -Encoding utf8
+          $sha = "${{ github.sha }}"
+          $runs = gh api "repos/${{ github.repository }}/commits/$sha/check-runs?per_page=100" | ConvertFrom-Json
+          foreach ($cr in $runs.check_runs) {
+            if ($cr.name -notmatch 'arm64') {
+              $body = @{ output = @{ title = 'diag'; summary = $summary } } | ConvertTo-Json -Depth 5
+              $tmp = Join-Path $env:RUNNER_TEMP 'patch.json'
+              Set-Content -Path $tmp -Value $body -Encoding utf8
+              gh api --method PATCH "repos/${{ github.repository }}/check-runs/$($cr.id)" --input $tmp | Out-Null
+              Write-Host "patched $($cr.id)"
+            }
+          }
 
       # Independent of the packing above: build the sums file from the
       # bytes on disk, then verify each file against it. A packaging step
