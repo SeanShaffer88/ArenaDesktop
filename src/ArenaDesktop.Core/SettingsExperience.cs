@@ -153,6 +153,11 @@ public static class SettingsReset
         target.UpdateCheckFrequency = fresh.UpdateCheckFrequency;
         target.UpdateSnoozedUntilUtc = fresh.UpdateSnoozedUntilUtc;
         target.ShowWhatsNew = fresh.ShowWhatsNew;
+        // Enhancement pack 10: the idle lock returns to off. The app-lock
+        // credential itself is identity, not a preference, and a settings
+        // reset keeps it (a reset must not silently unlock the app), but
+        // the idle delay the user opted into does reset.
+        target.AppLockIdleMinutes = fresh.AppLockIdleMinutes;
         // S5 fields.
         target.Theme = fresh.Theme;
         target.AccentColor = fresh.AccentColor;

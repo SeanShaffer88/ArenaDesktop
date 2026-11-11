@@ -38,6 +38,17 @@ The release notes ArenaDesktop shows on the first launch of a new version. This 
 
 - **The Diagnostics route check keeps itself fresh.** While the Diagnostics window is open, the mode-route check re-runs every two minutes, and the last finished check's time ("Last checked 14:32") shows beside the button; closing the window stops the re-checks. The Check mode routes button works exactly as before when you want a check right now.
 
+## [0.6.0] — Unreleased
+
+A second small pack on the same theme as 0.5.0: things that were silent now speak, and things that were one-at-a-time now take the whole selection. The idle lock is the one genuinely new capability — the app could lock itself on startup or when it hid to the tray, but not when you simply walked away.
+
+### Added
+
+- **Idle auto-lock (opt-in, off by default).** Settings → Privacy → App lock gains a **Lock after … with no input** picker: Never, 5, 15, 30, 60 minutes, or 2 hours. It uses the same password the lock already asks for, so it only does anything when one is set — the picker says so instead of pretending otherwise. When the timer fires the app hides to the tray and locks, without stealing focus from whatever you moved on to; unlocking brings the window back. A quick check every 30 seconds decides, and if Windows can't report the idle time the app does nothing rather than guess.
+- **Zoom tells you where it landed.** Ctrl+= / Ctrl+- (and the toolbar buttons) were silent, so a keyboard user could not tell whether the key did anything, or how far they were from where they started. The status line now reads "Zoom 125%", and at either end of the range says which end it is rather than naming a level that did not change. Ctrl+0 resets to 100% and reports that too.
+- **Delete several downloads at once.** The Downloads list now supports Ctrl+click and Shift+click; selecting more than one row reveals **Delete N selected…**, and the confirmation names how many files, their total size, and how many are already missing — so the number is about what will actually happen. One history write for the batch, per-file failures are reported and kept in the list rather than aborting the rest, and the Delete key does whatever the visible button would.
+- **Filter the log by level.** The log viewer gains Errors / Warnings / Info / Unparsed chips with a count beside each, composing with find. Levels are read from the `[LEVEL]` marker the logger itself writes, not by searching the message text, so an INFO line that mentions an error is not promoted to one. Unparsed lines are shown as their own group rather than dropped, and the redaction audit and "Copy redacted log" always work on the whole file, never just the filtered view.
+
 ## [0.5.0] — Unreleased
 
 A hardening pack: durability, honest status, and the small everyday frictions between a person and the text they are working with. Nothing here changes what the app is for.

@@ -273,7 +273,13 @@ public partial class DownloadsWindow : Window
                 e.Handled = true;
                 break;
             case System.Windows.Input.Key.Delete:
-                OnDeleteFile(sender, e);
+                // The key must do whatever the visible button would do, or
+                // a multi-selection would delete only the focused row and
+                // silently leave the rest.
+                if ((DownloadsList.SelectedItems?.Count ?? 0) >= 2)
+                    OnDeleteSelected(sender, e);
+                else
+                    OnDeleteFile(sender, e);
                 e.Handled = true;
                 break;
             case System.Windows.Input.Key.C when (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0:
@@ -311,6 +317,20 @@ public partial class DownloadsWindow : Window
         CopyPathButton.IsEnabled = enabled;
         OpenWithButton.IsEnabled = enabled;
         DeleteFileButton.IsEnabled = enabled;
+        // Enhancement pack 10: with several rows selected the single-file
+        // button is replaced by the bulk one, rather than sitting beside
+        // it. Two delete buttons side by side would be a guess about which
+        // one the user meant, and the row is fixed-width — the pair would
+        // clip at the window's minimum size.
+        var count = DownloadsList?.SelectedItems?.Count ?? 0;
+        var bulk = count >= 2;
+        if (DeleteSelectedButton is not null)
+        {
+            DeleteSelectedButton.Visibility = bulk ? Visibility.Visible : Visibility.Collapsed;
+            DeleteSelectedButton.IsEnabled = bulk;
+            DeleteSelectedButton.Content = bulk ? $"Delete {count} selected…" : "Delete selected…";
+        }
+        DeleteFileButton.Visibility = bulk ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) =>
@@ -437,6 +457,81 @@ public partial class DownloadsWindow : Window
             _log.Warn($"Downloads window delete-file failed: {ex.Message}");
             NoteText.Text = $"Couldn't delete \"{row.Record.FileName}\" ({ex.Message}).";
         }
+        Refresh();
+    }
+
+    /// <summary>
+    /// Delete every selected file and its history entry in one go
+    /// (enhancement pack 10).
+    ///
+    /// The single-file path asks "Delete "x" from this PC?" — fine for one
+    /// file, useless for forty, where the user cannot see what they are
+    /// about to lose. This confirmation names the count and the total size,
+    /// and says how many of the files are already gone, so the number is
+    /// about what will actually happen.
+    ///
+    /// One history write for the whole batch (<see cref="DownloadHistoryStore.RemoveMany"/>)
+    /// rather than one per file, and per-file failures are collected and
+    /// reported instead of aborting the rest — a file held open by another
+    /// program must not block the other thirty-nine.
+    /// </summary>
+    private void OnDeleteSelected(object sender, RoutedEventArgs e)
+    {
+        var rows = DownloadsList.SelectedItems
+            .OfType<Row>()          // the list only ever holds Row (see Refresh)
+            .ToList();
+        if (rows.Count < 2)
+            return;
+
+        var present = rows.Where(r => File.Exists(r.Record.FullPath)).ToList();
+        var missing = rows.Count - present.Count;
+        var bytes = present.Sum(r => r.Record.SizeBytes);
+        var invoker = FocusReturn.Capture();
+        var confirm = System.Windows.MessageBox.Show(this,
+            $"Delete these {rows.Count} files from this PC?\n\n" +
+            (present.Count > 0
+                ? $"{present.Count} {(present.Count == 1 ? "file" : "files")} on disk ({DownloadText.FormatBytes(bytes)}) " +
+                  "will be deleted permanently — not sent to the Recycle Bin. "
+                : "") +
+            (missing > 0 ? $"{missing} already {(missing == 1 ? "is" : "are")} missing. " : "") +
+            "Their entries are removed from this list. This can't be undone from ArenaDesktop.",
+            "Delete selected files", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (confirm != MessageBoxResult.Yes)
+        {
+            FocusReturn.Restore(invoker);
+            return;
+        }
+
+        // Track failures by RECORD IDENTITY, not by file name: two
+        // downloads of the same name into different folders are two
+        // ordinary rows, and matching on the name would drop the entry of
+        // a file that was never deleted.
+        var failedKeys = new HashSet<(string, DateTimeOffset)>();
+        var failedNames = new List<string>();
+        foreach (var row in present)
+        {
+            try
+            {
+                File.Delete(row.Record.FullPath);
+            }
+            catch (Exception ex)
+            {
+                failedKeys.Add((row.Record.FullPath, row.Record.CompletedUtc));
+                failedNames.Add(row.Record.FileName);
+                _log.Warn($"Downloads window bulk delete failed for {row.Record.FileName}: {ex.Message}");
+            }
+        }
+        // Only drop the entries whose file is actually gone; a failed
+        // delete keeps its row so the user can retry it.
+        var cleared = rows
+            .Where(r => !failedKeys.Contains((r.Record.FullPath, r.Record.CompletedUtc)))
+            .ToList();
+        var removed = DownloadHistoryStore.RemoveMany(AppPaths.DownloadsHistoryPath, cleared.Select(r => r.Record), _historyCap);
+        _log.Info($"Downloads window: bulk delete removed {removed} entries ({failedNames.Count} failed)");
+
+        NoteText.Text = failedNames.Count == 0
+            ? $"Deleted {removed} {(removed == 1 ? "entry" : "entries")}."
+            : $"Deleted {removed}; {failedNames.Count} couldn't be deleted ({string.Join(", ", failedNames.Take(3))}{(failedNames.Count > 3 ? ", …" : "")}).";
         Refresh();
     }
 

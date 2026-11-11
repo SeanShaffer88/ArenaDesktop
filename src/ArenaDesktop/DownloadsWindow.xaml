@@ -92,6 +92,7 @@
                      Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource HairlineBrush}"
                      MouseDoubleClick="OnOpen" SelectionChanged="OnSelectionChanged"
                      KeyDown="OnHistoryKeyDown"
+                     SelectionMode="Extended"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      AutomationProperties.Name="Download history">
                 <ListBox.ItemTemplate>
@@ -117,6 +118,9 @@
                 <Button x:Name="CopyPathButton" Content="Copy path" Width="84" Height="30" Margin="8,0,0,0" Click="OnCopyPath"/>
                 <Button x:Name="OpenWithButton" Content="Open with…" Width="92" Height="30" Margin="8,0,0,0" Click="OnOpenWith"/>
                 <Button x:Name="DeleteFileButton" Content="Delete file" Width="86" Height="30" Margin="8,0,0,0" Click="OnDeleteFile"/>
+                <Button x:Name="DeleteSelectedButton" Content="Delete selected…" Width="120" Height="30" Margin="8,0,0,0"
+                        Click="OnDeleteSelected" Visibility="Collapsed"
+                        ToolTip="Delete every selected file from this PC, and their entries from this list (Ctrl+click or Shift+click to select several)"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
                 <Button Content="Clear history" Width="100" Height="30" Click="OnClear"/>

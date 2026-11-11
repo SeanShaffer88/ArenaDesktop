@@ -303,6 +303,15 @@ public sealed class AppSettings
     public bool AppLockOnTrayHide { get; set; } = true;
 
     /// <summary>
+    /// Lock after this many minutes with no input anywhere on the PC
+    /// (enhancement pack 10). 0 = never, which is the default: the other
+    /// two lock paths are already on, and a lock that surprises someone
+    /// mid-read is worse than one they asked for. Only ever acts when the
+    /// app lock has a valid credential — see <see cref="IdleLock"/>.
+    /// </summary>
+    public int AppLockIdleMinutes { get; set; } = IdleLock.NeverMinutes;
+
+    /// <summary>
     /// Set by <see cref="Sanitized"/> when it had to disable a broken
     /// app-lock record (enabled but missing/malformed), so the shell
     /// can log the repair. Not persisted (JsonIgnore) — it's a
@@ -483,6 +492,10 @@ public sealed class AppSettings
             AppLockIterations = 0;
             AppLockWasRepaired = true;
         }
+        // Enhancement pack 10: an out-of-range idle delay reads as "never"
+        // rather than being clamped up — a hand-edited 600 must not quietly
+        // become a two-hour lock the user never chose.
+        AppLockIdleMinutes = IdleLock.Sanitize(AppLockIdleMinutes);
         SettingsWindowWidth = SettingsWindowWidth is >= 420 and <= 2000 ? SettingsWindowWidth : 480;
         SettingsWindowHeight = SettingsWindowHeight == 0 || SettingsWindowHeight is >= 400 and <= 2000
             ? SettingsWindowHeight

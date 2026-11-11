@@ -25,6 +25,20 @@ public partial class LogViewerWindow : Window
     private int _matchIndex = -1;
     private string _lastQuery = "";
 
+    /// <summary>
+    /// Levels the filter is showing (enhancement pack 10). Empty means
+    /// "everything", which is how the viewer opens — the filter is a
+    /// narrowing tool, never something the user has to undo to see their
+    /// log back.
+    /// </summary>
+    private readonly HashSet<LogLevel> _visibleLevels = new();
+
+    /// <summary>Set while <see cref="ResyncChipsToShowEverything"/> writes the boxes, so its own writes aren't treated as clicks.</summary>
+    private bool _syncingChips;
+
+    /// <summary>The full text as read, before the level filter. Find runs against this, then the visible view.</summary>
+    private string _fullLogText = "";
+
     public LogViewerWindow()
     {
         InitializeComponent();
@@ -43,32 +57,152 @@ public partial class LogViewerWindow : Window
         }
         catch (Exception ex)
         {
-            _logText = "";
+            ResetToEmpty();
             AuditText.Text = $"Couldn't read the log file ({ex.Message}). It lives at {AppPaths.LogPath}.";
             FindingsText.Text = "";
-            LogText.Text = "";
             return;
         }
         if (_logText.Length == 0)
         {
+            ResetToEmpty();
             AuditText.Text = "The log is empty right now — nothing has been written to it yet.";
             FindingsText.Text = "";
-            LogText.Text = "";
             return;
         }
-        LogText.Text = _logText;
-        LogText.ScrollToEnd();
-        // A refresh replaces the text under an existing query; re-run it
-        // so the highlight and the count still describe what is on screen.
-        if (!string.IsNullOrEmpty(FindBox.Text))
-            RunSearch(FindBox.Text, forward: true);
-        var lineCount = _logText.Split('\n').Length;
-        var findings = RedactionAudit.Scan(_logText);
+        // _fullLogText is the file as read and _logText is what the level
+        // filter leaves visible. The audit always scans the FULL text: a
+        // redaction finding must not disappear because the user filtered
+        // that line's level out.
+        _fullLogText = _logText;
+        RebuildLevelChips();
+        ApplyLevelFilter(scrollToEnd: true);
+        var lineCount = _fullLogText.Split('\n').Length;
+        var findings = RedactionAudit.Scan(_fullLogText);
         AuditText.Text = RedactionAudit.Summarize(findings, lineCount);
         FindingsText.Text = findings.Count == 0
             ? ""
             : string.Join("\n", findings.Take(30).Select(f => $"Line {f.LineNumber}: {f.Description}.")) +
               (findings.Count > 30 ? $"\n…and {findings.Count - 30} more." : "");
+    }
+
+    // ─────────────────────── level filter (enhancement pack 10) ───────────────────────
+
+    /// <summary>
+    /// Build one toggle per level, with its count. Rebuilt on every reload
+    /// so the numbers describe the file that is on screen; the user's
+    /// current selection is preserved by matching on the level itself, not
+    /// on the control.
+    /// </summary>
+    private void RebuildLevelChips()
+    {
+        if (LevelChips is null)
+            return;
+        LevelChips.Children.Clear();
+        LevelChips.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = "Show",
+            VerticalAlignment = System.Windows.VerticalAlignment.Center,
+            Margin = new System.Windows.Thickness(0, 0, 8, 0),
+            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
+        });
+        var counts = LogLevelFilter.Counts(_fullLogText);
+        foreach (var level in LogLevelFilter.Selectable)
+        {
+            var count = counts.TryGetValue(level, out var n) ? n : 0;
+            var chip = new System.Windows.Controls.CheckBox
+            {
+                // Nothing selected means everything is shown, so an empty
+                // selection must not render as "no levels ticked".
+                IsChecked = _visibleLevels.Count == 0 || _visibleLevels.Contains(level),
+                Content = $"{LogLevelFilter.Label(level)} ({count})",
+                Margin = new System.Windows.Thickness(0, 0, 12, 0),
+                VerticalAlignment = System.Windows.VerticalAlignment.Center,
+                Tag = level,
+                // A level with nothing in it stays clickable. Disabling it
+                // would leave a CHECKED but dead box whenever the filter is
+                // unset (every box renders ticked then), so the user would
+                // see a control they cannot switch off. It is harmless to
+                // tick: the chip produces no lines either way, and
+                // OnLevelChipChanged still treats "every box ticked" as
+                // show-everything.
+                IsEnabled = true,
+            };
+            System.Windows.Automation.AutomationProperties.SetName(chip, $"{LogLevelFilter.Label(level)}, {count} lines");
+            chip.Checked += OnLevelChipChanged;
+            chip.Unchecked += OnLevelChipChanged;
+            LevelChips.Children.Add(chip);
+        }
+    }
+
+    /// <summary>
+    /// A chip was toggled. "All four ticked" is stored as an empty
+    /// selection — the same state as "none ticked" would otherwise be,
+    /// except that none-ticked must never mean an empty log. Rather than
+    /// choosing between those, the rule is: the filter is the set of
+    /// levels to SHOW, and ticking everything resets to show-everything.
+    /// </summary>
+    private void OnLevelChipChanged(object sender, RoutedEventArgs e)
+    {
+        if (_syncingChips)
+            return;
+        _visibleLevels.Clear();
+        var ticked = 0;
+        var total = 0;
+        foreach (var child in LevelChips.Children.OfType<System.Windows.Controls.CheckBox>())
+        {
+            if (child.Tag is not LogLevel level)
+                continue;
+            total++;
+            if (child.IsChecked == true)
+            {
+                _visibleLevels.Add(level);
+                ticked++;
+            }
+        }
+        // All four ticked and none ticked both describe "show everything":
+        // an empty view is never a useful answer to a click, and the second
+        // case is reachable by unticking the last box.
+        if (ticked == total || ticked == 0)
+        {
+            _visibleLevels.Clear();
+            if (ticked == 0)
+                ResyncChipsToShowEverything();
+        }
+        ApplyLevelFilter(scrollToEnd: false);
+    }
+
+    /// <summary>
+    /// After "untick the last box", put every box back to ticked — the
+    /// state that actually matches what is on screen. Without this the
+    /// chips would all read unchecked while the full log is displayed.
+    /// </summary>
+    private void ResyncChipsToShowEverything()
+    {
+        _syncingChips = true;
+        foreach (var chip in LevelChips.Children.OfType<System.Windows.Controls.CheckBox>())
+            chip.IsChecked = true;
+        _syncingChips = false;
+    }
+
+    /// <summary>
+    /// Show the lines whose level is selected. The full text stays in
+    /// memory (<see cref="_fullLogText"/>) so turning a chip back on is
+    /// instant and the redaction audit never has to re-read the file.
+    /// </summary>
+    private void ApplyLevelFilter(bool scrollToEnd)
+    {
+        var text = _visibleLevels.Count == 0
+            ? _fullLogText
+            : LogLevelFilter.Apply(_fullLogText, _visibleLevels);
+        _logText = text;
+        LogText.Text = text;
+        if (scrollToEnd)
+            LogText.ScrollToEnd();
+        // The filtered view changes what find searches, so re-run it —
+        // otherwise a match count could describe lines that are no longer
+        // on screen.
+        if (!string.IsNullOrEmpty(FindBox.Text))
+            RunSearch(FindBox.Text, forward: true);
     }
 
     // ───────────────────────── find (hardening pack) ─────────────────────────
@@ -169,14 +303,32 @@ public partial class LogViewerWindow : Window
         LogText.Focus();
     }
 
+    /// <summary>Clear every view when there is no log to show, so a stale filter cannot linger over a stale count.</summary>
+    private void ResetToEmpty()
+    {
+        _logText = "";
+        _fullLogText = "";
+        _visibleLevels.Clear();
+        LogText.Text = "";
+        if (LevelChips is not null)
+            LevelChips.Children.Clear();
+    }
+
     private void OnCopyRedacted(object sender, RoutedEventArgs e)
     {
-        if (_logText.Length == 0)
+        // The FULL log, not the filtered view: this button's job is "give
+        // me something I can paste into a bug report", and a report missing
+        // every line the user happened to filter out is worse than useless.
+        // The level filter narrows what is on screen; it does not decide
+        // what gets attached.
+        if (_fullLogText.Length == 0)
             return;
         try
         {
-            System.Windows.Clipboard.SetText(RedactionAudit.Redact(_logText));
-            CopyNote.Text = "Copied — anything the check flagged was removed first.";
+            System.Windows.Clipboard.SetText(RedactionAudit.Redact(_fullLogText));
+            CopyNote.Text = _visibleLevels.Count > 0
+                ? "Copied the whole log (all levels) — anything the check flagged was removed first."
+                : "Copied — anything the check flagged was removed first.";
         }
         catch
         {
@@ -189,7 +341,10 @@ public partial class LogViewerWindow : Window
     /// <summary>Copy just the newest error, redacted (S10 #93) — the one line a bug report usually needs.</summary>
     private void OnCopyLastError(object sender, RoutedEventArgs e)
     {
-        var last = LogReading.LastError(_logText);
+        // The newest error in the FILE, not in the filtered view: with the
+        // Errors chip off, searching the visible text would report "no
+        // errors" about a log full of them.
+        var last = LogReading.LastError(_fullLogText);
         if (last is null)
         {
             CopyNote.Text = "No errors in the current log — nothing to copy.";

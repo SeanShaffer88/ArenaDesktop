@@ -82,4 +82,30 @@ public static class ZoomMath
     /// </summary>
     public static string FormatPercent(double factor) =>
         $"{(int)Math.Round(Clamp(factor, extendedRange: true) * 100)}%";
+
+    /// <summary>
+    /// The one-line report for a zoom change (enhancement pack 10).
+    ///
+    /// Zoom used to be completely silent: Ctrl+= and Ctrl+- changed the
+    /// page with no status line and no announcement, so a keyboard user
+    /// could not tell whether the key had done anything or how many steps
+    /// they were from where they started. The preset menu already reported
+    /// ("isn't in the current zoom range…"), which made the silence on the
+    /// step keys worse rather than better.
+    ///
+    /// Wording is deliberately flat so a screen reader says it cleanly:
+    /// "Zoom 125%" and, at a limit, why the press did nothing.
+    /// </summary>
+    /// <param name="factor">The zoom factor now in effect.</param>
+    /// <param name="atLimit">
+    /// True when the request could not move further (already at the
+    /// smallest or largest step). The caller detects this by comparing the
+    /// factor before and after; saying "Zoom 50%" when nothing changed
+    /// reads as though it worked.
+    /// </param>
+    /// <param name="extendedRange">Whether the extended range is on, which is what decides where the limits are.</param>
+    public static string Report(double factor, bool atLimit, bool extendedRange) =>
+        atLimit
+            ? $"Zoom {FormatPercent(factor)} — that's the {(factor <= MinFor(extendedRange) ? "smallest" : "largest")} this zoom range goes"
+            : $"Zoom {FormatPercent(factor)}";
 }

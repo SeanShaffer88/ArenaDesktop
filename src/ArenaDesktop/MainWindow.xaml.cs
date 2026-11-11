@@ -459,6 +459,29 @@ public partial class MainWindow : Window
     /// </summary>
     private readonly DispatcherTimer _arrivalTimer = new();
 
+    /// <summary>
+    /// Polls the OS idle time for the idle lock (enhancement pack 10).
+    /// Created once and left stopped unless the setting is on — an off-by-
+    /// default feature must not tick in the background.
+    /// </summary>
+    private DispatcherTimer? _idleLockTimer;
+
+    /// <summary>How often the idle lock asks the OS. A minute's resolution needs nothing faster, and a slow tick cannot lock anyone early.</summary>
+    private static readonly TimeSpan IdleCheckInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Set when the idle watchdog is the thing that locked the app, and
+    /// consumed on unlock (enhancement pack 10).
+    ///
+    /// The status line is the wrong place to report this when it happens:
+    /// the window is hidden a moment later, so the message would never be
+    /// read — and it would still be sitting there on the status bar the
+    /// next time the user looked, describing something that finished. The
+    /// useful moment to say "it locked itself" is the unlock, which is
+    /// exactly when the user is wondering why.
+    /// </summary>
+    private int? _lockedAfterIdleMinutes;
+
 
     private void StartSessionClock()
     {
@@ -610,6 +633,10 @@ public partial class MainWindow : Window
             _taskbar = new TaskbarProgress(new WindowInteropHelper(this).Handle, _log);
         }
         catch (Exception ex) { _log.Warn($"Taskbar progress init failed: {ex.Message}"); }
+        // User shortcuts and the idle watchdog are independent of the web
+        // view, so they start even on a locked launch: the unlock path
+        // restarts the watchdog from the unlock itself.
+        SyncIdleLockTimer();
         // S7 #64: locked at start (background launch) — the web view
         // does not initialize, let alone navigate, until unlock. The
         // deferred work runs in OnAppUnlocked.
@@ -922,6 +949,7 @@ public partial class MainWindow : Window
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        _idleLockTimer?.Stop();
         _watchdogTimer?.Stop();
         _saveTimer?.Stop();
         // Force: this is the last moment the state can be written.
@@ -2087,15 +2115,37 @@ public partial class MainWindow : Window
         if (_webReady) Browser.CoreWebView2.Navigate(UrlPolicy.HomeUrl);
     }
 
-    private void OnZoomIn(object sender, RoutedEventArgs e)
+    private void OnZoomIn(object sender, RoutedEventArgs e) => StepZoom(up: true);
+
+    /// <summary>
+    /// Step the zoom and say what happened (enhancement pack 10). Both the
+    /// toolbar buttons and Ctrl+= / Ctrl+- come through here, so the report
+    /// cannot be present on one route and missing on the other. At a limit
+    /// the line says so instead of naming a level that did not change.
+    /// </summary>
+    private void StepZoom(bool up)
     {
-        if (_webReady) Browser.ZoomFactor = ZoomMath.StepUp(Browser.ZoomFactor, _settings.ExtendedZoomRange);
+        if (!_webReady)
+            return;
+        var before = Browser.ZoomFactor;
+        Browser.ZoomFactor = up
+            ? ZoomMath.StepUp(before, _settings.ExtendedZoomRange)
+            : ZoomMath.StepDown(before, _settings.ExtendedZoomRange);
+        var after = Browser.ZoomFactor;
+        var atLimit = Math.Abs(after - before) < 0.0001;
+        SetStatus(ZoomMath.Report(after, atLimit, _settings.ExtendedZoomRange));
     }
 
-    private void OnZoomOut(object sender, RoutedEventArgs e)
+    /// <summary>Reset to 100% and report it — the same line the steps produce.</summary>
+    private void ResetZoom()
     {
-        if (_webReady) Browser.ZoomFactor = ZoomMath.StepDown(Browser.ZoomFactor, _settings.ExtendedZoomRange);
+        if (!_webReady)
+            return;
+        Browser.ZoomFactor = 1.0;
+        SetStatus(ZoomMath.Report(1.0, atLimit: false, _settings.ExtendedZoomRange));
     }
+
+    private void OnZoomOut(object sender, RoutedEventArgs e) => StepZoom(up: false);
 
     /// <summary>Enhancement pack: a named zoom preset from the View menu — offered only when the active range can hold it.</summary>
     private void OnZoomPreset(object sender, RoutedEventArgs e)
@@ -2369,6 +2419,7 @@ public partial class MainWindow : Window
         _settings.AppLockHash = clone.AppLockHash;
         _settings.AppLockIterations = clone.AppLockIterations;
         _settings.AppLockOnTrayHide = clone.AppLockOnTrayHide;
+        _settings.AppLockIdleMinutes = clone.AppLockIdleMinutes;
         // S11: the global hotkey (#96) and the arenadesktop:// links
         // toggle (#99) — both take effect on OK below, not at the
         // next launch: the hotkey re-registers (freeing the old
@@ -2407,6 +2458,10 @@ public partial class MainWindow : Window
         // S11 #96/#99 live apply (see the adoption above).
         _hotkeyManager?.Apply(_settings);
         ProtocolRegistration.Sync(_settings, _log);
+        // Enhancement pack 10: the idle watchdog follows the setting the
+        // moment OK is pressed — switched on it starts, switched off it
+        // stops rather than firing one last time.
+        SyncIdleLockTimer();
 
         // Delete the data folders of profiles removed in the dialog. When
         // a folder can't be deleted now — it's the one this process is
@@ -2769,6 +2824,13 @@ public partial class MainWindow : Window
         if (_isLocked)
             return;
         _isLocked = true;
+        // Every other lock path clears the idle reason: only the watchdog
+        // sets it again below, so an unlock after "Lock now" or the
+        // tray-hide lock can never claim the app locked itself.
+        _lockedAfterIdleMinutes = null;
+        // No idle observation can matter while locked, and a stopped timer
+        // is one less thing asking the OS a question every 30 seconds.
+        _idleLockTimer?.Stop();
         _log.Info("App locked");
         foreach (var other in System.Windows.Application.Current.Windows.OfType<Window>().ToList())
         {
@@ -2785,6 +2847,70 @@ public partial class MainWindow : Window
         }
         if (presentUi)
             PresentLockWindow();
+    }
+
+    // ───────────────────── idle lock (enhancement pack 10) ─────────────────────
+
+    /// <summary>
+    /// Start or stop the idle watchdog to match the setting. Called when
+    /// settings are applied and after an unlock, so turning the delay off
+    /// stops the timer immediately instead of letting one last tick fire.
+    /// </summary>
+    private void SyncIdleLockTimer()
+    {
+        var enabled = IdleLock.IsEnabled(_settings.AppLockIdleMinutes)
+                      && AppLock.IsLockActive(_settings);
+        if (!enabled)
+        {
+            _idleLockTimer?.Stop();
+            return;
+        }
+        if (_idleLockTimer is null)
+        {
+            _idleLockTimer = new DispatcherTimer { Interval = IdleCheckInterval };
+            _idleLockTimer.Tick += OnIdleLockTick;
+        }
+        _idleLockTimer.Start();
+    }
+
+    /// <summary>
+    /// One idle observation. The decision itself lives in Core
+    /// (<see cref="IdleLock.Decide"/>) so the four reasons it can decline
+    /// are pinned by tests; this method only asks the OS and acts.
+    ///
+    /// <c>_isLocked</c> is passed in rather than checked here because the
+    /// decision has to consider it — an idle tick while already locked
+    /// must do nothing at all, or the handler would keep re-locking a
+    /// locked app every 30 seconds.
+    /// </summary>
+    private void OnIdleLockTick(object? sender, EventArgs e)
+    {
+        var decision = IdleLock.Decide(
+            _settings.AppLockIdleMinutes,
+            IdleTime.SinceLastInput(),
+            AppLock.IsLockActive(_settings),
+            _isLocked);
+        if (!decision.ShouldLock)
+        {
+            // Logged once per reason-change would be ideal, but the reasons
+            // that matter are the unusual ones; "not idle enough" is the
+            // normal case and stays silent.
+            if (decision.Why is IdleLock.Reason.UnknownIdle or IdleLock.Reason.NotConfigured)
+                _log.Warn($"Idle lock declined: {decision.Why}");
+            return;
+        }
+        _log.Info($"Idle lock: no input for {IdleLock.Threshold(_settings.AppLockIdleMinutes).TotalMinutes:0} minutes — locking");
+        // Not "LockNow": that requires the user to have asked for it, and a
+        // background lock should not steal focus with a lock screen the way
+        // an explicit Lock now does. Hiding to the tray is the same end
+        // state the tray-hide lock produces, and the tray icon reopens the
+        // lock screen.
+        EngageLock(presentUi: false);
+        // Set after EngageLock, which clears it: this is the only path
+        // allowed to claim the app locked itself. Remembered rather than
+        // announced because the window is gone a moment later — see
+        // _lockedAfterIdleMinutes.
+        _lockedAfterIdleMinutes = IdleLock.Sanitize(_settings.AppLockIdleMinutes);
     }
 
     /// <summary>Show (or re-focus) the lock screen. Closing it without unlocking leaves the app locked in the tray.</summary>
@@ -2826,6 +2952,9 @@ public partial class MainWindow : Window
         _isLocked = false;
         _tray.SetLocked(false);
         _log.Info("App unlocked");
+        // The idle clock restarts from the unlock: the user is demonstrably
+        // present, and the watchdog stopped itself while locked.
+        SyncIdleLockTimer();
         if (_initDeferred)
         {
             _initDeferred = false;
@@ -2836,6 +2965,14 @@ public partial class MainWindow : Window
         // #99/#100) — one intent, the newest: the queue is last-wins
         // by design, so an unlock never replays a backlog.
         ShowFromTray();
+        // Say why the lock was up, now that there is a window to say it
+        // in. A queued intent may already have written its own status, so
+        // this is only the fallback — it must not overwrite real news.
+        if (_lockedAfterIdleMinutes is { } idleMinutes)
+        {
+            _lockedAfterIdleMinutes = null;
+            SetStatus($"Locked itself after {idleMinutes} minutes with no input.");
+        }
     }
 
     // ─────────────────── S11: hotkey, intents, dictate, drop ───────────────────
@@ -4160,7 +4297,7 @@ public partial class MainWindow : Window
                 case Key.OemPlus or Key.Add: OnZoomIn(this, e); e.Handled = true; break;
                 case Key.OemMinus or Key.Subtract: OnZoomOut(this, e); e.Handled = true; break;
                 case Key.D0 or Key.NumPad0:
-                    if (_webReady) Browser.ZoomFactor = 1.0;
+                    ResetZoom();
                     e.Handled = true; break;
             }
         }
