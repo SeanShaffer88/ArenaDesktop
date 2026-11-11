@@ -57,7 +57,7 @@ What you see: a file Arena made starts downloading and then fails, stalls at a p
 Why it happens: usually the connection dropped mid-download, the folder it was headed for isn't writable (a removed USB drive, a network folder that's offline), or the disk filled up. The Downloads window records failures with a reason whenever the web engine reports one.
 
 Try this:
-1. Open the Downloads window (⋯ menu → Downloads…): failed downloads from THIS session can be retried with the Retry button. Retry re-downloads into the folder your settings name now, so fix the folder first (next step) if that was the problem.
+1. Open the Downloads window (⋯ menu → **Tools** → Downloads…): failed downloads from THIS session can be retried with the Retry button. Retry re-downloads into the folder your settings name now, so fix the folder first (next step) if that was the problem.
 2. The button below opens Settings → Downloads: check the downloads folder points somewhere that exists and has space, and — if a Save-As dialog kept cancelling things — whether "Ask where to save each download" is on by accident.
 3. Reconnect and retry: most "network failed" downloads succeed on a second try once Wi-Fi is back. If a download stalls at the same percentage every time, ask Arena to produce the file again — a fresh link restarts the transfer cleanly.
 4. If downloads from one profile fail but another works, that profile may have its own downloads-folder override (Settings → Account profiles) pointing somewhere unusable.
@@ -90,7 +90,7 @@ Try this:
 
 ## How do I use the Battle Lab?
 
-The Battle Lab (⋯ menu → Battle Lab…) is where you keep battle prompts and track which side wins. It has three parts: a prompt library, a run queue, and a results journal. Everything you type is saved as you go, on this PC only.
+The Battle Lab (⋯ menu → **Tools** → Battle Lab…) is where you keep battle prompts and track which side wins. It has three parts: a prompt library, a run queue, and a results journal. Everything you type is saved as you go, on this PC only.
 
 Try this:
 1. Pick a prompt from the library on the left, or add your own with "+ New prompt". Edit its name, category, and text in the middle — there is no Save button; edits are stored straight away.
@@ -105,7 +105,7 @@ When you fill in blanks, the dialog tells you which ones you left empty — anyt
 
 ## How do I use the field pass?
 
-The field pass (⋯ menu → Field pass…, or Diagnostics → Field pass…) walks you through nine short checks that prove ArenaDesktop on this PC: the three layouts, the Battle Lab, Arena mode jumps, a battle with its journal entry, downloads, the tray and hotkey, the app lock, profile switching, and the update check.
+The field pass (⋯ menu → **Tools** → Field pass…, or Diagnostics → Field pass…) walks you through nine short checks that prove ArenaDesktop on this PC: the three layouts, the Battle Lab, Arena mode jumps, a battle with its journal entry, downloads, the tray and hotkey, the app lock, profile switching, and the update check.
 
 Each check says exactly what to do and what working looks like. When a check is about a window, its "Open …" button opens that window for you. After trying a check, mark it Pass, "It has a problem", or Skip for now, and add a note if there's anything worth remembering — a problem note is the most useful thing you can hand over with a bug report.
 
@@ -113,19 +113,19 @@ Everything is saved on this PC as you go, so you can close the window at any poi
 
 ## How do I pin a mode?
 
-The pinned mode is ArenaDesktop's one-click bookmark to a part of Arena. Pin the page you are on with ⋯ menu → *Pin this mode*; the status bar then carries a small "Pinned: …" label, and the ⋯ menu gains *Go to pinned mode*. Click either one and you are back, from wherever you are in the app.
+The pinned mode is ArenaDesktop's one-click bookmark to a part of Arena. Pin the page you are on with ⋯ menu → **Navigate** → *Pin this mode*; the status bar then carries a small "Pinned: …" label, and the same group gains *Go to pinned mode*. Click either one and you are back, from wherever you are in the app.
 
 Try this:
 1. Open the mode you want to keep handy (Leaderboard, Direct Chat, Agent — anything with its own page).
-2. Choose ⋯ → *Pin this mode*. The status bar's right-hand side shows *Pinned: <mode>* — that label is the button.
-3. Click the label (or ⋯ → *Go to pinned mode*) any time to jump back. An ordinary status message never hides it; a running download's progress does, because that is more urgent.
-4. To stop pinning, choose ⋯ → *Unpin mode*, or Settings → Behavior → *Unpin*.
+2. Choose ⋯ → **Navigate** → *Pin this mode*. The status bar's right-hand side shows *Pinned: <mode>* — that label is the button.
+3. Click the label (or ⋯ → **Navigate** → *Go to pinned mode*) any time to jump back. An ordinary status message never hides it; a running download's progress does, because that is more urgent.
+4. To stop pinning, choose ⋯ → **Navigate** → *Unpin mode*, or Settings → Behavior → *Unpin*.
 
 A pinned mode is saved with your settings, so it survives a restart; a settings reset clears it. It is a shortcut, not a change of behavior — it never changes which page a launch opens.
 
 ## What is the session window?
 
-⋯ menu → *This session…* opens a small window that counts what your current run of ArenaDesktop has actually done: how long the window has been on screen with Arena open, how many pages you visited, how many mode jumps, finished downloads and copied prompts, and a reading-time-by-mode table. "Copy summary" puts the same lines on the clipboard as plain text for a bug report.
+⋯ menu → **View** → *This session…* opens a small window that counts what your current run of ArenaDesktop has actually done: how long the window has been on screen with Arena open, how many pages you visited, how many mode jumps, finished downloads and copied prompts, and a reading-time-by-mode table. "Copy summary" puts the same lines on the clipboard as plain text for a bug report.
 
 Two honest limits: the numbers live in memory for the life of the process, so they go away when the app closes — nothing is written to disk, and nothing is sent anywhere. And the time is measured from the window being on screen, ignoring gaps longer than four hours, so it can't overstate attention after a sleep or a clock change. The app still reads nothing from the Arena page.
 

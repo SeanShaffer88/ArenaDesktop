@@ -1229,6 +1229,7 @@ public partial class MainWindow : Window
         // menu/label state, and the window's own visibility events.
         _visibleSince = IsVisible ? DateTimeOffset.UtcNow : null;
         RefreshPinnedModeChrome();
+        RefreshMenuGestures();
         StartSessionClock();
         RefreshToolbarOpacity();
         // Start page (S5 #47): an invalid custom page falls back to
@@ -2244,6 +2245,22 @@ public partial class MainWindow : Window
         RefreshPinnedStatus();
     }
 
+    /// <summary>
+    /// Keep the ⋯ menu's key hints in step with the user's remappings
+    /// (v0.7.0). Settings and Home are remappable, so a hardcoded
+    /// "Ctrl+," or "Alt+Home" in the markup would quietly become a lie
+    /// the moment someone rebinds them; the fixed keys (Back, Forward,
+    /// Reload) never move and are left alone. Called wherever shortcuts
+    /// can change — startup and Settings OK.
+    /// </summary>
+    private void RefreshMenuGestures()
+    {
+        SettingsItem.InputGestureText =
+            ShortcutBindings.EffectiveGesture(ShortcutCatalog.SettingsId, _settings.ShortcutOverrides).DisplayText();
+        HomeItem.InputGestureText =
+            ShortcutBindings.EffectiveGesture(ShortcutCatalog.HomeId, _settings.ShortcutOverrides).DisplayText();
+    }
+
     /// <summary>The pinned label shares the status bar's right-hand segment with download detail; the download detail wins while a transfer is running.</summary>
     private void RefreshPinnedStatus()
     {
@@ -2447,6 +2464,7 @@ public partial class MainWindow : Window
         // Enhancement pack: the pinned mode and toolbar dimming apply
         // immediately on OK, like the rest of Appearance.
         RefreshPinnedModeChrome();
+        RefreshMenuGestures();
         RefreshToolbarOpacity();
         if (_webReady)
             Browser.ZoomFactor = EffectiveZoom();

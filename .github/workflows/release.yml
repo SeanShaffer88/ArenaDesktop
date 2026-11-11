@@ -4,10 +4,13 @@ name: Release
 # needs is produced here, on Windows runners, from the tagged commit:
 #
 #   ArenaDesktop-v<version>-windows-x64.zip      portable, x64
-#   ArenaDesktop-v<version>-windows-arm64.zip    portable, arm64
 #   ArenaDesktop-Setup-v<version>-x64.exe        NSIS installer, x64
-#   ArenaDesktop-Setup-v<version>-arm64.exe      NSIS installer, arm64
-#   SHA256SUMS.txt                               the five-asset sums file
+#   SHA256SUMS.txt                               the three-asset sums file
+#
+# x64 only since v0.7.0: ARM64 was dropped (DECISIONS.md, 2026-11-11).
+# An arm64 install of an earlier version still names its own architecture
+# correctly and simply finds no installer in these releases, which is the
+# honest outcome — the alternative would be handing it x64 binaries.
 #
 # The asset names are a contract, not a convention: Core's UpdateAssets
 # builds `ArenaDesktop-Setup-v<version>-<arch>.exe` and the updater looks
@@ -77,7 +80,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Tag $tag matches csproj $csproj_version and WhatsNew.md carries its section."
 
-  # ── Build both architectures, then publish one release with all five assets ──
+  # ── Build x64, then publish one release with all three assets ──
   release:
     needs: verify
     runs-on: windows-latest
@@ -136,7 +139,7 @@ jobs:
           Add-Content -Path $env:GITHUB_ENV -Value "NSIS_DIR=$dir"
           Write-Host "Appended $dir to GITHUB_PATH and set NSIS_DIR"
 
-      - name: Publish, package and hash both architectures
+      - name: Publish, package and hash the x64 build
         shell: pwsh
         run: |
           # Wrapped so a failure reports WHY. A bare "exit code 1" from a
@@ -153,7 +156,7 @@ jobs:
             # structure a portable build needs beside its exe.
             Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-            foreach ($arch in @('x64', 'arm64')) {
+            foreach ($arch in @('x64')) {
               $publish = "publish/$arch"
               Write-Host "::group::publish win-$arch"
               dotnet publish src/ArenaDesktop/ArenaDesktop.csproj -c Release -r "win-$arch" --self-contained true -o $publish
@@ -215,9 +218,7 @@ jobs:
             # the shape SumsFile parses (`<64 hex>  <name>`, no spaces).
             $names = @(
               "ArenaDesktop-v$version-windows-x64.zip",
-              "ArenaDesktop-v$version-windows-arm64.zip",
-              "ArenaDesktop-Setup-v$version-x64.exe",
-              "ArenaDesktop-Setup-v$version-arm64.exe"
+              "ArenaDesktop-Setup-v$version-x64.exe"
             )
             $lines = foreach ($name in $names) {
               $path = Join-Path out $name
@@ -259,7 +260,7 @@ jobs:
               $count++
             }
           }
-          if ($count -ne 4) { throw "SHA256SUMS.txt lists $count assets, expected 4." }
+          if ($count -ne 2) { throw "SHA256SUMS.txt lists $count assets, expected 2 (zip + installer)." }
 
       # The smoke test runs the real exe, exactly as ci.yml does, so a
       # release cannot be built from something that cannot start.
@@ -319,9 +320,7 @@ jobs:
 
           $assets = @(
             "out/ArenaDesktop-v$version-windows-x64.zip",
-            "out/ArenaDesktop-v$version-windows-arm64.zip",
             "out/ArenaDesktop-Setup-v$version-x64.exe",
-            "out/ArenaDesktop-Setup-v$version-arm64.exe",
             "out/SHA256SUMS.txt"
           )
           # Refuse to overwrite an already-published release. `gh release
@@ -354,9 +353,7 @@ jobs:
 
           $expected = @(
             "ArenaDesktop-v$($env:VERSION)-windows-x64.zip",
-            "ArenaDesktop-v$($env:VERSION)-windows-arm64.zip",
             "ArenaDesktop-Setup-v$($env:VERSION)-x64.exe",
-            "ArenaDesktop-Setup-v$($env:VERSION)-arm64.exe",
             "SHA256SUMS.txt"
           )
           $published = (Get-ChildItem verify -File).Name
@@ -369,4 +366,4 @@ jobs:
               if ($actual -ne $Matches[1]) { throw "Re-downloaded $($Matches[2]) does not match the published sums." }
             }
           }
-          Write-Host "Re-downloaded and verified all five assets for $tag."
+          Write-Host "Re-downloaded and verified all three assets for $tag."

@@ -69,7 +69,7 @@ public static class FieldPassCatalog
     {
         new FieldPassStep("layouts",
             "Layouts",
-            "Open Settings → Appearance & toolbar (or use the ⋯ menu) and pick each layout in turn: Standard, then Compact Focus, then Left Rail. Watch the window rearrange each time. Then close ArenaDesktop, reopen it, and check the layout you left selected is still in use.",
+            "Open Settings → Appearance & toolbar (or use ⋯ → View → Layout) and pick each layout in turn: Standard, then Compact Focus, then Left Rail. Watch the window rearrange each time. Then close ArenaDesktop, reopen it, and check the layout you left selected is still in use.",
             "Each layout rearranges the window, and the layout you saved is still selected after a restart.",
             FieldPassTarget.Settings),
         new FieldPassStep("battle-lab",
@@ -79,7 +79,7 @@ public static class FieldPassCatalog
             FieldPassTarget.BattleLab),
         new FieldPassStep("arena-modes",
             "Arena modes",
-            "Press Ctrl+1, Ctrl+2, Ctrl+3 and Ctrl+4 in turn, then open the ⋯ menu's Arena modes and pick one. Battle, Direct Chat, Side by Side and the Leaderboard should each load.",
+            "Press Ctrl+1, Ctrl+2, Ctrl+3 and Ctrl+4 in turn, then open ⋯ → Navigate → Arena modes and pick one. Battle, Direct Chat, Side by Side and the Leaderboard should each load.",
             "Every mode you jump to loads its page — no blank page, no error.",
             FieldPassTarget.None),
         new FieldPassStep("battle-journal",

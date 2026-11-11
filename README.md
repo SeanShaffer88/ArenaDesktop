@@ -6,13 +6,13 @@ A native Windows desktop client for [Arena](https://arena.ai) — the AI model b
 
 ## TL;DR
 
-Arena has no Windows app, so this is one: a small native program that opens arena.ai in its own window, keeps you signed in, and lives in the system tray. Think of it like giving a website its own house key instead of visiting through the browser every time. It adds the desktop touches a tab can't — one-jump navigation to every part of Arena (Battle, Direct Chat, Side by Side, the Leaderboard, Agent, Image, Code, Video, Web Search), downloads with progress, multiple sign-in profiles, a settings window, and update notices. Free, open source (MIT), no telemetry. You need Windows 10/11 (x64 or ARM64) and the WebView2 Runtime (usually already installed). Download the installer from Releases and run it.
+Arena has no Windows app, so this is one: a small native program that opens arena.ai in its own window, keeps you signed in, and lives in the system tray. Think of it like giving a website its own house key instead of visiting through the browser every time. It adds the desktop touches a tab can't — one-jump navigation to every part of Arena (Battle, Direct Chat, Side by Side, the Leaderboard, Agent, Image, Code, Video, Web Search), downloads with progress, multiple sign-in profiles, a settings window, and update notices. Free, open source (MIT), no telemetry. You need Windows 10/11 on x64 and the WebView2 Runtime (usually already installed). Download the installer from Releases and run it.
 
 ## What you get
 
 - **A real app, not a tab** — its own window, taskbar icon, and Alt-Tab entry; no browser chrome competing for space.
 - **Three window layouts** — arrange the window's own chrome as **Standard** (the classic toolbar and status bar), **Compact Focus** (a slim toolbar and a small floating status pill, so the Arena page gets the extra height), or **Left Rail** (navigation and the Arena modes in a slim rail down the left edge, with Settings and the ⋯ menu at its foot). Pick in Settings → Appearance & toolbar or from the ⋯ menu; new installs start in Compact Focus, and a layout you save is always kept.
-- **Pinned mode & this session** — pin the mode you use most (⋯ → *Pin this mode*) and the status bar carries a one-click jump back to it; the ⋯ menu's *This session…* window counts what the run has done — time on Arena, pages, mode jumps, downloads, prompts copied — in memory only, saved nowhere. The ⋯ menu also gains **Zoom presets** (50–200%) and the find bar (Ctrl+F) gains **Whole word** and **Match case**.
+- **Pinned mode & this session** — pin the mode you use most (⋯ → **Navigate** → *Pin this mode*) and the status bar carries a one-click jump back to it; the ⋯ menu's **View** → *This session…* window counts what the run has done — time on Arena, pages, mode jumps, downloads, prompts copied — in memory only, saved nowhere. The ⋯ menu also gains **View** → **Zoom presets** (50–200%) and the find bar (Ctrl+F) gains **Whole word** and **Match case**.
 - **Arena modes, one jump away** — Battle, Direct Chat, Side by Side, the Leaderboard, Agent, Image, Code, Video, and Web Search from the ⋯ menu's *Arena modes*, the tray menu, the taskbar Jump List, Ctrl+1…Ctrl+9, the command line, and `arenadesktop://` links. Each one is its own page on arena.ai (addresses verified on the live site); the model used inside Direct Chat and Side by Side is picked at the top of those pages.
 - **Stay signed in** — a dedicated WebView2 profile on your PC keeps your Arena session between launches, and the app reopens the last page you were on.
 - **Tray support** — the tray menu runs the whole app while it's hidden: Open, Arena modes, Quick ask, New window, Reload, Downloads, Settings, Switch profile, a web-view status line, and Exit. Closing the window minimizes to the tray by default; after a while hidden the web view can suspend to free memory (never during downloads or after the microphone has been used). A global hotkey (Ctrl+Alt+A, changeable) shows or hides the app from anywhere.
@@ -37,15 +37,15 @@ Captures come from real runs on Windows. More captures are listed in [docs/scree
 
 ## Requirements
 
-- Windows 10 or Windows 11 (x64, or ARM64 — native builds ship for both)
+- Windows 10 or Windows 11, x64 (ARM64 builds were dropped in v0.7.0 — see *Known limitations*; an ARM64 PC runs the x64 build under emulation)
 - The Microsoft Edge **WebView2 Runtime** — preinstalled on Windows 11 and most Windows 10 PCs. If it's missing, ArenaDesktop tells you and links you to Microsoft's installer.
 - Nothing else: the download is **self-contained** — the .NET 10 runtime is bundled in, so there is no separate .NET install.
 
 ## Install
 
-**Installer (recommended):** download `ArenaDesktop-Setup-v0.1.0-x64.exe` (or `-arm64.exe` on a Windows-on-ARM PC) from the [Releases](../../releases) page and run it. It's a per-user install (no admin needed), with a Start Menu shortcut and an entry in Apps & Features for uninstalling. Uninstalling keeps your settings and sign-in data unless you choose to delete them when asked.
+**Installer (recommended):** download `ArenaDesktop-Setup-v0.1.0-x64.exe` from the [Releases](../../releases) page and run it. On a Windows-on-ARM PC this runs under emulation. It's a per-user install (no admin needed), with a Start Menu shortcut and an entry in Apps & Features for uninstalling. Uninstalling keeps your settings and sign-in data unless you choose to delete them when asked.
 
-**Portable zip:** download `ArenaDesktop-v0.1.0-windows-x64.zip` (or `-windows-arm64.zip`), unzip anywhere, and run `ArenaDesktop.exe`.
+**Portable zip:** download `ArenaDesktop-v0.1.0-windows-x64.zip`, unzip anywhere, and run `ArenaDesktop.exe`.
 
 Either way: the app is not code-signed, so Windows SmartScreen may warn on first run — choose **More info → Run anyway**.
 
@@ -55,7 +55,7 @@ Either way: the app is not code-signed, so Windows SmartScreen may warn on first
 2. Use Arena as normal — Battle is the home experience.
 3. Jump around with the ⋯ menu's **Arena modes** (Ctrl+1 Battle, Ctrl+2 Direct Chat, Ctrl+3 Side by Side, Ctrl+4 Leaderboard, Ctrl+5 Agent, Ctrl+6 Image, Ctrl+7 Code, Ctrl+8 Video, Ctrl+9 Web Search).
 4. Close the window to park it in the tray; press Ctrl+Alt+A or double-click the tray icon to bring it back.
-5. Press F1 or ⋯ → *Help & troubleshooting…* any time — the help works with no internet.
+5. Press F1 or ⋯ → **Help** → *Help & troubleshooting…* any time — the help works with no internet.
 
 ## Where things live
 
@@ -128,7 +128,7 @@ The gate before any change is published: `dotnet build ArenaDesktop.sln -c Relea
 
 ## Troubleshooting
 
-- **Sign-in keeps looping** — open ⋯ → *Help & troubleshooting…* → "Arena keeps asking me to sign in" (works offline).
+- **Sign-in keeps looping** — open ⋯ → **Help** → *Help & troubleshooting…* → "Arena keeps asking me to sign in" (works offline).
 - **Arena won't load** — the failure screen says which kind of failure it was (offline, DNS, certificate…) and offers a retry; `--safe-mode` starts clean at the home page.
 - **WebView2 Runtime missing** — the app tells you and links to Microsoft's installer.
 - **Forgot the app-lock password** — the Help page "I forgot my app password" spells out the tested recovery.

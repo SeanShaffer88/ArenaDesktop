@@ -2,6 +2,14 @@
 
 A living log of significant architecture, UX, security, and dependency decisions.
 
+## 2026-11-11 — ARM64 support dropped (v0.7.0)
+
+- **What changed.** `v0.7.0` ships x64 only. The ARM64 CI job, the ARM64 release assets and the ARM64 download links are gone; a release now carries three assets instead of five.
+- **Why.** ARM64 was carried because the fork base's CI built it, not because anyone asked for it. It doubles the build matrix, the installer count, the download surface and the on-machine pass — and the on-machine pass has never actually run on an ARM64 machine, so the ARM64 build was **shipped but never verified**. Keeping an unverified native build on offer is worse than not offering it.
+- **What was NOT changed: the architecture logic in the updater.** `UpdateAssets.ArchToken` still names whatever architecture is running, and `PickInstaller` still matches on it. An arm64 install of 0.6.0 (or of any earlier release) therefore keeps working: it names `arm64`, finds no `-arm64.exe` in the newer release, and is offered nothing. That is the correct outcome — a wrong-architecture installer is never offered, and the check is already covered by `S9Tests`. Hard-coding "only x64 exists" would have broken the one case that matters.
+- **Consequence for ARM64 users on 0.6.0 and earlier:** they stay on their current version. There is no update path, and the in-app update check says so plainly rather than failing mysteriously. `KNOWN_LIMITATIONS.md` names this. A Windows-on-ARM PC can still run the x64 installer under emulation, and that is stated rather than implied.
+- **Also fixed while here:** `sign-release.yml` regenerated `SHA256SUMS.txt` with `Set-Content -Encoding ascii`, which writes a BOM and CRLF. `SumsFile.Parse` takes the first 64 bytes of each line as the hash, so a BOM'd file is unreadable to the updater — the same trap already fixed in `release.yml`. It now writes LF, ASCII, no BOM.
+
 ## 2026-11-11 — Releases are built by a workflow, not by hand
 
 - **The problem was reproducibility, not convenience.** Releases were built on one machine: `dotnet publish` per architecture, `makensis` per installer, sums written by hand. That left the project unable to ship whenever that machine was unavailable, and it meant every release depended on a human repeating eleven steps correctly. The steps were already documented in RELEASE_CHECKLIST.md — the pipeline is those steps, written out.
@@ -9,7 +17,7 @@ A living log of significant architecture, UX, security, and dependency decisions
 - **A hand-written notes file wins over the changelog section.** `docs/release-notes/vx.y.z.md` is optional; when present it is used verbatim, otherwise the version's CHANGELOG section is. This exists because a release sometimes has to say more than its own changes: 0.4.0 and 0.5.0 were developed and never published, so 0.6.0 is the first release since 0.3.1 and its notes carry all three. Resolution order is file, then changelog — the pipeline never edits either.
 - **The installer and the zip ship the same bytes.** Both are built from one `dotnet publish` folder per architecture, so the two channels cannot diverge. The zip gains the four docs `ci.yml` already stages; the installer packages that identical folder.
 - **It will not overwrite a published release.** A re-run for an existing tag fails rather than clobbering. Recovering means deleting the release or bumping the version — deliberately a human decision.
-- **It re-downloads what it published and re-verifies it.** The final step fetches all five assets back from the release and checks every hash against `SHA256SUMS.txt`. That is RELEASE_CHECKLIST's "a release is not shipped until its assets are hash-verified", moved from a manual step onto the critical path.
+- **It re-downloads what it published and re-verifies it.** The final step fetches all three assets back from the release and checks every hash against `SHA256SUMS.txt`. That is RELEASE_CHECKLIST's "a release is not shipped until its assets are hash-verified", moved from a manual step onto the critical path.
 - **What it does not do:** it does not sign (see the `sign-release.yml` enable path and the signing section below), and it does not replace the on-machine pass — the checklist's Windows 10/11 walkthrough still has to happen on real hardware before a build is called Verified.
 
 ## 2026-11-11 — Enhancement pack (twenty improvements)
