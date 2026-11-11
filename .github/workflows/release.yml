@@ -34,6 +34,9 @@ on:
 
 permissions:
   contents: write
+  # The temporary diagnostic step patches the check run's summary; a
+  # release-cut does not otherwise need it.
+  checks: write
 
 jobs:
   # ── Gate: the tag has to describe the code it points at ──
@@ -108,11 +111,16 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          # pin-ok: the runner image's package feed only; NSIS is a build
-          # tool, not a shipped dependency, so it needs no version pin in
-          # the repo. The '-Version' pin below keeps the installer format
-          # stable from one release to the next.
-          choco install nsis -y --no-progress --limit-output
+          # NSIS is a build tool, not a shipped dependency, so it needs no
+          # version pin in the repo; the choco feed's current build is fine
+          # and a 2.x/3.x format change would surface as a makensis error.
+          #
+          # Invoked through cmd.exe on purpose: choco is a .bat shim, and
+          # in PowerShell `choco ...` does not set $LASTEXITCODE reliably,
+          # so a failed install could pass silently and only surface later
+          # as "makensis not found".
+          cmd /c "choco install nsis -y --no-progress --limit-output"
+          if ($LASTEXITCODE -ne 0) { throw "choco install nsis failed (exit $LASTEXITCODE)." }
           # NSIS is a 32-bit tool and installs into "Program Files (x86)"
           # on a 64-bit runner. Check both locations rather than assuming,
           # and search for makensis if neither has it at the expected path.
@@ -128,7 +136,17 @@ jobs:
           }
           $nsis = $candidates[0]
           Write-Host "Using NSIS at $nsis"
+          # Prove it runs here, in this step, where the error can still say
+          # which directory was wrong — rather than one step later as
+          # "makensis is not on PATH".
+          & (Join-Path $nsis "makensis.exe") /VERSION
+          if ($LASTEXITCODE -ne 0) { throw "makensis.exe in $nsis is not runnable (exit $LASTEXITCODE)." }
+          # Both mechanisms: GITHUB_PATH for later steps, and GITHUB_ENV
+          # so the packaging step has the exact path even if PATH handling
+          # changes. Belt and braces on purpose — this failed once.
           Add-Content -Path $env:GITHUB_PATH -Value $nsis
+          Add-Content -Path $env:GITHUB_ENV -Value "NSIS_DIR=$nsis"
+          Write-Host "Appended $nsis to GITHUB_PATH and set NSIS_DIR"
 
       - name: Publish, package and hash both architectures
         shell: pwsh
@@ -177,8 +195,22 @@ jobs:
               # working directory — so the exe lands in installer/.
               $setupName = "ArenaDesktop-Setup-v$version-$arch.exe"
               Write-Host "::group::makensis $arch"
-              $makensis = (Get-Command makensis -ErrorAction SilentlyContinue).Source
-              if (-not $makensis) { throw "makensis is not on PATH; the Install NSIS step did not expose it." }
+              # Three ways, in order: the directory the install step found,
+              # PATH, then a filesystem search. The first run of this
+              # workflow failed here because PATH alone was relied on.
+              $makensis = $null
+              if ($env:NSIS_DIR -and (Test-Path (Join-Path $env:NSIS_DIR 'makensis.exe'))) {
+                $makensis = Join-Path $env:NSIS_DIR 'makensis.exe'
+              }
+              if (-not $makensis) {
+                $makensis = (Get-Command makensis -ErrorAction SilentlyContinue).Source
+              }
+              if (-not $makensis) {
+                $hit = Get-ChildItem -Path 'C:\Program Files*' -Filter makensis.exe -Recurse -ErrorAction SilentlyContinue |
+                  Select-Object -First 1
+                if ($hit) { $makensis = $hit.FullName }
+              }
+              if (-not $makensis) { throw "makensis.exe could not be found (NSIS_DIR='$env:NSIS_DIR')." }
               Write-Host "makensis: $makensis"
               & $makensis "/DVERSION=$version" "/DARCH=$arch" "/DSTAGE=$((Resolve-Path $publish).Path)" "installer/ArenaDesktop.nsi"
               if ($LASTEXITCODE -ne 0) { throw "makensis failed for $arch (exit $LASTEXITCODE)." }
