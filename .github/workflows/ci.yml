@@ -26,18 +26,32 @@ jobs:
       - name: Build (Release)
         run: dotnet build ArenaDesktop.sln -c Release --no-restore
 
+      # Temporary: emits each failing test as a job annotation, because
+      # the full run log is not retrievable from this environment. The
+      # three steps together have the same effect as the single
+      # `dotnet test` (fail the job when tests fail). Restored before
+      # merge.
       - name: Test (core logic)
-        run: dotnet test tests/ArenaDesktop.Core.Tests -c Release --no-build
-
-      # Temporary diagnostic: re-run the hardening pack with detailed
-      # logging so a failing test names itself in the job annotations (the
-      # full run's log is not retrievable from this environment). Guarded
-      # by if: failure() + continue-on-error, so it cannot change the
-      # verdict. Removed once the suite is green.
-      - name: Test (hardening pack, diagnostic)
-        if: failure()
+        id: tests
         continue-on-error: true
-        run: dotnet test tests/ArenaDesktop.Core.Tests -c Release --no-build --filter "FullyQualifiedName~HardeningPackTests" --logger "console;verbosity=detailed"
+        run: dotnet test tests/ArenaDesktop.Core.Tests -c Release --no-build --logger "trx;LogFileName=results.trx" --results-directory TestResults
+
+      - name: Report failing tests
+        if: steps.tests.outcome == 'failure'
+        shell: pwsh
+        run: |
+          Get-ChildItem TestResults -Filter *.trx -Recurse | ForEach-Object {
+            [xml]$trx = Get-Content $_.FullName
+            $trx.TestRun.Results.UnitTestResult | Where-Object { $_.outcome -eq 'Failed' } | ForEach-Object {
+              $msg = ($_.Output.ErrorInfo.Message -replace "`r?`n", ' ')
+              if ($msg.Length -gt 400) { $msg = $msg.Substring(0,400) }
+              Write-Host "::error title=$($_.testName)::$msg"
+            }
+          }
+
+      - name: Fail when tests failed
+        if: steps.tests.outcome == 'failure'
+        run: exit 1
 
       - name: Publish (win-x64, self-contained)
         run: dotnet publish src/ArenaDesktop/ArenaDesktop.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
@@ -77,16 +91,6 @@ jobs:
 
       - name: Test (core logic)
         run: dotnet test tests/ArenaDesktop.Core.Tests -c Release --no-build
-
-      # Temporary diagnostic: re-run the hardening pack with detailed
-      # logging so a failing test names itself in the job annotations (the
-      # full run's log is not retrievable from this environment). Guarded
-      # by if: failure() + continue-on-error, so it cannot change the
-      # verdict. Removed once the suite is green.
-      - name: Test (hardening pack, diagnostic)
-        if: failure()
-        continue-on-error: true
-        run: dotnet test tests/ArenaDesktop.Core.Tests -c Release --no-build --filter "FullyQualifiedName~HardeningPackTests" --logger "console;verbosity=detailed"
 
       - name: Publish (win-arm64, self-contained)
         run: dotnet publish src/ArenaDesktop/ArenaDesktop.csproj -c Release -r win-arm64 --self-contained true -o publish/win-arm64
