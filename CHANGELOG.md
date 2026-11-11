@@ -2,7 +2,7 @@
 
 All notable changes to ArenaDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
-## [0.8.0] — Unreleased
+## [0.8.0] — 2026-11-11
 
 Battle Lab stops being a window you switch to and becomes a pane beside the page you are working on.
 
@@ -18,7 +18,7 @@ Battle Lab stops being a window you switch to and becomes a pane beside the page
 
 - **The Battle Lab window.** `BattleLabWindow` is deleted; the same logic lives in `BattleLabView`, a control the main window hosts. Every entry point opens the single pane, so two Battle Labs can no longer exist at once.
 
-## [0.7.0] — Unreleased
+## [0.7.0] — 2026-11-11
 
 Two changes to the app's shape rather than its features: it ships for x64 only, and the ⋯ menu is organised into five groups instead of one long list.
 
