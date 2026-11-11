@@ -29,6 +29,16 @@ jobs:
       - name: Test (core logic)
         run: dotnet test tests/ArenaDesktop.Core.Tests -c Release --no-build
 
+      # Temporary diagnostic: re-run the hardening pack with detailed
+      # logging so a failing test names itself in the job annotations (the
+      # full run's log is not retrievable from this environment). Guarded
+      # by if: failure() + continue-on-error, so it cannot change the
+      # verdict. Removed once the suite is green.
+      - name: Test (hardening pack, diagnostic)
+        if: failure()
+        continue-on-error: true
+        run: dotnet test tests/ArenaDesktop.Core.Tests -c Release --no-build --filter "FullyQualifiedName~HardeningPackTests" --logger "console;verbosity=detailed"
+
       - name: Publish (win-x64, self-contained)
         run: dotnet publish src/ArenaDesktop/ArenaDesktop.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
 
@@ -67,6 +77,16 @@ jobs:
 
       - name: Test (core logic)
         run: dotnet test tests/ArenaDesktop.Core.Tests -c Release --no-build
+
+      # Temporary diagnostic: re-run the hardening pack with detailed
+      # logging so a failing test names itself in the job annotations (the
+      # full run's log is not retrievable from this environment). Guarded
+      # by if: failure() + continue-on-error, so it cannot change the
+      # verdict. Removed once the suite is green.
+      - name: Test (hardening pack, diagnostic)
+        if: failure()
+        continue-on-error: true
+        run: dotnet test tests/ArenaDesktop.Core.Tests -c Release --no-build --filter "FullyQualifiedName~HardeningPackTests" --logger "console;verbosity=detailed"
 
       - name: Publish (win-arm64, self-contained)
         run: dotnet publish src/ArenaDesktop/ArenaDesktop.csproj -c Release -r win-arm64 --self-contained true -o publish/win-arm64
