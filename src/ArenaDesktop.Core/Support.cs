@@ -300,6 +300,15 @@ public static class HelpCatalog
             "What is the session window?",
             "session window stats time on arena reading how long pages visited jumps downloads copied summary count minute hour",
             HelpAction.None, null, null),
+        // Enhancement pack 10: the idle lock and the log level filter.
+        new HelpPage("idle-lock",
+            "How do I use the idle auto-lock?",
+            "idle auto lock automatically lock itself timeout minutes away walk away no input afk unattended privacy security tray hide password",
+            HelpAction.OpenSettings, "Open Settings — Privacy", SettingsSearch.PrivacyId),
+        new HelpPage("log-level-filter",
+            "Why does the log viewer have level buttons?",
+            "log viewer level buttons errors warnings info unparsed filter narrow chips find redaction copy redacted diagnostics",
+            HelpAction.OpenDiagnostics, "Open Diagnostics", null),
     };
 
     public static HelpPage? ById(string? id) =>
