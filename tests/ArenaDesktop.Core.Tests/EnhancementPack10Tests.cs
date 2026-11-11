@@ -32,9 +32,14 @@ public class EnhancementPack10Tests
         Assert.All(IdleLock.OfferedMinutes, m => Assert.True(IdleLock.IsValid(m), m.ToString()));
         Assert.True(IdleLock.IsValid(IdleLock.MinMinutes));
         Assert.True(IdleLock.IsValid(IdleLock.MaxMinutes));
-        Assert.False(IdleLock.IsValid(IdleLock.MinMinutes - 1));
+        // 0 sits just below MinMinutes and is VALID — it is "never", the
+        // default, not a rejected short delay. This is the one value near
+        // the floor that must not be swept up by a range check.
+        Assert.True(IdleLock.IsValid(IdleLock.MinMinutes - 1));
+        Assert.Equal(IdleLock.NeverMinutes, IdleLock.MinMinutes - 1);
         Assert.False(IdleLock.IsValid(IdleLock.MaxMinutes + 1));
         Assert.False(IdleLock.IsValid(-1));
+        Assert.False(IdleLock.IsValid(IdleLock.MinMinutes + 1_000_000));
     }
 
     [Fact]
