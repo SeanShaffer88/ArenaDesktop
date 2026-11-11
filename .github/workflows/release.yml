@@ -34,9 +34,6 @@ on:
 
 permissions:
   contents: write
-  # The temporary diagnostic step patches the check run's summary; a
-  # release-cut does not otherwise need it.
-  checks: write
 
 jobs:
   # ── Gate: the tag has to describe the code it points at ──
@@ -241,50 +238,6 @@ jobs:
             $m = $_.Exception.Message -replace "`r", " " -replace "`n", " "
             Write-Host "::error title=Packaging failed::$m"
             throw
-          }
-
-      # TEMPORARY DIAGNOSTIC — remove before the release is real.
-      - name: Diagnostic — publish the failure into the check summary
-        if: failure()
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          $ErrorActionPreference = 'Continue'
-          $text = @()
-          foreach ($f in @('out/*.zip','out/*.exe','out/SHA256SUMS.txt')) {
-            $text += "exists $f : $(Test-Path $f)"
-          }
-          $text += "--- publish/x64 probe ---"
-          if (Test-Path 'publish/x64') {
-            $text += "ArenaDesktop.exe: $(Test-Path 'publish/x64/ArenaDesktop.exe')"
-            $text += "file count: $((Get-ChildItem publish/x64 -Recurse -File).Count)"
-          } else { $text += "publish/x64 missing" }
-          $text += "--- publish/arm64 probe ---"
-          if (Test-Path 'publish/arm64') {
-            $text += "ArenaDesktop.exe: $(Test-Path 'publish/arm64/ArenaDesktop.exe')"
-            $text += "file count: $((Get-ChildItem publish/arm64 -Recurse -File).Count)"
-          } else { $text += "publish/arm64 missing" }
-          $text += "--- makensis ---"
-          $mk = (Get-Command makensis -ErrorAction SilentlyContinue).Source
-          $text += "makensis on PATH: $mk"
-          $text += "--- NSIS probe run ---"
-          if ($mk) {
-            & $mk "/DVERSION=0.0.0" "/DARCH=x64" "/DSTAGE=$((Resolve-Path 'publish/x64' -ErrorAction SilentlyContinue).Path)" 'installer/ArenaDesktop.nsi' *>&1 | ForEach-Object { $text += "NSIS: $_" }
-            $text += "NSIS exit: $LASTEXITCODE"
-          }
-          $summary = ($text -join "`n")
-          Set-Content -Path diag.txt -Value $summary -Encoding utf8
-          $sha = "${{ github.sha }}"
-          $runs = gh api "repos/${{ github.repository }}/commits/$sha/check-runs?per_page=100" | ConvertFrom-Json
-          foreach ($cr in $runs.check_runs) {
-            if ($cr.name -notmatch 'arm64') {
-              $body = @{ output = @{ title = 'diag'; summary = $summary } } | ConvertTo-Json -Depth 5
-              $tmp = Join-Path $env:RUNNER_TEMP 'patch.json'
-              Set-Content -Path $tmp -Value $body -Encoding utf8
-              gh api --method PATCH "repos/${{ github.repository }}/check-runs/$($cr.id)" --input $tmp | Out-Null
-              Write-Host "patched $($cr.id)"
-            }
           }
 
       # Independent of the packing above: build the sums file from the
