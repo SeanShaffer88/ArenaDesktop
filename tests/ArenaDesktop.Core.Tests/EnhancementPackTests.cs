@@ -94,13 +94,18 @@ public class EnhancementPackTests
     {
         var start = new DateTimeOffset(2026, 11, 11, 9, 0, 0, TimeSpan.Zero);
         var stats = new SessionStats(start);
+        // AddTime accrues to the CURRENT (last) page, so the clock has to
+        // be advanced while the app is actually on each page — otherwise
+        // the first page records no time at all and drops out of the
+        // per-mode table.
         stats.RecordPage(ArenaModes.LeaderboardId);
+        stats.AddTime(TimeSpan.FromMinutes(60));
         stats.RecordPage("not-a-mode"); // lands under "Not recorded", never invented
+        stats.AddTime(TimeSpan.FromMinutes(30));
         stats.RecordModeJump();
         stats.RecordModeJump();
         stats.RecordDownloadCompleted();
         stats.RecordPromptCopied();
-        stats.AddTime(TimeSpan.FromMinutes(90));
         Assert.Equal(2, stats.PagesVisited);
         Assert.Equal(2, stats.ModeJumps);
         Assert.Equal(1, stats.DownloadsCompleted);
@@ -108,8 +113,8 @@ public class EnhancementPackTests
         Assert.Equal(TimeSpan.FromMinutes(90), stats.TimeOnArena);
         var byMode = stats.TimeByMode();
         Assert.Equal(2, byMode.Count);
-        Assert.Contains(byMode, t => t.Label == "Leaderboard" && t.Duration == TimeSpan.FromMinutes(90));
-        Assert.Contains(byMode, t => t.Label == "Not recorded");
+        Assert.Contains(byMode, t => t.Label == "Leaderboard" && t.Duration == TimeSpan.FromMinutes(60));
+        Assert.Contains(byMode, t => t.Label == "Not recorded" && t.Duration == TimeSpan.FromMinutes(30));
     }
 
     [Fact]

@@ -247,7 +247,13 @@ public static class PromptBlanks
             return body ?? "";
         var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var pair in values)
-            lookup[pair.Key.Trim()] = pair.Value;
+        {
+            // A whitespace-only value is not a fill: the field showed empty,
+            // and substituting "   " would silently delete the placeholder
+            // instead of leaving it for the user to notice.
+            if (!string.IsNullOrWhiteSpace(pair.Value))
+                lookup[pair.Key.Trim()] = pair.Value;
+        }
         return BlankPattern.Replace(body, match =>
         {
             var name = match.Groups["name"].Value.Trim();

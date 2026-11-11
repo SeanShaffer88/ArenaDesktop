@@ -402,6 +402,11 @@ public static class PastedTextPolicy
         var safe = new string((promptName ?? "").Trim()
             .Select(c => char.IsLetterOrDigit(c) || c is ' ' or '-' or '_' ? c : '-')
             .ToArray());
+        // A run of substituted characters ("what?/now") collapses to one
+        // dash: "what--now" is noise in a file name, and a person reading
+        // the folder should be able to match the file to their prompt.
+        while (safe.Contains("--", StringComparison.Ordinal))
+            safe = safe.Replace("--", "-", StringComparison.Ordinal);
         safe = string.Join(' ', safe.Split(' ', StringSplitOptions.RemoveEmptyEntries));
         if (safe.Length == 0)
             safe = "prompt";
