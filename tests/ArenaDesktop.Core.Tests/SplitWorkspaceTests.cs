@@ -17,7 +17,7 @@ public class SplitWorkspaceTests
     public void Split_IsRefusedBelowBothFloors()
     {
         // page 360 + splitter 6 + pane 340
-        Assert.Equal(706, SplitWorkspace.MinSplitContentWidth);
+        Assert.Equal(706d, SplitWorkspace.MinSplitContentWidth);
         Assert.False(SplitWorkspace.CanSplit(SplitWorkspace.MinSplitContentWidth - 1));
         Assert.True(SplitWorkspace.CanSplit(SplitWorkspace.MinSplitContentWidth));
     }
@@ -30,7 +30,7 @@ public class SplitWorkspaceTests
     {
         // 0 is the caller's signal to stay single-pane. A split here
         // would give the Arena page less than it needs to be usable.
-        Assert.Equal(0, SplitWorkspace.ResolvePaneWidth(width, SplitWorkspace.DefaultPaneWidth));
+        Assert.Equal(0d, SplitWorkspace.ResolvePaneWidth(width, SplitWorkspace.DefaultPaneWidth));
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public class SplitWorkspaceTests
 
         // First check always applies.
         Assert.True(tracker.NeedsChange(500));
-        Assert.Equal(SplitWorkspace.PaneArrangement.Tabbed, tracker.Current);
+        Assert.Equal<SplitWorkspace.PaneArrangement?>(SplitWorkspace.PaneArrangement.Tabbed, tracker.Current);
 
         // A drag-resize inside the same band is not a layout change —
         // this is what keeps re-parenting off every resize tick.
