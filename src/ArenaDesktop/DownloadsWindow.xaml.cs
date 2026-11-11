@@ -162,7 +162,8 @@ public partial class DownloadsWindow : Window
     {
         // ComboBox IsSelected in XAML can fire SelectionChanged while
         // InitializeComponent is still creating the other controls.
-        if (DownloadsList is null || StateFilterCombo is null || SortCombo is null || NoteText is null)
+        if (DownloadsList is null || StateFilterCombo is null || SortCombo is null || NoteText is null
+            || SizeFilterCombo is null)
             return;
         var filterTag = (StateFilterCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string;
         var filter = filterTag switch
@@ -171,21 +172,29 @@ public partial class DownloadsWindow : Window
             "Failed" => DownloadStateFilter.Failed,
             _ => DownloadStateFilter.All,
         };
+        // Enhancement pack: two more orders (oldest and smallest first,
+        // for cleaning up) beside the three the window has always had.
         var sortTag = (SortCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string;
         var sort = sortTag switch
         {
-            "LargestFirst" => DownloadHistorySort.LargestFirst,
-            "NameAscending" => DownloadHistorySort.NameAscending,
-            _ => DownloadHistorySort.NewestFirst,
+            "OldestFirst" => DownloadsSortOrder.OldestFirst,
+            "LargestFirst" => DownloadsSortOrder.LargestFirst,
+            "SmallestFirst" => DownloadsSortOrder.SmallestFirst,
+            "NameAscending" => DownloadsSortOrder.NameAscending,
+            _ => DownloadsSortOrder.NewestFirst,
         };
-        var filtered = DownloadHistoryQuery.Apply(_allRecords, SearchText?.Text, filter, sort);
+        // Enhancement pack: the optional size band, composed with the
+        // search, the state filter and the sort.
+        var sizeTag = (SizeFilterCombo!.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string;
+        var band = DownloadSizeBands.Find(sizeTag);
+        var filtered = DownloadsView.Apply(_allRecords, SearchText?.Text, filter, band, sort);
         DownloadsList.ItemsSource = filtered.Select(r => new Row { Record = r }).ToList();
         if (_allRecords.Count == 0)
             NoteText.Text = "Nothing here yet — files you download from Arena will appear in this list.";
         else if (filtered.Count == 0)
             NoteText.Text = "No downloads match the current search/filter.";
         else
-            NoteText.Text = "Files Arena downloaded for you. The list is kept on this PC only.";
+            NoteText.Text = $"Files Arena downloaded for you, kept on this PC only. Shown: {DownloadsView.SummaryText(filtered)}.";
     }
 
     private void OnSearchOrFilterChanged(object sender, object e) => ApplyHistoryQuery();

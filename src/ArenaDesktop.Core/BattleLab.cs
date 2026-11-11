@@ -510,13 +510,17 @@ public sealed class BattleLabLibrary
         return true;
     }
 
-    /// <summary>Move one queue entry; <paramref name="delta"/> is -1 (up) or +1 (down). Moving past either end is a no-op that returns false.</summary>
+    /// <summary>
+    /// Move one queue entry; <paramref name="delta"/> is -1 (up) or +1
+    /// (down). Moving past either end is a no-op that returns false.
+    /// The move itself is <see cref="RunQueue.Move"/> — one rule shared
+    /// with the window and its tests (the move has always been a swap
+    /// with a one-place step, which is what that helper does for ±1).
+    /// </summary>
     public bool MoveInQueue(int index, int delta)
     {
-        var target = index + delta;
-        if (index < 0 || index >= Data.Queue.Count || target < 0 || target >= Data.Queue.Count)
+        if (delta is not (-1 or 1) || !RunQueue.Move(Data.Queue, index, delta))
             return false;
-        (Data.Queue[index], Data.Queue[target]) = (Data.Queue[target], Data.Queue[index]);
         Persist();
         return true;
     }

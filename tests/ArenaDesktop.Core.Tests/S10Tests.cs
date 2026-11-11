@@ -159,11 +159,14 @@ public class S10Tests
     // ──────────────────────── help catalog (#91) ────────────────────────
 
     [Fact]
-    public void Help_Pages_AreNineUniquePagesWithActionsWired()
+    public void Help_Pages_AreUniquePagesWithActionsWired()
     {
-        Assert.Equal(9, HelpCatalog.Pages.Count);
-        Assert.Equal(9, HelpCatalog.Pages.Select(p => p.Id).Distinct().Count());
-        Assert.Equal(9, HelpCatalog.Pages.Select(p => p.Title).Distinct().Count());
+        // Read as a count, not a constant: the catalog grows with real
+        // pages (the enhancement pack added pinned mode and the session
+        // window), and the uniqueness checks are what matter here.
+        Assert.True(HelpCatalog.Pages.Count >= 9);
+        Assert.Equal(HelpCatalog.Pages.Count, HelpCatalog.Pages.Select(p => p.Id).Distinct().Count());
+        Assert.Equal(HelpCatalog.Pages.Count, HelpCatalog.Pages.Select(p => p.Title).Distinct().Count());
         Assert.All(HelpCatalog.Pages, p =>
         {
             Assert.False(string.IsNullOrWhiteSpace(p.Keywords));
@@ -185,6 +188,11 @@ public class S10Tests
         Assert.Contains(HelpCatalog.Search("microphone"), p => p.Id == "microphone-denied");
         Assert.Contains(HelpCatalog.Search("forgot password"), p => p.Id == "app-lock-forgotten");
         Assert.Contains(HelpCatalog.Search("sign in"), p => p.Id == "sign-in-loop");
+        // Enhancement pack pages: reachable by the words a user would try.
+        Assert.Contains(HelpCatalog.Search("pin"), p => p.Id == "pinned-mode");
+        Assert.Contains(HelpCatalog.Search("bookmark"), p => p.Id == "pinned-mode");
+        Assert.Contains(HelpCatalog.Search("how long"), p => p.Id == "session-window");
+        Assert.Contains(HelpCatalog.Search("time on arena"), p => p.Id == "session-window");
         Assert.Empty(HelpCatalog.Search("zanzibar"));
     }
 

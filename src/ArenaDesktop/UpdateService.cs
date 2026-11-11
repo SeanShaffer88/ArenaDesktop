@@ -6,15 +6,6 @@ using ArenaDesktop.Core;
 
 namespace ArenaDesktop;
 
-/// <summary>How an update check ended (v0.4.0 — the check used to live inline in the main window).</summary>
-public enum UpdateOutcomeKind
-{
-    Available,
-    UpToDate,
-    Unreachable,
-    BadData,
-    Failed,
-}
 
 /// <summary>
 /// The check outcome. Since v0.13.0 (S9 #81/#88) an Available outcome

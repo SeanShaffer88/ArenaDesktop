@@ -240,6 +240,14 @@
                         <ComboBox x:Name="AccentCombo" Width="170"
                                   ToolTip="Colors ArenaDesktop's own highlights (section titles, buttons). Each accent is checked for readable contrast on both shell themes. This is separate from profile colors"/>
                     </StackPanel>
+                    <TextBlock Style="{StaticResource Note}" Margin="0,10,0,0"
+                               Text="Pinned mode: one mode ArenaDesktop keeps a one-click jump to in the status bar and the ⋯ menu. Pin the page you are on from ⋯ → Pin this mode."/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <TextBlock x:Name="PinnedModeText" VerticalAlignment="Center" Margin="0,0,8,0"
+                                   Text="Nothing pinned."/>
+                        <Button x:Name="UnpinModeButton" Content="Unpin" Width="76" Height="26" Click="OnUnpinModeSetting"
+                                ToolTip="Stop offering the pinned mode" Visibility="Collapsed"/>
+                    </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,6,0,0">
                         <TextBlock Text="Shell text size:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="TextScaleCombo" Width="170"
@@ -266,6 +274,12 @@
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
                                Text="Back always stays — the toolbar must always offer navigation."/>
+                    <CheckBox x:Name="DimToolbarCheck" Content="Dim the toolbar while I'm reading"
+                              Checked="OnDimToolbarChanged" Unchecked="OnDimToolbarChanged"
+                              Margin="0,10,0,0"
+                              ToolTip="Cools the toolbar down to a faint presence while the Arena page has focus"/>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="The toolbar returns to full strength when you point at it or tab back into the shell. The Arena page itself is never affected."/>
                 </StackPanel>
 
                 <StackPanel x:Name="SectionZoom">
@@ -339,6 +353,10 @@
                     </DockPanel>
                     <TextBlock Style="{StaticResource Note}"
                                Text="Empty means your Windows Downloads folder. Changing it does not move files already downloaded."/>
+                    <TextBlock x:Name="DownloadsFolderHealthText" Style="{StaticResource Note}" Margin="0,4,0,0"
+                               Text="" Visibility="Collapsed"
+                               AutomationProperties.Name="Downloads folder check"
+                               ToolTip="A quick check of whether downloads can land in that folder right now"/>
                     <CheckBox x:Name="AskWhereToSaveCheck" Content="Ask where to save each download"
                               ToolTip="Shows a Save-As dialog for every file"/>
                     <CheckBox x:Name="NotifyDownloadCompleteCheck" Content="Tell me when a download finishes while the window is hidden"

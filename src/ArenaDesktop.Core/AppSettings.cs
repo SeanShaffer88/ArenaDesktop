@@ -172,6 +172,26 @@ public sealed class AppSettings
     /// <summary>Toolbar items the user hid (S5 #45). Sanitized by ToolbarLayout (Back can never be hidden).</summary>
     public List<string> ToolbarHidden { get; set; } = new();
 
+    // Enhancement pack (v0.4.0): pinned mode + toolbar dimming.
+    /// <summary>
+    /// The pinned mode (enhancement pack): one Arena mode the app can
+    /// jump back to from the status bar and the ⋯ menu, and names in the
+    /// Diagnostics session block. Null = nothing pinned, which is the
+    /// default so the status line stays as quiet as it has always been.
+    /// Sanitized by <see cref="PinnedMode.Sanitize"/>; a pinned mode never
+    /// changes what a launch opens on its own.
+    /// </summary>
+    public string? PinnedModeId { get; set; }
+
+    /// <summary>
+    /// Dim the toolbar while the Arena page has keyboard focus
+    /// (enhancement pack). Off by default — the existing look is the
+    /// touchstone; this is an opt-in for a quieter shell. The toolbar
+    /// returns to full strength on hover or when the shell takes focus,
+    /// and the page itself is never affected (see <see cref="ShellQuiet"/>).
+    /// </summary>
+    public bool DimToolbarWhenReading { get; set; }
+
     // Modes pack (v0.3.0): startup mode + favorite modes.
     /// <summary>
     /// Which Arena mode a launch opens with when it would otherwise
@@ -386,6 +406,10 @@ public sealed class AppSettings
         // longer exist and ids that name no mode.
         StartupMode = StartupModes.Sanitize(StartupMode);
         FavoriteModeIds = FavoriteModes.Sanitize(FavoriteModeIds);
+        // Enhancement pack (v0.4.0): the pinned mode must name a real
+        // mode (anything else reads as "nothing pinned"), and dimming
+        // the toolbar is a plain on/off preference.
+        PinnedModeId = PinnedMode.Sanitize(PinnedModeId);
         LastModeIdByProfile ??= new Dictionary<string, string>();
         foreach (var key in LastModeIdByProfile.Keys.ToList())
         {

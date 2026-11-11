@@ -29,19 +29,19 @@ public static class SettingsSearch
     public static readonly IReadOnlyList<SettingsSectionInfo> Sections = new[]
     {
         new SettingsSectionInfo(BehaviorId, "Behavior",
-            "start with windows startup sign in autostart start in tray minimized close to tray suspend memory timeout check for updates update updates channel release pre-release prerelease beta snooze remind later frequency daily weekly manual rollback previous version what's new setup wizard first run welcome protocol links arenadesktop links url handler command line launching startup mode modes favorite favorites open mode battle last used"),
+            "start with windows startup sign in autostart start in tray minimized close to tray suspend memory timeout check for updates update updates channel release pre-release prerelease beta snooze remind later frequency daily weekly manual rollback previous version what's new setup wizard first run welcome protocol links arenadesktop links url handler command line launching startup mode modes favorite favorites open mode battle last used pin pinned pinning"),
         new SettingsSectionInfo(TrayId, "Tray & notifications",
             "tray icon single click double click reopen flash taskbar attention quiet hours do not disturb notifications balloon silent night"),
         new SettingsSectionInfo(ProfilesId, "Account profiles",
             "profile account sign-in rename accent color dot switch remove add copy settings start page home custom url zoom downloads folder data size last used shortcut desktop storage cap limit cache cleanup"),
         new SettingsSectionInfo(AppearanceId, "Appearance & toolbar",
-            "theme dark light follow windows system accent color shell text size font scale toolbar customize reorder hide show buttons layout compact focus left rail standard reset appearance"),
+            "theme dark light follow windows system accent color shell text size font scale toolbar customize reorder hide show buttons layout compact focus left rail standard reset appearance dim dimming dimmed reading quieter"),
         new SettingsSectionInfo(ZoomId, "Zoom",
             "zoom default percent bigger smaller text size page extended range low vision 500"),
         new SettingsSectionInfo(AccessibilityId, "Keyboard & accessibility",
             "keyboard shortcuts keys remap rebind change hotkey global show hide anywhere dictate reduce motion animation effects announcements screen reader narrator focus dialog extended zoom range low vision accessibility"),
         new SettingsSectionInfo(DownloadsId, "Downloads",
-            "downloads folder save ask where collision already exists rename history keep cap notify finished balloon"),
+            "downloads folder save ask where collision already exists rename history keep cap notify finished balloon health check writable free space sort size filter old smallest newest"),
         new SettingsSectionInfo(DataId, "Data",
             "export import backup backups rotation restore portable mode data location usb setup wizard open data folder reset arenaDesktop troubleshooting won't start safe mode storage size cap cleanup diagnostics help support bundle"),
         // S7 (v0.11.0): listed LAST so the older sections keep winning
@@ -169,6 +169,10 @@ public static class SettingsReset
         // profile has been.
         target.StartupMode = fresh.StartupMode;
         target.FavoriteModeIds = fresh.FavoriteModeIds;
+        // Enhancement pack (v0.4.0): the pinned mode and the toolbar
+        // dimming are preferences and reset with the rest.
+        target.PinnedModeId = fresh.PinnedModeId;
+        target.DimToolbarWhenReading = fresh.DimToolbarWhenReading;
         // A reset returns the app to its first-run state, wizard
         // included: the setup wizard offers itself again next launch.
         target.FirstRunCompleted = fresh.FirstRunCompleted;

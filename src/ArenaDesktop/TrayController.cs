@@ -540,21 +540,24 @@ public sealed class TrayController : IDisposable
     }
 
     /// <summary>
-    /// Download-complete balloon (S2 #18): shown only when the caller has
-    /// checked the opt-in setting and that the window is hidden, and
-    /// quiet hours (S4 #38) allow it. No sound (NotifyIcon balloons are
-    /// silent unless the app asks otherwise — it doesn't), and a failure
-    /// here is cosmetic.
+    /// Download-complete balloon (S2 #18; enhancement pack): shown only
+    /// when the caller has checked the opt-in setting and that the
+    /// window is hidden, and quiet hours (S4 #38) allow it. The title
+    /// names the file and the body says its size and where it landed —
+    /// both composed in Core (<see cref="DownloadNotificationText"/>)
+    /// so the wiring stays testable. No sound (NotifyIcon balloons are
+    /// silent unless the app asks otherwise — it doesn't), and a
+    /// failure here is cosmetic.
     /// </summary>
-    public void ShowDownloadComplete(string fileName)
+    public void ShowDownloadComplete(string title, string body)
     {
         try
         {
             if (_icon is null) return;
             if (!NotificationAllowed("Download-complete balloon"))
                 return;
-            _icon.BalloonTipTitle = "Download complete";
-            _icon.BalloonTipText = fileName;
+            _icon.BalloonTipTitle = title;
+            _icon.BalloonTipText = body;
             _icon.ShowBalloonTip(4000);
         }
         catch (Exception ex)

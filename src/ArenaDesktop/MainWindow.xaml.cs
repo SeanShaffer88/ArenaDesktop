@@ -66,6 +66,15 @@ public partial class MainWindow : Window
     private AttentionSignal _lastAttention = AttentionSignal.None;
     private bool _micGrantedThisSession;
 
+    // Enhancement pack (v0.4.0) — the session's own facts (counted in
+    // memory, saved nowhere), the visibility clock the reading time is
+    // measured against, and the find bar's options.
+    private readonly SessionStats _session = new();
+    private readonly DispatcherTimer _readingTimer = new();
+    private DateTimeOffset? _visibleSince;
+    private bool _findWholeWord;
+    private bool _findMatchCase;
+
     // v0.11.0 (S7) — privacy: the Settings gateway to the live profile,
     // the counts-only privacy report state, and this session's
     // certificate-error decisions (#69: per host, session-only, never
@@ -272,12 +281,14 @@ public partial class MainWindow : Window
     {
         _browserFocused = true;
         RefreshWebFocusRing();
+        RefreshToolbarOpacity();
     }
 
     private void OnBrowserLostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
     {
         _browserFocused = false;
         RefreshWebFocusRing();
+        RefreshToolbarOpacity();
     }
 
     private void RefreshWebFocusRing() =>
@@ -364,6 +375,121 @@ public partial class MainWindow : Window
         var show = metrics.RailVisible && !_focusMode && !_isFullScreen;
         LeftRail.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         RailColumn.Width = new GridLength(show ? metrics.RailWidth : 0);
+    }
+
+    // ───────────── enhancement pack: reading time, dimming, arrival ─────────────
+
+    /// <summary>
+    /// The window's own visibility is the session clock's only input
+    /// (enhancement pack): the timer below adds elapsed time to the
+    /// current visit only while the window is on screen, so a session
+    /// left hidden in the tray never counts as reading. Nothing is
+    /// persisted — the numbers live as long as the process does.
+    /// </summary>
+    private void OnShellVisibilityChanged(object? sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsVisible)
+        {
+            _visibleSince = DateTimeOffset.UtcNow;
+            _readingTimer.Start();
+        }
+        else
+        {
+            FlushReadingTime();
+            _readingTimer.Stop();
+        }
+        RefreshToolbarOpacity();
+    }
+
+    /// <summary>Hand the time since the last flush to the session stats (skipped while hidden or after a clock jump).</summary>
+    private void FlushReadingTime()
+    {
+        if (_visibleSince is not { } since)
+            return;
+        _visibleSince = DateTimeOffset.UtcNow;
+        // Only a live web view is "on Arena"; a hidden or failed page is
+        // not reading time, and AddTime already drops absurd gaps.
+        if (Browser.CoreWebView2 is not null)
+            _session.AddTime(DateTimeOffset.UtcNow - since);
+    }
+
+    private void OnReadingTimerTick(object? sender, EventArgs e)
+    {
+        if (!IsVisible)
+            return;
+        FlushReadingTime();
+        // The pointer/focus state can change without a focus event (a
+        // menu closing, a window switch), so the dim state re-resolves on
+        // the same slow tick — cheap, and never more than 30 s stale.
+        RefreshToolbarOpacity();
+    }
+
+    /// <summary>
+    /// Enhancement pack: dim the toolbar while the Arena page has focus,
+    /// when the setting asks for it. The page is never touched — this is
+    /// the shell's own toolbar, and it returns to full strength on hover
+    /// or as soon as focus moves back to the shell.
+    /// </summary>
+    private void RefreshToolbarOpacity() =>
+        Toolbar.Opacity = ShellQuiet.ToolbarOpacity(
+            _settings.DimToolbarWhenReading, _browserFocused, Toolbar.IsMouseOver);
+
+    private void OnToolbarMouseEnter(object sender, System.Windows.Input.MouseEventArgs e) => RefreshToolbarOpacity();
+
+    private void OnToolbarMouseLeave(object sender, System.Windows.Input.MouseEventArgs e) => RefreshToolbarOpacity();
+
+    /// <summary>
+    /// Enhancement pack: the Session window's timer starts with the web
+    /// view; the hooks live here so the constructor's ordering stays as
+    /// it was.
+    /// </summary>
+    private bool _sessionClockWired;
+
+    /// <summary>
+    /// One-shot timer behind the arrival notice (enhancement pack): the
+    /// status line says where you just landed for a few seconds, then
+    /// returns to Ready. Restarted by every notice, so two quick jumps
+    /// never leave the second one expiring on the first one's schedule.
+    /// </summary>
+    private readonly DispatcherTimer _arrivalTimer = new();
+
+
+    private void StartSessionClock()
+    {
+        // The web view can initialize more than once (a deferred unlock,
+        // a recovery recreate); the clock is wired exactly once so the
+        // tick never flushes the same span twice.
+        if (!_sessionClockWired)
+        {
+            _sessionClockWired = true;
+            _readingTimer.Interval = TimeSpan.FromSeconds(30);
+            _readingTimer.Tick += OnReadingTimerTick;
+            IsVisibleChanged += OnShellVisibilityChanged;
+        }
+        if (IsVisible)
+        {
+            _visibleSince = DateTimeOffset.UtcNow;
+            _readingTimer.Start();
+        }
+    }
+
+    /// <summary>Show a finished jump's notice and start its clock (enhancement pack).</summary>
+    private void ShowArrivalNotice(ArenaMode mode)
+    {
+        SetStatus(ArrivalNotice.ForMode(mode));
+        _arrivalTimer.Stop();
+        _arrivalTimer.Interval = ArrivalNotice.DisplayDuration;
+        _arrivalTimer.Tick -= OnArrivalTimerTick;
+        _arrivalTimer.Tick += OnArrivalTimerTick;
+        _arrivalTimer.Start();
+    }
+
+    /// <summary>The notice has had its few seconds: put the ordinary status back, unless something newer has spoken.</summary>
+    private void OnArrivalTimerTick(object? sender, EventArgs e)
+    {
+        _arrivalTimer.Stop();
+        if (StatusText.Text.StartsWith("Arrived at ", StringComparison.Ordinal))
+            SetStatus("Ready");
     }
 
     private void OnThemeChanged(object? sender, EventArgs e)
@@ -940,6 +1066,13 @@ public partial class MainWindow : Window
         else
             _log.Warn($"Runtime health: {_runtimeHealth.Message}");
         _log.Info($"WebView2 {envVersion()} ready; profile {_profileDir}");
+        // Enhancement pack (v0.4.0): session facts start here — the
+        // clock the reading time is measured against, the pinned mode's
+        // menu/label state, and the window's own visibility events.
+        _visibleSince = IsVisible ? DateTimeOffset.UtcNow : null;
+        RefreshPinnedModeChrome();
+        StartSessionClock();
+        RefreshToolbarOpacity();
         // Start page (S5 #47): an invalid custom page falls back to
         // Home and says so — the stored value is logged redacted only.
         var (startupUrl, customFellBack) = _settings.ResolveStartupUrl();
@@ -952,6 +1085,16 @@ public partial class MainWindow : Window
         // S8 #72: safe mode ignores the start-page resolution entirely
         // and lands on Home; #71 recovery restores the crashed page.
         var navigateTo = restoreUrl ?? SafeModePolicy.StartupUrl(_safeMode, startupUrl);
+        // Enhancement pack: a remembered page that no longer parses as an
+        // Arena address (a hand-edited or long-dead URL) falls back to the
+        // resolved start page instead of showing a failure screen — the
+        // stored value is left alone until the next successful navigation.
+        if (!_safeMode && restoreUrl is not null && !StartupRestore.IsUsableLastPage(restoreUrl))
+        {
+            _log.Warn($"Remembered last page is not usable ({UrlPolicy.RedactForLog(restoreUrl)}); using the start page instead");
+            navigateTo = SafeModePolicy.StartupUrl(_safeMode, startupUrl);
+            restoreUrl = null;
+        }
         // Modes pack (v0.3.0): when the launch would land on the Arena
         // home page anyway — no crash restore, no safe mode, no
         // custom-page fallback — the startup-mode choice picks the
@@ -1025,6 +1168,13 @@ public partial class MainWindow : Window
             var src = Browser.Source?.ToString();
             if (src is not null)
                 _lastGoodUrl = src;
+            // Enhancement pack: count the page and name where we landed.
+            // The mode comes from the URL through the registry — the app
+            // still never reads page content.
+            var landedMode = ArenaModes.ForUrl(src);
+            _session.RecordPage(landedMode?.Id);
+            if (landedMode is not null)
+                ShowArrivalNotice(landedMode);
             // S4 #35: a new document ends whatever media capture the
             // old one held, so the microphone-grant heuristic resets.
             _micGrantedThisSession = false;
@@ -1041,10 +1191,13 @@ public partial class MainWindow : Window
             // the WebErrorStatus into a plain-language category.
             _log.Warn($"Navigation failed: {e.WebErrorStatus} for {UrlPolicy.RedactForLog(Browser.Source?.ToString())}");
             _history.NoteClosedPage(Browser.Source?.ToString());
+            // Enhancement pack: the overlay also names the raw error
+            // status and what it means, in plain words.
             ShowOverlay(
                 "Arena couldn't be reached",
                 LoadFailureClassifier.MessageFor(e.WebErrorStatus.ToString()),
-                "Retry", null);
+                "Retry", null,
+                errorStatus: e.WebErrorStatus.ToString());
             SetStatus($"Load failed: {e.WebErrorStatus}");
         }
         UpdateNavButtons();
@@ -1301,13 +1454,40 @@ public partial class MainWindow : Window
     /// <summary>S2 #18: opt-in completion balloon, only while the window is hidden in the tray.</summary>
     private void NotifyDownloadComplete(string fileName)
     {
+        // Enhancement pack: the session counts every finished download,
+        // visible or not — the count is a fact, the balloon is a policy.
+        _session.RecordDownloadCompleted();
         // S7 #64: while locked, no balloon naming the file — the
         // download itself finishes normally behind the lock.
         if (_isLocked)
             return;
-        if (_settings.NotifyWhenDownloadCompletes && !IsVisible)
-            _tray.ShowDownloadComplete(fileName);
+        if (!_settings.NotifyWhenDownloadCompletes || IsVisible)
+            return;
+        // Enhancement pack: the balloon names the file AND says how big
+        // it is and where it landed, so a glance answers the question.
+        var newest = TryNewestDownloadRecord(fileName);
+        _tray.ShowDownloadComplete(
+            DownloadNotificationText.Title(fileName, 1),
+            DownloadNotificationText.Body(newest?.SizeBytes, DownloadsFolderForNotice(), 1));
     }
+
+    /// <summary>The history record for the file that just finished, when the history save has already landed; null when it hasn't (the balloon then omits the size rather than inventing one).</summary>
+    private DownloadRecord? TryNewestDownloadRecord(string fileName)
+    {
+        try
+        {
+            return DownloadHistoryStore.Load(AppPaths.DownloadsHistoryPath, _settings.DownloadHistoryCap)
+                .FirstOrDefault(r => string.Equals(r.FileName, fileName, StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The folder downloads land in, for the balloon: the profile's override, the shared setting, or the Windows Downloads folder.</summary>
+    private string DownloadsFolderForNotice() =>
+        _settings.EffectiveDownloadsFolder() ?? AppPaths.DownloadsHint;
 
     /// <summary>Mirror the aggregate download state onto the taskbar button (S2 #19).</summary>
     private void UpdateTaskbarProgress()
@@ -1678,20 +1858,41 @@ public partial class MainWindow : Window
     private void SetStatus(string text, string? right = null)
     {
         StatusText.Text = text;
-        StatusRight.Text = right ?? "";
+        // Enhancement pack: an empty right-hand segment falls back to the
+        // pinned-mode label, so pinning stays visible through ordinary
+        // status messages; a running download's detail and any explicit
+        // right-hand segment always win.
+        var effectiveRight = right;
+        if (string.IsNullOrEmpty(effectiveRight) && !_downloads.IsActive)
+            effectiveRight = PinnedMode.StatusLabel(_settings.PinnedModeId);
+        StatusRight.Text = effectiveRight ?? "";
         // Shell layout (v0.2.0): in Compact Focus the pill IS the
         // status bar — it carries the same line (plus the right-hand
         // segment the bar would show), and its tooltip keeps the
         // full untruncated text one hover away.
-        var pill = string.IsNullOrEmpty(right) ? text : $"{text}  \u2022  {right}";
+        var pill = string.IsNullOrEmpty(effectiveRight) ? text : $"{text}  \u2022  {effectiveRight}";
         StatusPillText.Text = pill;
         StatusPill.ToolTip = pill;
     }
 
-    private void ShowOverlay(string title, string body, string buttonText, Action? buttonOverride)
+    private void ShowOverlay(string title, string body, string buttonText, Action? buttonOverride,
+        string? errorStatus = null)
     {
         OverlayTitle.Text = title;
         OverlayBody.Text = body;
+        // Enhancement pack: the raw WebView2 status, its plain cause and
+        // the next step — shown only when a status was passed, so every
+        // other overlay looks exactly as it always has.
+        if (string.IsNullOrWhiteSpace(errorStatus))
+        {
+            OverlayCodeText.Visibility = Visibility.Collapsed;
+            OverlayCodeText.Text = "";
+        }
+        else
+        {
+            OverlayCodeText.Text = $"{PackText.ErrorLookupHeader}: {ErrorCodeLookup.LineFor(errorStatus)}";
+            OverlayCodeText.Visibility = Visibility.Visible;
+        }
         OverlayButton.Content = buttonText;
         OverlayButton.Visibility = Visibility.Visible;
         Overlay.Visibility = Visibility.Visible;
@@ -1738,6 +1939,111 @@ public partial class MainWindow : Window
     private void OnZoomOut(object sender, RoutedEventArgs e)
     {
         if (_webReady) Browser.ZoomFactor = ZoomMath.StepDown(Browser.ZoomFactor, _settings.ExtendedZoomRange);
+    }
+
+    /// <summary>Enhancement pack: a named zoom preset from the View menu — offered only when the active range can hold it.</summary>
+    private void OnZoomPreset(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MenuItem { Tag: string id } || ZoomPresets.Find(id) is not { } preset)
+            return;
+        if (!ZoomPresets.IsAvailable(preset, _settings.ExtendedZoomRange) || !_webReady)
+        {
+            SetStatus($"{preset.Display} isn't in the current zoom range — turn on the extended range in Settings");
+            return;
+        }
+        Browser.ZoomFactor = preset.Factor;
+        SetStatus($"Zoom {preset.Display}");
+        _log.Info($"Zoom preset: {preset.Id} ({preset.Display})");
+    }
+
+    /// <summary>Enhancement pack: the session facts window — in memory, saved nowhere, nothing from the Arena page.</summary>
+    private void OnSessionWindow(object sender, RoutedEventArgs e)
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        var invoker = FocusReturn.Capture();
+        var window = new SessionWindow(_session, SessionAnnotation()) { Owner = this };
+        ThemeManager.ApplyTitleBar(window);
+        ShellTextScaling.Apply(window, _settings.ShellFontScale);
+        window.ShowDialog();
+        FocusReturn.Restore(invoker);
+    }
+
+    /// <summary>The extra line the Session window shows about the pinned mode (or an empty string when nothing is pinned).</summary>
+    private string SessionAnnotation() =>
+        PinnedMode.Resolve(_settings.PinnedModeId) is { } mode
+            ? $"Pinned mode: {mode.Label} — click the status bar to jump back to it."
+            : "";
+
+    // ── Enhancement pack: pinned mode ──
+
+    /// <summary>Pin the mode the page is on right now (⋯ → Pin this mode); the status bar gains one clickable label.</summary>
+    private void OnPinCurrentMode(object sender, RoutedEventArgs e)
+    {
+        var mode = ArenaModes.ForUrl(Browser.Source?.ToString());
+        if (mode is null)
+        {
+            SetStatus("This page isn't an Arena mode — open a mode, then pin it");
+            return;
+        }
+        _settings.PinnedModeId = mode.Id;
+        SaveSettings();
+        RefreshPinnedModeChrome();
+        SetStatus($"Pinned {mode.Label} — click the status bar to come back to it");
+        _log.Info($"Pinned mode: {mode.Id}");
+    }
+
+    private void OnUnpinMode(object sender, RoutedEventArgs e)
+    {
+        _settings.PinnedModeId = null;
+        SaveSettings();
+        RefreshPinnedModeChrome();
+        SetStatus("Mode unpinned");
+        _log.Info("Pinned mode cleared");
+    }
+
+    private void OnGoPinnedMode(object sender, RoutedEventArgs e)
+    {
+        if (PinnedMode.Resolve(_settings.PinnedModeId) is { } mode)
+            NavigateArenaMode(mode.Id);
+    }
+
+    private void OnStatusRightClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (PinnedMode.Resolve(_settings.PinnedModeId) is { } mode)
+            NavigateArenaMode(mode.Id);
+    }
+
+    /// <summary>Keep the pinned-mode menu items and the status label in step with the setting (every path that changes it calls this).</summary>
+    private void RefreshPinnedModeChrome()
+    {
+        var mode = PinnedMode.Resolve(_settings.PinnedModeId);
+        PinModeItem.Header = mode is null ? "Pin this mode" : $"Pin this mode (now: {mode.Label})";
+        UnpinModeItem.Visibility = mode is null ? Visibility.Collapsed : Visibility.Visible;
+        GoPinnedModeItem.Visibility = mode is null ? Visibility.Collapsed : Visibility.Visible;
+        GoPinnedModeItem.Header = mode is null ? "Go to pinned mode" : $"Go to pinned mode ({mode.Label})";
+        StatusRight.ToolTip = mode is null ? null : PinnedMode.Tooltip(mode);
+        // The label is a button only when there is something to jump to:
+        // a hand cursor and the brighter ink say so, the plain status
+        // text stays plain when nothing is pinned.
+        StatusRight.Cursor = mode is null
+            ? System.Windows.Input.Cursors.Arrow
+            : System.Windows.Input.Cursors.Hand;
+        StatusRight.Foreground = (System.Windows.Media.Brush)FindResource(
+            mode is null ? "FaintBrush" : "MutedBrush");
+        RefreshPinnedStatus();
+    }
+
+    /// <summary>The pinned label shares the status bar's right-hand segment with download detail; the download detail wins while a transfer is running.</summary>
+    private void RefreshPinnedStatus()
+    {
+        if (_downloads.IsActive)
+            return;
+        var label = PinnedMode.StatusLabel(_settings.PinnedModeId);
+        StatusRight.Text = label ?? "";
     }
 
     private void OnOpenInBrowser(object sender, RoutedEventArgs e)
@@ -1883,6 +2189,10 @@ public partial class MainWindow : Window
         _settings.ShellLayout = clone.ShellLayout;
         _settings.ToolbarOrder = clone.ToolbarOrder;
         _settings.ToolbarHidden = clone.ToolbarHidden;
+        // Enhancement pack: the pinned mode and the toolbar-dimming
+        // preference ride the same adoption; both take effect at once.
+        _settings.PinnedModeId = clone.PinnedModeId;
+        _settings.DimToolbarWhenReading = clone.DimToolbarWhenReading;
         _settings.SettingsLastSection = clone.SettingsLastSection;
         _settings.SettingsWindowWidth = clone.SettingsWindowWidth;
         _settings.SettingsWindowHeight = clone.SettingsWindowHeight;
@@ -1926,6 +2236,10 @@ public partial class MainWindow : Window
         ApplyToolbarLayout();
         ApplyShellLayout();
         ShellTextScaling.Apply(this, _settings.ShellFontScale);
+        // Enhancement pack: the pinned mode and toolbar dimming apply
+        // immediately on OK, like the rest of Appearance.
+        RefreshPinnedModeChrome();
+        RefreshToolbarOpacity();
         if (_webReady)
             Browser.ZoomFactor = EffectiveZoom();
         if (!_settings.SuspendWhenInTray)
@@ -2453,7 +2767,10 @@ public partial class MainWindow : Window
         }
         if (_webReady)
             Browser.CoreWebView2.Navigate(mode.Url);
-        SetStatus(mode.Note);
+        // Enhancement pack: the session counts the jump, and the status
+        // line says where you are rather than only what the mode is.
+        _session.RecordModeJump();
+        ShowArrivalNotice(mode);
         _log.Info($"Arena mode: {mode.Id} -> {UrlPolicy.RedactForLog(mode.Url)}");
     }
 
@@ -2710,14 +3027,23 @@ public partial class MainWindow : Window
                 case UpdateOutcomeKind.UpToDate:
                     if (manual) SetStatus($"You're up to date (v{version.ToString(3)})");
                     break;
+                // Enhancement pack: the failure copy names the cause and
+                // the next step in one line, instead of a shrug.
                 case UpdateOutcomeKind.Unreachable:
-                    if (manual) SetStatus("Couldn't check for updates — GitHub didn't answer");
+                    if (manual)
+                    {
+                        SetStatus(UpdateFailureText.StatusLine(outcome.Kind));
+                        _log.Warn($"Update check unreachable: {UpdateFailureText.NextStep(outcome.Kind)}");
+                    }
                     break;
                 case UpdateOutcomeKind.BadData:
-                    if (manual) SetStatus("Couldn't read the update information");
+                    if (manual) SetStatus(UpdateFailureText.StatusLine(outcome.Kind));
                     break;
                 default:
-                    if (manual) SetStatus("Couldn't check for updates — are you offline?");
+                    // The catch-all names the same cause and step as the
+                    // two specific kinds, so a failure the service
+                    // couldn't classify still says what to do.
+                    if (manual) SetStatus(UpdateFailureText.StatusLine(UpdateOutcomeKind.Failed));
                     break;
             }
             // Persist the check stamp (and anything the update window
@@ -2795,10 +3121,22 @@ public partial class MainWindow : Window
                 FindCountText.Text = "";
                 return;
             }
+            // Enhancement pack: whole-word and match-case are handed
+            // straight to WebView2's finder (ShouldMatchWord /
+            // IsCaseSensitive — the pinned SDK's own flags). The app
+            // still never looks at page content itself.
+            if (!FindOptionsPolicy.IsUsableTerm(term, 200, out var termProblem))
+            {
+                FindCountText.Text = termProblem ?? "";
+                find.Stop();
+                return;
+            }
             var options = Browser.CoreWebView2.Environment.CreateFindOptions();
-            options.FindTerm = term;
+            options.FindTerm = term.Trim();
             options.ShouldHighlightAllMatches = true;
             options.SuppressDefaultFindDialog = true;
+            options.IsCaseSensitive = _findMatchCase;
+            options.ShouldMatchWord = _findWholeWord;
             await find.StartAsync(options);
             UpdateFindCount();
         }
@@ -2810,10 +3148,32 @@ public partial class MainWindow : Window
         if (!_webReady || Browser.CoreWebView2 is null) return;
         var find = Browser.CoreWebView2.Find;
         if (string.IsNullOrEmpty(FindTextBox.Text)) { FindCountText.Text = ""; return; }
-        if (find.MatchCount == 0) { FindCountText.Text = "No results"; return; }
-        FindCountText.Text = find.ActiveMatchIndex >= 0
-            ? $"{find.ActiveMatchIndex + 1} of {find.MatchCount}"
-            : $"{find.MatchCount} found";
+        // Enhancement pack: one shared formatter (Core) so the bar's
+        // wording is pinned by tests and never invents a position.
+        FindCountText.Text = FindOptionsPolicy.ProgressText(find.MatchCount, find.ActiveMatchIndex);
+        NextMatchButton.ToolTip = FindBarKeys.NextTooltip(find.MatchCount);
+    }
+
+    /// <summary>Enhancement pack: the find bar's options popup, anchored to its button.</summary>
+    private void OnFindOptionsPopup(object sender, RoutedEventArgs e)
+    {
+        FindWholeWordItem.IsChecked = _findWholeWord;
+        FindMatchCaseItem.IsChecked = _findMatchCase;
+        FindOptionsMenu.PlacementTarget = FindOptionsButton;
+        FindOptionsMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        FindOptionsMenu.IsOpen = true;
+    }
+
+    /// <summary>Enhancement pack: re-run the find with the new option — the count on screen would otherwise describe the old rules.</summary>
+    private void OnFindOptionChanged(object sender, RoutedEventArgs e)
+    {
+        _findWholeWord = FindWholeWordItem.IsChecked;
+        _findMatchCase = FindMatchCaseItem.IsChecked;
+        FindOptionsButton.ToolTip = FindOptionsPolicy.OptionsSummary(_findWholeWord, _findMatchCase) is { Length: > 0 } summary
+            ? $"Find options — {summary}"
+            : "Find options: whole word and match case";
+        _log.Info($"Find options: whole word {(_findWholeWord ? "on" : "off")}, match case {(_findMatchCase ? "on" : "off")}");
+        _ = StartFindAsync();
     }
 
     private void OnFindTextChanged(object sender, TextChangedEventArgs e) => _ = StartFindAsync();
@@ -3372,6 +3732,10 @@ public partial class MainWindow : Window
                 ("Settings & app data", ProfileDataInfo.MeasureFolderBytes(AppPaths.RootDir)),
             },
             RecentErrors = LogReading.RecentErrors(logText, 5),
+            // Enhancement pack: the startup trend and the session facts —
+            // session state only, nothing read from the Arena page.
+            StartupTrendLine = StartupTrend.Summary(runs),
+            SessionLines = SessionReport.Lines(_session, DateTimeOffset.UtcNow, PinnedMode.Resolve(_settings.PinnedModeId)?.Label),
         };
     }
 

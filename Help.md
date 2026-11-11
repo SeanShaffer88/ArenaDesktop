@@ -108,3 +108,21 @@ The field pass (⋯ menu → Field pass…, or Diagnostics → Field pass…) wa
 Each check says exactly what to do and what working looks like. When a check is about a window, its "Open …" button opens that window for you. After trying a check, mark it Pass, "It has a problem", or Skip for now, and add a note if there's anything worth remembering — a problem note is the most useful thing you can hand over with a bug report.
 
 Everything is saved on this PC as you go, so you can close the window at any point and carry on later; the pass reopens at the first check you haven't marked. "Copy summary" puts the whole pass — verdicts and notes — on the clipboard as plain text. The field pass only records what you saw: it doesn't test anything by itself, and nothing is sent anywhere.
+
+## How do I pin a mode?
+
+The pinned mode is ArenaDesktop's one-click bookmark to a part of Arena. Pin the page you are on with ⋯ menu → *Pin this mode*; the status bar then carries a small "Pinned: …" label, and the ⋯ menu gains *Go to pinned mode*. Click either one and you are back, from wherever you are in the app.
+
+Try this:
+1. Open the mode you want to keep handy (Leaderboard, Direct Chat, Agent — anything with its own page).
+2. Choose ⋯ → *Pin this mode*. The status bar's right-hand side shows *Pinned: <mode>* — that label is the button.
+3. Click the label (or ⋯ → *Go to pinned mode*) any time to jump back. An ordinary status message never hides it; a running download's progress does, because that is more urgent.
+4. To stop pinning, choose ⋯ → *Unpin mode*, or Settings → Behavior → *Unpin*.
+
+A pinned mode is saved with your settings, so it survives a restart; a settings reset clears it. It is a shortcut, not a change of behavior — it never changes which page a launch opens.
+
+## What is the session window?
+
+⋯ menu → *This session…* opens a small window that counts what your current run of ArenaDesktop has actually done: how long the window has been on screen with Arena open, how many pages you visited, how many mode jumps, finished downloads and copied prompts, and a reading-time-by-mode table. "Copy summary" puts the same lines on the clipboard as plain text for a bug report.
+
+Two honest limits: the numbers live in memory for the life of the process, so they go away when the app closes — nothing is written to disk, and nothing is sent anywhere. And the time is measured from the window being on screen, ignoring gaps longer than four hours, so it can't overstate attention after a sleep or a clock change. The app still reads nothing from the Arena page.

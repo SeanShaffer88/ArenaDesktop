@@ -356,6 +356,75 @@ public partial class BattleLabWindow : Window
 
     // ──────────────────────── copy & open a mode ────────────────────────
 
+    /// <summary>Enhancement pack: show the duplicate report — identical bodies first, then shared names — or say the library is clean.</summary>
+    private void OnFindDuplicates(object sender, RoutedEventArgs e)
+    {
+        var report = DuplicatePrompts.Report(_library.Prompts);
+        if (report is null)
+        {
+            SetStatus($"No duplicates — all {_library.Prompts.Count} prompts are unique by text and by name.");
+            MessageBox.Show(this,
+                "Nothing to report: every prompt in the library has different text, and no name is used twice.",
+                "Find duplicates", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        SetStatus("Duplicates found — see the report.");
+        MessageBox.Show(this, report, "Find duplicates", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    /// <summary>
+    /// Enhancement pack: a very long prompt gets a warning before it is
+    /// copied — Arena's prompt box may cut it short — with the choice to
+    /// copy anyway or export it as a .txt file instead. Short prompts
+    /// take exactly the old path with no extra click.
+    /// </summary>
+    private bool OfferLongPromptChoices(string promptName, string text)
+    {
+        if (!PastedTextPolicy.NeedsWarning(text))
+            return true;
+        var preview = PastedTextPolicy.Preview(text);
+        var answer = MessageBox.Show(this,
+            $"{PastedTextPolicy.WarningText(text)}\n\nStart of the prompt:\n{preview}\n\n" +
+            "Choose Yes to copy it anyway, No to export it as a .txt file instead, or Cancel to do neither.",
+            $"Long prompt — {promptName}", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
+        if (answer == MessageBoxResult.No)
+        {
+            ExportPromptText(promptName, text);
+            return false;
+        }
+        if (answer == MessageBoxResult.Cancel)
+        {
+            SetStatus("Copy cancelled — nothing was put on the clipboard.");
+            return false;
+        }
+        return true;
+    }
+
+    /// <summary>The long-prompt export: a plain .txt file, saved where the user picks (never a path chosen for them).</summary>
+    private void ExportPromptText(string promptName, string text)
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "Text file (*.txt)|*.txt",
+            FileName = PastedTextPolicy.ExportFileName(promptName, DateTimeOffset.Now),
+            Title = "Export the prompt as a text file",
+        };
+        var invoker = ArenaDesktop.FocusReturn.Capture();
+        var chosen = dialog.ShowDialog(this) == true;
+        ArenaDesktop.FocusReturn.Restore(invoker);
+        if (!chosen)
+            return;
+        try
+        {
+            File.WriteAllText(dialog.FileName, text);
+            SetStatus($"Prompt exported to {Path.GetFileName(dialog.FileName)}.");
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Couldn't export the prompt: {ex.Message}");
+        }
+    }
+
     private void OnCopyAndOpenBattle(object sender, RoutedEventArgs e)
     {
         if (SelectedPrompt is { } prompt)
@@ -374,6 +443,11 @@ public partial class BattleLabWindow : Window
                 return;
             finalText = dialog.Fill(prompt.Body);
         }
+        // Enhancement pack: a very long prompt is checked before it
+        // reaches the clipboard, and the user picks copy-anyway,
+        // export as .txt, or neither. Short prompts skip this entirely.
+        if (!OfferLongPromptChoices(prompt.Name, finalText))
+            return;
         try
         {
             Clipboard.SetText(finalText);
@@ -400,10 +474,12 @@ public partial class BattleLabWindow : Window
     private void RefreshQueue()
     {
         var prompts = _library.QueuePrompts;
+        // Enhancement pack: the row label is Core's shared "2 of 5 ·
+        // name" formatter, so the queue and the status line read alike.
         QueueList.ItemsSource = prompts.Select((p, i) => new QueueRow
         {
             Index = i,
-            Label = $"{i + 1}  {p.Name}",
+            Label = RunQueue.PositionLabel(i, prompts.Count, p.Name),
             State = i == 0
                 ? (_startedQueuePromptId is not null && _startedQueuePromptId == p.Id ? "running" : "ready")
                 : "waiting",
@@ -451,11 +527,22 @@ public partial class BattleLabWindow : Window
     {
         if (QueueList.SelectedItem is not QueueRow row)
             return;
-        if (_library.MoveInQueue(row.Index, delta))
+        if (!_library.MoveInQueue(row.Index, delta))
         {
-            var newIndex = row.Index + delta;
-            RefreshQueue();
-            QueueList.SelectedIndex = newIndex;
+            // At an end: say so instead of leaving the click unanswered.
+            SetStatus(delta < 0 ? "That prompt is already first in the queue." : "That prompt is already last in the queue.");
+            return;
+        }
+        // Rebuild first, then land on the moved row: a second click (or
+        // the keyboard) keeps moving the same prompt, and the status
+        // line names its new place.
+        var moved = row.Index + delta;
+        var prompts = _library.QueuePrompts;
+        RefreshQueue();
+        if (moved >= 0 && moved < prompts.Count)
+        {
+            QueueList.SelectedIndex = moved;
+            SetStatus(RunQueue.PositionLabel(moved, prompts.Count, prompts[moved].Name));
         }
     }
 

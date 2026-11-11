@@ -765,6 +765,21 @@ public sealed class DiagnosticsData
 
     /// <summary>The most recent ERROR log lines, already redacted (see LogReading). Null = not collected.</summary>
     public IReadOnlyList<string>? RecentErrors { get; init; }
+
+    /// <summary>
+    /// The startup-time trend line (enhancement pack) — computed from
+    /// <see cref="StartupRuns"/> by <see cref="StartupTrend"/>; rendered
+    /// only when collected, so callers that don't supply it keep the
+    /// report's previous shape.
+    /// </summary>
+    public string? StartupTrendLine { get; init; }
+
+    /// <summary>
+    /// The session block (enhancement pack): pages, time on Arena,
+    /// mode jumps, downloads and the pinned mode — this run only, saved
+    /// nowhere. Null = not collected.
+    /// </summary>
+    public IReadOnlyList<string>? SessionLines { get; init; }
 }
 
 public static class DiagnosticsReport
@@ -795,6 +810,13 @@ public static class DiagnosticsReport
             lines.Add("");
             lines.Add("App & PC");
             lines.AddRange(facts);
+        }
+        // Enhancement pack: what this run actually did. Session state
+        // only — the block says so, and nothing here came from the page.
+        if (data.SessionLines is { Count: > 0 } sessionLines)
+        {
+            lines.Add("");
+            lines.AddRange(sessionLines);
         }
         lines.Add("");
         lines.Add("WebView2 runtime");
@@ -840,6 +862,9 @@ public static class DiagnosticsReport
             foreach (var run in data.StartupRuns)
                 lines.Add($"  {run.StartedUtc.ToLocalTime():yyyy-MM-dd HH:mm} — {run.Describe()}");
         }
+        // Enhancement pack: the trend line, when the shell collected it.
+        if (!string.IsNullOrWhiteSpace(data.StartupTrendLine))
+            lines.Add("  Trend: " + data.StartupTrendLine);
         lines.Add("");
         lines.Add("Files");
         lines.Add($"  Settings: {data.SettingsPath}");

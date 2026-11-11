@@ -28,7 +28,8 @@
 
         <!-- Toolbar -->
         <Border x:Name="Toolbar" Grid.Row="0" Grid.Column="1" Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
+                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1"
+                MouseEnter="OnToolbarMouseEnter" MouseLeave="OnToolbarMouseLeave">
             <DockPanel LastChildFill="True" Margin="6,0">
                 <!-- The two button strips are named: S5 #45 rebuilds their
                      contents from the user's toolbar layout at startup. The
@@ -101,6 +102,25 @@
                                     <MenuItem Header="Web Search" Click="OnArenaMode" Tag="search" InputGestureText="Ctrl+9"
                                               ToolTip="Search the web with AI search models"/>
                                 </MenuItem>
+                                <Separator/>
+                                <MenuItem x:Name="PinModeItem" Header="Pin this mode" Click="OnPinCurrentMode"
+                                          ToolTip="Pin the page you are on so one click (and the status bar) brings you back to it"/>
+                                <MenuItem x:Name="UnpinModeItem" Header="Unpin mode" Click="OnUnpinMode"
+                                          Visibility="Collapsed"
+                                          ToolTip="Stop offering the pinned mode in the status bar and this menu"/>
+                                <MenuItem x:Name="GoPinnedModeItem" Header="Go to pinned mode" Click="OnGoPinnedMode"
+                                          Visibility="Collapsed"
+                                          ToolTip="Jump to the mode you pinned"/>
+                                <MenuItem x:Name="ZoomPresetsItem" Header="Zoom presets"
+                                          ToolTip="Named zoom jumps beside the Ctrl+± steps">
+                                    <MenuItem Tag="half" Header="50%" Click="OnZoomPreset"/>
+                                    <MenuItem Tag="three-quarters" Header="75%" Click="OnZoomPreset"/>
+                                    <MenuItem Tag="actual" Header="100% (actual size)" Click="OnZoomPreset"/>
+                                    <MenuItem Tag="one-fifty" Header="150%" Click="OnZoomPreset"/>
+                                    <MenuItem Tag="double" Header="200%" Click="OnZoomPreset"/>
+                                </MenuItem>
+                                <MenuItem Header="This session…" Click="OnSessionWindow"
+                                          ToolTip="Pages visited, time on Arena, downloads, and mode jumps — this run only, saved nowhere"/>
                                 <Separator/>
                                 <MenuItem Header="Find in page…" Click="OnFind" InputGestureText="Ctrl+F"/>
                                 <MenuItem Header="Keyboard shortcuts…" Click="OnShortcuts" InputGestureText="Ctrl+/"
@@ -235,9 +255,25 @@
                          AutomationProperties.Name="Find in page"/>
                 <TextBlock x:Name="FindCountText" Text="" Margin="8,0" VerticalAlignment="Center"
                            Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+                <!-- Enhancement pack: find options, handed to WebView2's own
+                     finder (whole word / match case / regular expression). -->
+                <Button x:Name="FindOptionsButton" Style="{StaticResource BarButton}" Content="&#x2699;" Width="28"
+                        ToolTip="Find options: whole word and match case"
+                        Click="OnFindOptionsPopup" AutomationProperties.Name="Find options">
+                    <Button.ContextMenu>
+                        <ContextMenu x:Name="FindOptionsMenu">
+                            <MenuItem x:Name="FindWholeWordItem" Header="Whole word" IsCheckable="True"
+                                      Click="OnFindOptionChanged"
+                                      ToolTip="Match only whole words"/>
+                            <MenuItem x:Name="FindMatchCaseItem" Header="Match case" IsCheckable="True"
+                                      Click="OnFindOptionChanged"
+                                      ToolTip="Match only the exact capitalisation"/>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
                 <Button Style="{StaticResource BarButton}" Content="&#x2191;" Width="28"
                         ToolTip="Previous match (Shift+Enter)" Click="OnFindPrevious" AutomationProperties.Name="Previous match"/>
-                <Button Style="{StaticResource BarButton}" Content="&#x2193;" Width="28"
+                <Button x:Name="NextMatchButton" Style="{StaticResource BarButton}" Content="&#x2193;" Width="28"
                         ToolTip="Next match (Enter)" Click="OnFindNext" AutomationProperties.Name="Next match"/>
                 <Button Style="{StaticResource BarButton}" Content="&#x2715;" Width="28"
                         ToolTip="Close find (Esc)" Click="OnFindClose" AutomationProperties.Name="Close find"/>
@@ -300,6 +336,11 @@
                                FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap"/>
                     <TextBlock x:Name="OverlayBody" Text="" FontSize="13" Margin="0,10,0,0"
                                Foreground="{StaticResource MutedBrush}" TextAlignment="Center" TextWrapping="Wrap"/>
+                    <!-- Enhancement pack: the raw error code, its plain-English
+                         cause and the next step, so a bug report carries both. -->
+                    <TextBlock x:Name="OverlayCodeText" Text="" FontSize="11" Margin="0,8,0,0"
+                               Foreground="{StaticResource FaintBrush}" TextAlignment="Center" TextWrapping="Wrap"
+                               Visibility="Collapsed"/>
                     <Button x:Name="OverlayButton" Content="Retry" Width="110" Height="32" Margin="0,18,0,0"
                             Visibility="Collapsed" Click="OnReload" HorizontalAlignment="Center"
                             Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"/>
@@ -323,7 +364,9 @@
                 <TextBlock x:Name="LiveRegionAssertive" DockPanel.Dock="Right" Width="0" Opacity="0"
                            IsHitTestVisible="False" AutomationProperties.LiveSetting="Assertive"/>
                 <TextBlock x:Name="StatusRight" DockPanel.Dock="Right" FontSize="11"
-                           Foreground="{StaticResource FaintBrush}" VerticalAlignment="Center"/>
+                           Foreground="{StaticResource FaintBrush}" VerticalAlignment="Center"
+                           MouseLeftButtonUp="OnStatusRightClick"
+                           Cursor="Arrow"/>
                 <TextBlock x:Name="StatusText" Text="Starting…" FontSize="11"
                            Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" MouseLeftButtonUp="OnStatusTextClick"

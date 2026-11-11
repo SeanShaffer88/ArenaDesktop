@@ -291,6 +291,15 @@ public static class HelpCatalog
             "How do I use the field pass?",
             "field pass checks verify working prove tour guided summary problem skip verdicts",
             HelpAction.OpenFieldPass, "Open the field pass", null),
+        // Enhancement pack: the pinned mode and the session window.
+        new HelpPage("pinned-mode",
+            "How do I pin a mode?",
+            "pin pinned mode bookmark shortcut status bar jump back unpin favorite quick",
+            HelpAction.OpenSettings, "Open Settings — Behavior", SettingsSearch.BehaviorId),
+        new HelpPage("session-window",
+            "What is the session window?",
+            "session window stats time on arena reading how long pages visited jumps downloads copied summary count minute hour",
+            HelpAction.None, null, null),
     };
 
     public static HelpPage? ById(string? id) =>

@@ -22,4 +22,8 @@ Honest list of what ArenaDesktop does not do or has not proven yet. Kept current
 - **Architectures:** x64 and ARM64 only in this version. No x86 (32-bit) build and no MSI installer yet.
 - **No screenshots yet.** README captures come from real Windows runs only; the capture list is in docs/screenshots/CAPTURE.md.
 - **Downloads history follows this app's activity.** While the window is open, ArenaDesktop refreshes history after a download completes or fails and after local delete or clear actions. Reopen the window to refresh after external edits.
+- **The session window's numbers are this-run-only.** Pages, time on Arena, mode jumps, downloads and copied prompts are counted in memory and vanish when the app closes; time only counts while the window is on screen, and gaps over four hours are ignored.
+- **Pinned mode is a shortcut, not a setting that changes behavior.** It adds a status-bar jump and two ⋯ items; it never changes which page a launch opens.
+- **Duplicate detection compares prompts, not intent.** It reports identical text (whitespace and case folded) and reused names — it can't know whether two prompts were meant to be different.
+- **The long-prompt warning guesses no limit.** ArenaDesktop can't see Arena's prompt-box length limit, so it warns above 6,000 characters and offers an export; it never truncates or refuses the copy.
 - **Downloads history never stores source URLs** — a downloaded file can be opened, shown in its folder, or deleted, but not re-downloaded from history after the session's retry window.
