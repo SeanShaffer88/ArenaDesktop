@@ -107,46 +107,37 @@ jobs:
       - name: Test (core logic)
         run: dotnet test tests/ArenaDesktop.Core.Tests -c Release --no-build
 
+      # NSIS is NOT on the windows-latest image any more (Windows Server
+      # 2025 dropped it), and choco only updates the MACHINE PATH, which a
+      # later step's process environment never sees. That combination is
+      # exactly what made this workflow's first runs fail at packaging with
+      # "makensis is not on PATH".
+      #
+      # This action installs NSIS and exposes its directory as an output, so
+      # the build uses that path directly instead of trusting PATH at all.
       - name: Install NSIS
+        id: nsis
+        uses: negrutiu/nsis-install@v2
+        with:
+          arch: x86
+
+      - name: Check makensis
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          # NSIS is a build tool, not a shipped dependency, so it needs no
-          # version pin in the repo; the choco feed's current build is fine
-          # and a 2.x/3.x format change would surface as a makensis error.
-          #
-          # Invoked through cmd.exe on purpose: choco is a .bat shim, and
-          # in PowerShell `choco ...` does not set $LASTEXITCODE reliably,
-          # so a failed install could pass silently and only surface later
-          # as "makensis not found".
-          cmd /c "choco install nsis -y --no-progress --limit-output"
-          if ($LASTEXITCODE -ne 0) { throw "choco install nsis failed (exit $LASTEXITCODE)." }
-          # NSIS is a 32-bit tool and installs into "Program Files (x86)"
-          # on a 64-bit runner. Check both locations rather than assuming,
-          # and search for makensis if neither has it at the expected path.
-          $candidates = @(
-            (Join-Path ${env:ProgramFiles(x86)} "NSIS"),
-            (Join-Path $env:ProgramFiles "NSIS")
-          ) | Where-Object { $_ -and (Test-Path (Join-Path $_ "makensis.exe")) }
-          if (-not $candidates) {
-            $found = Get-ChildItem -Path "C:\Program Files*" -Filter makensis.exe -Recurse -ErrorAction SilentlyContinue |
-              Select-Object -First 1
-            if (-not $found) { throw "makensis.exe not found after installing NSIS." }
-            $candidates = @($found.DirectoryName)
+          $dir = "${{ steps.nsis.outputs.instdir }}"
+          Write-Host "NSIS directory from the install action: $dir"
+          if (-not $dir -or -not (Test-Path (Join-Path $dir 'makensis.exe'))) {
+            throw "The NSIS install action reported '$dir' but makensis.exe is not there."
           }
-          $nsis = $candidates[0]
-          Write-Host "Using NSIS at $nsis"
-          # Prove it runs here, in this step, where the error can still say
-          # which directory was wrong — rather than one step later as
-          # "makensis is not on PATH".
-          & (Join-Path $nsis "makensis.exe") /VERSION
-          if ($LASTEXITCODE -ne 0) { throw "makensis.exe in $nsis is not runnable (exit $LASTEXITCODE)." }
-          # Both mechanisms: GITHUB_PATH for later steps, and GITHUB_ENV
-          # so the packaging step has the exact path even if PATH handling
-          # changes. Belt and braces on purpose — this failed once.
-          Add-Content -Path $env:GITHUB_PATH -Value $nsis
-          Add-Content -Path $env:GITHUB_ENV -Value "NSIS_DIR=$nsis"
-          Write-Host "Appended $nsis to GITHUB_PATH and set NSIS_DIR"
+          # Prove it runs, here, where an error can still name the directory.
+          & (Join-Path $dir 'makensis.exe') /VERSION
+          if ($LASTEXITCODE -ne 0) { throw "makensis.exe in $dir is not runnable (exit $LASTEXITCODE)." }
+          # Belt and braces: GITHUB_PATH for anything that just calls
+          # `makensis`, and NSIS_DIR for the packaging step, which prefers it.
+          Add-Content -Path $env:GITHUB_PATH -Value $dir
+          Add-Content -Path $env:GITHUB_ENV -Value "NSIS_DIR=$dir"
+          Write-Host "Appended $dir to GITHUB_PATH and set NSIS_DIR"
 
       - name: Publish, package and hash both architectures
         shell: pwsh
