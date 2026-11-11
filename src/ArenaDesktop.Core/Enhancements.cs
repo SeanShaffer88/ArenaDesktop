@@ -17,7 +17,7 @@ public static class FindOptionsPolicy
     /// absurdly long ones are refused here rather than started as a
     /// find that can never match — the bar then says why.
     /// </summary>
-    public static bool IsUsableTerm(string? term, int maxLength = 200, out string? reason)
+    public static bool IsUsableTerm(string? term, int maxLength, out string? reason)
     {
         reason = null;
         if (string.IsNullOrWhiteSpace(term))
