@@ -30,17 +30,35 @@ jobs:
         run: dotnet test tests/ArenaDesktop.Core.Tests -c Release --no-build --logger "trx;LogFileName=results.trx"
 
       # TEMPORARY CI DIAGNOSTIC — remove before merge.
-      - name: Diagnostic — failing test names
+      - name: Diagnostic — publish failing test names
         if: failure() || success()
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          $lines = @()
           $trx = Get-ChildItem -Path . -Recurse -Filter *.trx -ErrorAction SilentlyContinue
+          if (-not $trx) { $lines += "no trx found" }
           foreach ($f in $trx) {
             [xml]$x = Get-Content $f.FullName
             foreach ($r in $x.TestRun.Results.UnitTestResult | Where-Object { $_.outcome -ne 'Passed' }) {
-              Write-Host "FAILED-TEST: $($r.testName)"
-              Write-Host "  MESSAGE: $($r.Output.ErrorInfo.Message)"
-              Write-Host "  STACK: $($r.Output.ErrorInfo.StackTrace)"
+              $lines += "FAILED: $($r.testName)"
+              $lines += "MSG: $($r.Output.ErrorInfo.Message)"
+              $lines += "STACK: $($r.Output.ErrorInfo.StackTrace)"
+            }
+          }
+          $summary = ($lines -join "`n")
+          if ($summary.Length -gt 60000) { $summary = $summary.Substring(0, 60000) }
+          $sha = "${{ github.event.pull_request.head.sha }}"
+          if (-not $sha) { $sha = "${{ github.sha }}" }
+          $runs = gh api "repos/${{ github.repository }}/commits/$sha/check-runs?per_page=100" | ConvertFrom-Json
+          foreach ($cr in $runs.check_runs) {
+            if ($cr.head_sha -eq $sha -and $cr.name -notmatch 'arm64') {
+              $body = @{ output = @{ title = "failing tests"; summary = $summary } } | ConvertTo-Json -Depth 5
+              $tmp = Join-Path $env:RUNNER_TEMP "patch.json"
+              Set-Content -Path $tmp -Value $body -Encoding utf8
+              gh api --method PATCH "repos/${{ github.repository }}/check-runs/$($cr.id)" --input $tmp | Out-Null
+              Write-Host "patched check run $($cr.id)"
             }
           }
 
