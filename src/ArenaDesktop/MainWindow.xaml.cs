@@ -3162,60 +3162,56 @@ public partial class MainWindow : Window
     /// </summary>
     private async Task CheckForUpdatesAsync(bool manual)
     {
-        // Hardening pack: one guard instead of a bool + hand-written
-        // finally. A second manual check while the first is still awaiting
-        // is refused (Scope.Entered is false), and disposal is what clears
-        // the flag, so no return path can leave the menu item dead.
+        // Hardening pack: one RAII guard. A second check while the first is
+        // still awaiting is refused (Scope.Entered is false), and disposing
+        // the scope is what releases the guard — so no return or throw path
+        // can leave the update check permanently refused.
         using var scope = _updateCheckGuard.TryEnter();
         if (!scope.Entered)
             return;
-        try
+        if (manual)
+            SetStatus("Checking for updates…");
+        _settings.LastUpdateCheckUtc = DateTimeOffset.UtcNow;
+        var version = typeof(App).Assembly.GetName().Version ?? new Version(0, 0, 0);
+        var outcome = await UpdateService.CheckAsync(version, _settings.UpdateChannel, _log);
+        switch (outcome.Kind)
         {
-            if (manual)
-                SetStatus("Checking for updates…");
-            _settings.LastUpdateCheckUtc = DateTimeOffset.UtcNow;
-            var version = typeof(App).Assembly.GetName().Version ?? new Version(0, 0, 0);
-            var outcome = await UpdateService.CheckAsync(version, _settings.UpdateChannel, _log);
-            switch (outcome.Kind)
-            {
-                case UpdateOutcomeKind.Available:
-                    _updateTag = outcome.Tag;
-                    _updateUrl = outcome.Url;
-                    _updateRelease = outcome.Release;
-                    UpdateItem.Header = $"⬆ Update available: {outcome.Tag}";
-                    UpdateItem.ToolTip = "Download and install the update inside ArenaDesktop";
-                    SetStatus($"ArenaDesktop {outcome.Tag} is available — see the ⋯ menu");
-                    // S6 #54: screen readers hear the update notice too.
-                    Announcer.Polite(AnnouncementText.UpdateAvailable(outcome.Tag ?? "new version"));
-                    break;
-                case UpdateOutcomeKind.UpToDate:
-                    if (manual) SetStatus($"You're up to date (v{version.ToString(3)})");
-                    break;
-                // Enhancement pack: the failure copy names the cause and
-                // the next step in one line, instead of a shrug.
-                case UpdateOutcomeKind.Unreachable:
-                    if (manual)
-                    {
-                        SetStatus(UpdateFailureText.StatusLine(outcome.Kind));
-                        _log.Warn($"Update check unreachable: {UpdateFailureText.NextStep(outcome.Kind)}");
-                    }
-                    break;
-                case UpdateOutcomeKind.BadData:
-                    if (manual) SetStatus(UpdateFailureText.StatusLine(outcome.Kind));
-                    break;
-                default:
-                    // The catch-all names the same cause and step as the
-                    // two specific kinds, so a failure the service
-                    // couldn't classify still says what to do.
-                    if (manual) SetStatus(UpdateFailureText.StatusLine(UpdateOutcomeKind.Failed));
-                    break;
-            }
-            // Persist the check stamp (and anything the update window
-            // changed) — SaveSettings is the window's ordinary path.
-            SaveSettings();
+            case UpdateOutcomeKind.Available:
+                _updateTag = outcome.Tag;
+                _updateUrl = outcome.Url;
+                _updateRelease = outcome.Release;
+                UpdateItem.Header = $"⬆ Update available: {outcome.Tag}";
+                UpdateItem.ToolTip = "Download and install the update inside ArenaDesktop";
+                SetStatus($"ArenaDesktop {outcome.Tag} is available — see the ⋯ menu");
+                // S6 #54: screen readers hear the update notice too.
+                Announcer.Polite(AnnouncementText.UpdateAvailable(outcome.Tag ?? "new version"));
+                break;
+            case UpdateOutcomeKind.UpToDate:
+                if (manual) SetStatus($"You're up to date (v{version.ToString(3)})");
+                break;
+            // Enhancement pack: the failure copy names the cause and
+            // the next step in one line, instead of a shrug.
+            case UpdateOutcomeKind.Unreachable:
+                if (manual)
+                {
+                    SetStatus(UpdateFailureText.StatusLine(outcome.Kind));
+                    _log.Warn($"Update check unreachable: {UpdateFailureText.NextStep(outcome.Kind)}");
+                }
+                break;
+            case UpdateOutcomeKind.BadData:
+                if (manual) SetStatus(UpdateFailureText.StatusLine(outcome.Kind));
+                break;
+            default:
+                // The catch-all names the same cause and step as the
+                // two specific kinds, so a failure the service
+                // couldn't classify still says what to do.
+                if (manual) SetStatus(UpdateFailureText.StatusLine(UpdateOutcomeKind.Failed));
+                break;
         }
+        // Persist the check stamp (and anything the update window
+        // changed) — SaveSettings is the window's ordinary path.
+        SaveSettings();
     }
-
 
     // ─────────────────── v0.5.0 Slice 1 (items 1–12) ───────────────────
 

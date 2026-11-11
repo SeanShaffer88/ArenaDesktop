@@ -971,12 +971,13 @@ public class HardeningPackTests
     /// so every instance here has to supply them even when the test is
     /// only interested in one optional field.
     /// </summary>
-    private static DiagnosticsData MinimalReport() => new()
+    private static DiagnosticsData WithWriteLine(string? line) => new()
     {
         AppVersion = "1.0.0",
         SettingsPath = @"C:\profiles\main\settings.json",
         LogPath = @"C:\profiles\main\arena.log",
         ProfileDir = @"C:\profiles\main",
+        SettingsWriteLine = line,
     };
 
     [Fact]
@@ -993,9 +994,10 @@ public class HardeningPackTests
         var text = DiagnosticsReport.Compose(data);
         Assert.Contains("Settings writes this session", text);
         Assert.Contains("deferred 12", text);
-        // The leading indent is trimmed so the line sits flush under its
-        // heading rather than looking like an error in the report.
-        Assert.Contains("\nSettings writes 4 · deferred 12", text.Replace("\r\n", "\n"));
+        // The tally keeps the two-space indent every fact line under a
+        // diagnostics heading uses (readiness below it is indented too),
+        // so the report reads as one block rather than a stray column.
+        Assert.Contains("\n  Settings writes 4 · deferred 12", text.Replace("\r\n", "\n"));
     }
 
     [Fact]
@@ -1003,11 +1005,10 @@ public class HardeningPackTests
     {
         // ReportLine is null until the first write; the heading must not
         // appear on its own.
-        var none = MinimalReport();
-        none.SettingsWriteLine = null;
-        Assert.DoesNotContain("Settings writes this session", DiagnosticsReport.Compose(none));
-        var blank = MinimalReport();
-        blank.SettingsWriteLine = "   ";
-        Assert.DoesNotContain("Settings writes this session", DiagnosticsReport.Compose(blank));
+        // SettingsWriteLine is init-only, so it is set in the initializer.
+        Assert.DoesNotContain("Settings writes this session",
+            DiagnosticsReport.Compose(WithWriteLine(null)));
+        Assert.DoesNotContain("Settings writes this session",
+            DiagnosticsReport.Compose(WithWriteLine("   ")));
     }
 }
