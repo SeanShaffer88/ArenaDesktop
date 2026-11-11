@@ -1453,6 +1453,26 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// For the --smoke-test mode: build the Battle Lab pane and reflow it
+    /// through all three arrangements, so the control's XAML and its
+    /// re-parenting are exercised on a real Windows image — the Core
+    /// tests can only read the markup, they cannot construct it. Returns
+    /// a short description of what was built, for the log.
+    /// </summary>
+    public string SmokeTestBattleLabPane()
+    {
+        var view = new BattleLabView(_log, OpenBattleWithCopiedPrompt, _settings);
+        SidePaneHost.Children.Add(view);
+        // Both sides of every threshold, in the order a resize would hit
+        // them, so each arrangement's placements are applied at least once.
+        foreach (var width in new[] { 1200.0, 700.0, 320.0, 700.0, 1200.0 })
+            view.ApplyArrangement(width);
+        var result = $"Battle Lab pane constructed; arrangements applied; ended {view.Arrangement}";
+        SidePaneHost.Children.Remove(view);
+        return result;
+    }
+
+    /// <summary>
     /// For the --smoke-test mode: waits until WebView2 initialization has
     /// succeeded (the Loaded handler runs it) or failed, up to a timeout.
     /// Navigation success is deliberately not required — CI networks vary;

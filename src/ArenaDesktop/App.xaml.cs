@@ -530,6 +530,19 @@ public partial class App : System.Windows.Application
         }
 
         Log.Info("SMOKE-TEST: main window constructed");
+        // The Lab pane is built at runtime, not in MainWindow's XAML, so
+        // constructing the window would not catch a broken BattleLabView.
+        // Build it here, and reflow it through every arrangement.
+        try
+        {
+            Log.Info($"SMOKE-TEST: {window.SmokeTestBattleLabPane()}");
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"SMOKE-TEST FAILED (Battle Lab pane): {ex}");
+            Shutdown(1);
+            return;
+        }
         try
         {
             window.Show();

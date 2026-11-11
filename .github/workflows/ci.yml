@@ -63,7 +63,24 @@ jobs:
         shell: pwsh
         run: |
           $p = Start-Process -FilePath "publish/win-x64/ArenaDesktop.exe" -ArgumentList "--smoke-test" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { throw "Smoke test failed with exit code $($p.ExitCode)" }
+          if ($p.ExitCode -ne 0) {
+            # The exit code alone says nothing about WHY. The app writes the
+            # reason to its log, so surface that as an annotation instead of
+            # leaving a reader with "exit code 1".
+            # AppPaths puts logs under ROAMING AppData (not Local) —
+            # %APPDATA%\ArenaDesktop\logs\arenadesktop.log.
+            $logs = Get-ChildItem "$env:APPDATA\ArenaDesktop\logs" -Filter *.log -ErrorAction SilentlyContinue |
+                    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if ($logs) {
+              $tail = Get-Content $logs.FullName -Tail 40 | Where-Object { $_ -match 'SMOKE-TEST|ERROR' }
+              Write-Host "---- app log tail ----"
+              $tail | ForEach-Object { Write-Host $_ }
+              $detail = ($tail | Where-Object { $_ -match 'SMOKE-TEST FAILED' } | Select-Object -First 1)
+              if (-not $detail) { $detail = ($tail | Select-Object -Last 1) }
+              Write-Host "::error title=Smoke test::$detail"
+            }
+            throw "Smoke test failed with exit code $($p.ExitCode)"
+          }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
