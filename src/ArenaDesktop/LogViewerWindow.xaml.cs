@@ -33,6 +33,9 @@ public partial class LogViewerWindow : Window
     /// </summary>
     private readonly HashSet<LogLevel> _visibleLevels = new();
 
+    /// <summary>Set while <see cref="ResyncChipsToShowEverything"/> writes the boxes, so its own writes aren't treated as clicks.</summary>
+    private bool _syncingChips;
+
     /// <summary>The full text as read, before the level filter. Find runs against this, then the visible view.</summary>
     private string _fullLogText = "";
 
@@ -115,13 +118,18 @@ public partial class LogViewerWindow : Window
                 Margin = new System.Windows.Thickness(0, 0, 12, 0),
                 VerticalAlignment = System.Windows.VerticalAlignment.Center,
                 Tag = level,
+                // A level with nothing in it stays clickable. Disabling it
+                // would leave a CHECKED but dead box whenever the filter is
+                // unset (every box renders ticked then), so the user would
+                // see a control they cannot switch off. It is harmless to
+                // tick: the chip produces no lines either way, and
+                // OnLevelChipChanged still treats "every box ticked" as
+                // show-everything.
+                IsEnabled = true,
             };
-            AutomationProperties.SetName(chip, $"{LogLevelFilter.Label(level)}, {count} lines");
+            System.Windows.Automation.AutomationProperties.SetName(chip, $"{LogLevelFilter.Label(level)}, {count} lines");
             chip.Checked += OnLevelChipChanged;
             chip.Unchecked += OnLevelChipChanged;
-            // A level with nothing in it is still shown (so the counts add
-            // up in the user's head) but cannot be ticked into an empty view.
-            chip.IsEnabled = count > 0;
             LevelChips.Children.Add(chip);
         }
     }
@@ -135,6 +143,8 @@ public partial class LogViewerWindow : Window
     /// </summary>
     private void OnLevelChipChanged(object sender, RoutedEventArgs e)
     {
+        if (_syncingChips)
+            return;
         _visibleLevels.Clear();
         var ticked = 0;
         var total = 0;
@@ -149,9 +159,29 @@ public partial class LogViewerWindow : Window
                 ticked++;
             }
         }
-        if (ticked == total)
+        // All four ticked and none ticked both describe "show everything":
+        // an empty view is never a useful answer to a click, and the second
+        // case is reachable by unticking the last box.
+        if (ticked == total || ticked == 0)
+        {
             _visibleLevels.Clear();
+            if (ticked == 0)
+                ResyncChipsToShowEverything();
+        }
         ApplyLevelFilter(scrollToEnd: false);
+    }
+
+    /// <summary>
+    /// After "untick the last box", put every box back to ticked — the
+    /// state that actually matches what is on screen. Without this the
+    /// chips would all read unchecked while the full log is displayed.
+    /// </summary>
+    private void ResyncChipsToShowEverything()
+    {
+        _syncingChips = true;
+        foreach (var chip in LevelChips.Children.OfType<System.Windows.Controls.CheckBox>())
+            chip.IsChecked = true;
+        _syncingChips = false;
     }
 
     /// <summary>
