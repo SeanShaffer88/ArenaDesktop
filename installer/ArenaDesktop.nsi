@@ -3,7 +3,8 @@
 ; Build (from the repo root, with the verified release publish staged):
 ;   makensis /DVERSION=0.1.0 /DARCH=x64 /DSTAGE=<dir containing the publish output> installer\ArenaDesktop.nsi
 ; Produces ArenaDesktop-Setup-v<VERSION>-<ARCH>.exe next to this script.
-; ARCH is x64 or arm64 and must match the staged publish (v0.4.0+).
+; ARCH is x64 and must match the staged publish. ARM64 was dropped in
+; v0.7.0; the parameter stays so the script still names its output.
 ;
 ; Design notes (see DECISIONS.md, 2026-10-23):
 ; - Per-user install to %LOCALAPPDATA%\Programs\ArenaDesktop, HKCU uninstall

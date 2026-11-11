@@ -2,6 +2,20 @@
 
 All notable changes to ArenaDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.7.0] — Unreleased
+
+Two changes to the app's shape rather than its features: it ships for x64 only, and the ⋯ menu is organised into five groups instead of one long list.
+
+### Changed
+
+- **The ⋯ menu is grouped.** It had grown to a flat list of thirty entries at the top level, so finding one meant scanning all of them. The top level is now five groups — **Navigate** (Arena modes, per-mode pinning, back/forward/home/reload/restore), **View** (zoom presets, focus mode, always-on-top, the three layouts, find, this session, connection security), **Page** (print, save as PDF, copy address, open in browser, open in new window), **Tools** (downloads, Battle Lab, field pass, keyboard shortcuts, lock now) and **Help** (help, logs, diagnostics, support bundle, about). Profile switching, Settings and Check for updates stay at the top, where they were. Nothing was removed and no shortcut changed; every command is one or two clicks away, and the menu's own test-visible names are untouched.
+- **Back, Forward, Home and Reload are in the menu.** They were keyboard-only (Alt+←/→/Home, F5) and had no visible entry anywhere; they now sit at the foot of **Navigate**, through the same dispatch as the keys.
+- **The menu's key hints follow your remaps.** The ⋯ menu prints the key beside Settings and Home, and both are remappable — so the shell now rewrites those two hints from the shortcut catalog at startup and on Settings OK, instead of trusting the markup. Back, Forward and Reload are fixed and still read Alt+Left, Alt+Right and F5.
+
+### Removed
+
+- **ARM64 builds.** v0.7.0 ships x64 only: no ARM64 CI job, no `-arm64.exe` installer, no `-windows-arm64.zip`. ARM64 was carried because the fork base's CI built it, and it was never actually run through the on-machine pass on real hardware — an unverified native build on offer is worse than none. A Windows-on-ARM PC can still run the x64 build under emulation. **Anyone on an ARM64 build of 0.6.0 or earlier stays on it:** the updater still names their architecture, finds no matching installer in a newer release, and offers nothing, rather than handing them x64 binaries silently.
+
 ## [0.6.0] — 2026-11-11
 
 A second small pack on the same theme as 0.5.0: things that were silent now speak, and things that were one-at-a-time now take the whole selection. The idle lock is the one genuinely new capability — the app could lock itself on startup or when it hid to the tray, but not when you simply walked away.

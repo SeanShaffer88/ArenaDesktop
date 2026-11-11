@@ -15,7 +15,7 @@ name: Sign-Release
 #       SIGNING_CERT_PASSWORD — the .pfx password
 # When enabled for a release tag, it downloads that release's two
 # installer assets, signs them with signtool (SHA-256, timestamped),
-# regenerates SHA256SUMS.txt over all four release assets, and
+# regenerates SHA256SUMS.txt over all three release assets, and
 # re-uploads the changed files. Signing BEFORE a release is published
 # is the better order once this is routine (sign the staged
 # installers, then publish) — the checklist describes both.
@@ -70,7 +70,7 @@ jobs:
             Sort-Object FullName | Select-Object -Last 1
           if (-not $signtool) { throw "signtool.exe not found on the runner." }
           $installers = Get-ChildItem assets\ArenaDesktop-Setup-*.exe
-          if ($installers.Count -ne 2) { throw "Expected exactly 2 installer assets, found $($installers.Count)." }
+          if ($installers.Count -ne 1) { throw "Expected exactly 1 installer asset (x64 only since v0.7.0), found $($installers.Count)." }
           foreach ($installer in $installers) {
             & $signtool.FullName sign /f "$env:RUNNER_TEMP\signing.pfx" /p $env:CERT_PASSWORD `
               /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $installer.FullName
@@ -85,11 +85,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
         run: |
+          # x64 only since v0.7.0 dropped ARM64 (DECISIONS.md, 2026-11-11).
           $names = @(
             "ArenaDesktop-v$($env:TAG.TrimStart('v'))-windows-x64.zip",
-            "ArenaDesktop-v$($env:TAG.TrimStart('v'))-windows-arm64.zip",
-            "ArenaDesktop-Setup-$env:TAG-x64.exe",
-            "ArenaDesktop-Setup-$env:TAG-arm64.exe"
+            "ArenaDesktop-Setup-$env:TAG-x64.exe"
           )
           $lines = foreach ($name in $names) {
             $path = Join-Path assets $name
@@ -97,7 +96,12 @@ jobs:
             $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLower()
             "$hash  $name"
           }
-          $lines | Set-Content assets\SHA256SUMS.txt -Encoding ascii
+          # LF, ASCII, no BOM — SumsFile.Parse reads the first 64 bytes of
+          # each line as the hash, so a BOM makes every line unreadable.
+          [IO.File]::WriteAllText(
+            (Join-Path (Get-Location) 'assets/SHA256SUMS.txt'),
+            (($lines -join "`n") + "`n"),
+            [Text.Encoding]::ASCII)
           $toUpload = @((Get-ChildItem assets\ArenaDesktop-Setup-*.exe).FullName)
           $toUpload += (Resolve-Path assets\SHA256SUMS.txt).Path
           gh release upload $env:TAG $toUpload --clobber

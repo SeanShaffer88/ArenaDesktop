@@ -202,14 +202,18 @@ public class S9Tests
     public void Assets_NamingAndPicking()
     {
         Assert.Equal("ArenaDesktop-Setup-v0.13.0-x64.exe", UpdateAssets.InstallerAssetName("0.13.0", "x64"));
-        Assert.Equal("ArenaDesktop-Setup-v0.13.0-arm64.exe", UpdateAssets.InstallerAssetName("v0.13.0", "arm64"));
-        Assert.Equal("arm64", UpdateAssets.ArchToken("Arm64"));
-        var release = Release("v0.13.0", false, Installer("0.13.0", "x64"), Installer("0.13.0", "arm64"));
-        Assert.Equal("ArenaDesktop-Setup-v0.13.0-arm64.exe", UpdateAssets.PickInstaller(release, "arm64")?.Name);
+        Assert.Equal("x64", UpdateAssets.ArchToken("X64"));
+        var release = Release("v0.13.0", false, Installer("0.13.0", "x64"));
+        Assert.Equal("ArenaDesktop-Setup-v0.13.0-x64.exe", UpdateAssets.PickInstaller(release, "x64")?.Name);
         Assert.Null(UpdateAssets.PickInstaller(Release("v0.13.0"), "x64"));
         Assert.True(UpdateAssets.IsInstallerForArch("ArenaDesktop-Setup-v0.12.0-x64.exe", "x64"));
-        Assert.False(UpdateAssets.IsInstallerForArch("ArenaDesktop-Setup-v0.12.0-x64.exe", "arm64"));
         Assert.False(UpdateAssets.IsInstallerForArch("ArenaDesktop-v0.12.0-windows-x64.zip", "x64"));
+        // v0.7.0 dropped ARM64 builds. What matters is that a release
+        // carrying only an x64 installer offers nothing to an arm64
+        // process — never the wrong installer. That is what keeps a
+        // 0.6.0 arm64 install honest: it simply never sees an update it
+        // cannot use.
+        Assert.Null(UpdateAssets.PickInstaller(release, "arm64"));
     }
 
     [Fact]

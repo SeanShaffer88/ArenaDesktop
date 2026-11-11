@@ -67,97 +67,141 @@
                             ToolTip="More options" Click="OnMenu" AutomationProperties.Name="More options">
                         <Button.ContextMenu>
                             <ContextMenu x:Name="MoreMenu">
+                                <!-- Shown only with more than one profile:
+                                     RefreshProfilesMenu sets both. Kept at
+                                     the top because it labels which profile
+                                     everything below acts on. -->
                                 <MenuItem x:Name="ProfileItem" Header="Profile: Default" IsEnabled="False" Visibility="Collapsed"/>
-                                <Separator x:Name="ProfileSeparator" Visibility="Collapsed"/>
                                 <MenuItem x:Name="SwitchProfileItem" Header="Switch profile"
                                           ToolTip="Restart ArenaDesktop signed in with another profile"/>
-                                <MenuItem Header="Settings…" Click="OnSettings" InputGestureText="Ctrl+,"
+                                <MenuItem x:Name="SettingsItem" Header="Settings…" Click="OnSettings" InputGestureText="Ctrl+,"
                                           ToolTip="Startup, downloads, updates, memory, and data options"/>
                                 <MenuItem x:Name="UpdateItem" Header="Check for updates" Click="OnCheckForUpdates"
                                           ToolTip="See whether a newer ArenaDesktop is available"/>
-                                <MenuItem Header="Downloads…" Click="OnDownloads"
-                                          ToolTip="Files Arena has downloaded for you, newest first"/>
-                                <MenuItem Header="Battle Lab…" Click="OnBattleLab"
-                                          ToolTip="Your prompt library, run queue, and results journal for Battle"/>
-                                <MenuItem Header="Field pass…" Click="OnFieldPass"
-                                          ToolTip="Nine guided checks that prove the app on this PC — layouts, Battle Lab, modes, downloads, tray, lock, profiles, updates"/>
-                                <MenuItem Header="Arena modes"
-                                          ToolTip="Jump straight to a part of Arena: Battle, Direct Chat, Side by Side, the Leaderboard, Agent, Image, Code, Video, or Web Search">
-                                    <MenuItem Header="Battle" Click="OnArenaMode" Tag="battle" InputGestureText="Ctrl+1"
-                                              ToolTip="Two anonymous models answer your prompt — vote, then see who they were"/>
-                                    <MenuItem Header="Direct Chat" Click="OnArenaMode" Tag="direct" InputGestureText="Ctrl+2"
-                                              ToolTip="Chat with one named model (picked at the top of the page)"/>
-                                    <MenuItem Header="Side by Side" Click="OnArenaMode" Tag="side-by-side" InputGestureText="Ctrl+3"
-                                              ToolTip="Compare two named models on one prompt (picked at the top of the page)"/>
-                                    <MenuItem Header="Leaderboard" Click="OnArenaMode" Tag="leaderboard" InputGestureText="Ctrl+4"
-                                              ToolTip="The public model rankings, by category"/>
-                                    <MenuItem Header="Agent" Click="OnArenaMode" Tag="agent" InputGestureText="Ctrl+5"
-                                              ToolTip="Agent Mode — Arena's agents take on longer, multi-step tasks"/>
-                                    <MenuItem Header="Image" Click="OnArenaMode" Tag="image" InputGestureText="Ctrl+6"
-                                              ToolTip="Generate and compare images from the top image models"/>
-                                    <MenuItem Header="Code" Click="OnArenaMode" Tag="code" InputGestureText="Ctrl+7"
-                                              ToolTip="Build websites and apps with the top coding models"/>
-                                    <MenuItem Header="Video" Click="OnArenaMode" Tag="video" InputGestureText="Ctrl+8"
-                                              ToolTip="Generate and compare videos from the top video models"/>
-                                    <MenuItem Header="Web Search" Click="OnArenaMode" Tag="search" InputGestureText="Ctrl+9"
-                                              ToolTip="Search the web with AI search models"/>
+                                <Separator x:Name="ProfileSeparator" Visibility="Collapsed"/>
+                                <!-- Top level is grouped by intent, not by
+                                     feature: five groups (Navigate, View,
+                                     Page, Tools, Help) replace the flat
+                                     run of thirty-eight entries this menu
+                                     used to be. Everything is still one or
+                                     two clicks away, and the names the
+                                     shell reaches for (PinItem, FocusItem,
+                                     the layout items, LockNowItem…) keep
+                                     their x:Name, so the code-behind did
+                                     not change. -->
+
+                                <MenuItem Header="Navigate">
+                                    <MenuItem Header="Arena modes"
+                                              ToolTip="Every part of Arena, one click away">
+                                        <MenuItem Header="Battle" Click="OnArenaMode" Tag="battle" InputGestureText="Ctrl+1"
+                                                  ToolTip="arena.ai — the Arena itself"/>
+                                        <MenuItem Header="Direct Chat" Click="OnArenaMode" Tag="direct" InputGestureText="Ctrl+2"
+                                                  ToolTip="arena.ai — the Arena itself"/>
+                                        <MenuItem Header="Side by Side" Click="OnArenaMode" Tag="side-by-side" InputGestureText="Ctrl+3"
+                                                  ToolTip="arena.ai — the Arena itself"/>
+                                        <MenuItem Header="Leaderboard" Click="OnArenaMode" Tag="leaderboard" InputGestureText="Ctrl+4"
+                                                  ToolTip="arena.ai — the Arena itself"/>
+                                        <MenuItem Header="Agent" Click="OnArenaMode" Tag="agent" InputGestureText="Ctrl+5"
+                                                  ToolTip="arena.ai — the Arena itself"/>
+                                        <MenuItem Header="Image" Click="OnArenaMode" Tag="image" InputGestureText="Ctrl+6"
+                                                  ToolTip="arena.ai — the Arena itself"/>
+                                        <MenuItem Header="Code" Click="OnArenaMode" Tag="code" InputGestureText="Ctrl+7"
+                                                  ToolTip="arena.ai — the Arena itself"/>
+                                        <MenuItem Header="Video" Click="OnArenaMode" Tag="video" InputGestureText="Ctrl+8"
+                                                  ToolTip="arena.ai — the Arena itself"/>
+                                        <MenuItem Header="Web Search" Click="OnArenaMode" Tag="search" InputGestureText="Ctrl+9"
+                                                  ToolTip="arena.ai — the Arena itself"/>
+                                    </MenuItem>
+                                    <Separator/>
+                                    <MenuItem x:Name="PinModeItem" Header="Pin this mode" Click="OnPinCurrentMode"
+                                              ToolTip="Pin the page you are on so one click (and the status bar) brings you back to it"/>
+                                    <MenuItem x:Name="UnpinModeItem" Header="Unpin mode" Click="OnUnpinMode"
+                                              Visibility="Collapsed"
+                                              ToolTip="Stop offering the pinned mode in the status bar and this menu"/>
+                                    <MenuItem x:Name="GoPinnedModeItem" Header="Go to pinned mode" Click="OnGoPinnedMode"
+                                              Visibility="Collapsed"
+                                              ToolTip="Jump to the mode you pinned"/>
+                                    <Separator/>
+                                    <!-- Named so RefreshMenuGestures can keep their
+                                         key hints honest: Home's Alt+Home is
+                                         remappable in Settings. -->
+                                    <MenuItem x:Name="BackItem" Header="Back" Click="OnBack" InputGestureText="Alt+Left"/>
+                                    <MenuItem x:Name="ForwardItem" Header="Forward" Click="OnForward" InputGestureText="Alt+Right"/>
+                                    <MenuItem x:Name="HomeItem" Header="Home" Click="OnHome" InputGestureText="Alt+Home"/>
+                                    <MenuItem x:Name="ReloadItem" Header="Reload" Click="OnReload" InputGestureText="F5"/>
+                                    <MenuItem Header="Restore last closed page" Click="OnRestoreClosedPage" InputGestureText="Ctrl+Shift+T"/>
                                 </MenuItem>
-                                <Separator/>
-                                <MenuItem x:Name="PinModeItem" Header="Pin this mode" Click="OnPinCurrentMode"
-                                          ToolTip="Pin the page you are on so one click (and the status bar) brings you back to it"/>
-                                <MenuItem x:Name="UnpinModeItem" Header="Unpin mode" Click="OnUnpinMode"
-                                          Visibility="Collapsed"
-                                          ToolTip="Stop offering the pinned mode in the status bar and this menu"/>
-                                <MenuItem x:Name="GoPinnedModeItem" Header="Go to pinned mode" Click="OnGoPinnedMode"
-                                          Visibility="Collapsed"
-                                          ToolTip="Jump to the mode you pinned"/>
-                                <MenuItem x:Name="ZoomPresetsItem" Header="Zoom presets"
-                                          ToolTip="Named zoom jumps beside the Ctrl+± steps">
-                                    <MenuItem Tag="half" Header="50%" Click="OnZoomPreset"/>
-                                    <MenuItem Tag="three-quarters" Header="75%" Click="OnZoomPreset"/>
-                                    <MenuItem Tag="actual" Header="100% (actual size)" Click="OnZoomPreset"/>
-                                    <MenuItem Tag="one-fifty" Header="150%" Click="OnZoomPreset"/>
-                                    <MenuItem Tag="double" Header="200%" Click="OnZoomPreset"/>
+
+                                <MenuItem Header="View">
+                                    <MenuItem x:Name="ZoomPresetsItem" Header="Zoom presets"
+                                              ToolTip="Named zoom jumps beside the Ctrl+± steps">
+                                        <MenuItem Tag="half" Header="50%" Click="OnZoomPreset"/>
+                                        <MenuItem Tag="three-quarters" Header="75%" Click="OnZoomPreset"/>
+                                        <MenuItem Tag="actual" Header="100% (actual size)" Click="OnZoomPreset"/>
+                                        <MenuItem Tag="one-fifty" Header="150%" Click="OnZoomPreset"/>
+                                        <MenuItem Tag="double" Header="200%" Click="OnZoomPreset"/>
+                                    </MenuItem>
+                                    <MenuItem x:Name="FocusItem" Header="Focus mode" IsCheckable="True" Click="OnToggleFocusMode"
+                                              InputGestureText="F8" ToolTip="Hide the toolbar and status bar (F8 or Esc to exit)"/>
+                                    <MenuItem x:Name="PinItem" Header="Always on top" IsCheckable="True" Click="OnTogglePin"
+                                              ToolTip="Keep ArenaDesktop above other windows"/>
+                                    <Separator/>
+                                    <!-- The three layouts are one choice, so
+                                         they read as one: previously a flat
+                                         run of checkable siblings next to
+                                         unrelated toggles. -->
+                                    <MenuItem Header="Layout">
+                                        <MenuItem x:Name="StandardLayoutItem" Header="Standard layout" IsCheckable="True" Click="OnSelectStandardLayout"
+                                                  ToolTip="The classic toolbar across the top and the status bar along the bottom"/>
+                                        <MenuItem x:Name="CompactFocusItem" Header="Compact Focus layout" IsCheckable="True" Click="OnToggleCompactFocusLayout"
+                                                  ToolTip="Slim toolbar, and the status bar becomes a small pill in the corner — the Arena page gets the extra room"/>
+                                        <MenuItem x:Name="LeftRailLayoutItem" Header="Left Rail layout" IsCheckable="True" Click="OnSelectLeftRailLayout"
+                                                  ToolTip="Navigation and the Arena modes in a slim rail down the left edge, a thin title strip on top, and the status bar along the bottom"/>
+                                    </MenuItem>
+                                    <Separator/>
+                                    <MenuItem Header="Find in page…" Click="OnFind" InputGestureText="Ctrl+F"/>
+                                    <MenuItem Header="This session…" Click="OnSessionWindow"
+                                              ToolTip="Pages visited, time on Arena, downloads, and mode jumps — this run only, saved nowhere"/>
+                                    <MenuItem Header="Connection security…" Click="OnConnectionSecurity"
+                                              ToolTip="The current site's connection: address, encryption, and the WebView2 runtime version"/>
                                 </MenuItem>
-                                <MenuItem Header="This session…" Click="OnSessionWindow"
-                                          ToolTip="Pages visited, time on Arena, downloads, and mode jumps — this run only, saved nowhere"/>
-                                <Separator/>
-                                <MenuItem Header="Find in page…" Click="OnFind" InputGestureText="Ctrl+F"/>
-                                <MenuItem Header="Keyboard shortcuts…" Click="OnShortcuts" InputGestureText="Ctrl+/"
-                                          ToolTip="Every keyboard shortcut in one searchable list; three of them can be changed in Settings"/>
-                                <MenuItem Header="Print…" Click="OnPrint" InputGestureText="Ctrl+P"/>
-                                <MenuItem Header="Save as PDF…" Click="OnSaveAsPdf"/>
-                                <MenuItem Header="Copy page address" Click="OnCopyPageAddress"/>
-                                <MenuItem Header="Open in browser" Click="OnOpenInBrowser"/>
-                                <MenuItem Header="Open in new window" Click="OnOpenInNewWindow"
-                                          ToolTip="Open the current page in a second window on the same profile"/>
-                                <Separator/>
-                                <MenuItem x:Name="PinItem" Header="Always on top" IsCheckable="True" Click="OnTogglePin"
-                                          ToolTip="Keep ArenaDesktop above other windows"/>
-                                <MenuItem x:Name="FocusItem" Header="Focus mode" IsCheckable="True" Click="OnToggleFocusMode"
-                                          InputGestureText="F8" ToolTip="Hide the toolbar and status bar (F8 or Esc to exit)"/>
-                                <MenuItem x:Name="StandardLayoutItem" Header="Standard layout" IsCheckable="True" Click="OnSelectStandardLayout"
-                                          ToolTip="The classic toolbar across the top and the status bar along the bottom"/>
-                                <MenuItem x:Name="CompactFocusItem" Header="Compact Focus layout" IsCheckable="True" Click="OnToggleCompactFocusLayout"
-                                          ToolTip="Slim toolbar, and the status bar becomes a small pill in the corner — the Arena page gets the extra room"/>
-                                <MenuItem x:Name="LeftRailLayoutItem" Header="Left Rail layout" IsCheckable="True" Click="OnSelectLeftRailLayout"
-                                          ToolTip="Navigation and the Arena modes in a slim rail down the left edge, a thin title strip on top, and the status bar along the bottom"/>
-                                <MenuItem Header="Restore last closed page" Click="OnRestoreClosedPage" InputGestureText="Ctrl+Shift+T"/>
-                                <Separator/>
-                                <MenuItem Header="Connection security…" Click="OnConnectionSecurity"
-                                          ToolTip="The current site's connection: address, encryption, and the WebView2 runtime version"/>
-                                <MenuItem x:Name="LockNowItem" Header="Lock now" Click="OnLockNow" Visibility="Collapsed"
-                                          ToolTip="Lock ArenaDesktop with your app password until you unlock it"/>
-                                <MenuItem Header="View log…" Click="OnViewLog"
-                                          ToolTip="Read the diagnostic log in the app, with its redaction check"/>
-                                <MenuItem Header="Open log folder" Click="OnOpenLogFolder"/>
-                                <MenuItem Header="Diagnostics…" Click="OnDiagnostics"
-                                          ToolTip="Versions, runtime health, proxy, memory, startup timings, data sizes, and recent errors — with a Copy button and the support-bundle export"/>
-                                <MenuItem Header="Help &amp; troubleshooting…" Click="OnHelp"
-                                          ToolTip="Offline pages for the common problems: sign-in loops, microphone, silent notifications, missing runtime, failing downloads, a forgotten app password"/>
-                                <MenuItem Header="Export support bundle…" Click="OnExportSupportBundle"
-                                          ToolTip="One .zip with the diagnostics report, the redacted log tail, sanitized settings, and download history — previewed first, uploaded nowhere"/>
-                                <MenuItem Header="About ArenaDesktop" Click="OnAbout"/>
+
+                                <MenuItem Header="Page">
+                                    <MenuItem Header="Print…" Click="OnPrint" InputGestureText="Ctrl+P"/>
+                                    <MenuItem Header="Save as PDF…" Click="OnSaveAsPdf"/>
+                                    <Separator/>
+                                    <MenuItem Header="Copy page address" Click="OnCopyPageAddress"/>
+                                    <MenuItem Header="Open in browser" Click="OnOpenInBrowser"/>
+                                    <MenuItem Header="Open in new window" Click="OnOpenInNewWindow"
+                                              ToolTip="Open the current page in a second window on the same profile"/>
+                                </MenuItem>
+
+                                <MenuItem Header="Tools">
+                                    <MenuItem Header="Downloads…" Click="OnDownloads"/>
+                                    <MenuItem Header="Battle Lab…" Click="OnBattleLab"/>
+                                    <MenuItem Header="Field pass…" Click="OnFieldPass"/>
+                                    <Separator/>
+                                    <MenuItem Header="Keyboard shortcuts…" Click="OnShortcuts" InputGestureText="Ctrl+/"
+                                              ToolTip="Every keyboard shortcut in one searchable list; three of them can be changed in Settings"/>
+                                    <MenuItem x:Name="LockNowItem" Header="Lock now" Click="OnLockNow" Visibility="Collapsed"
+                                              ToolTip="Lock ArenaDesktop with your app password until you unlock it"/>
+                                </MenuItem>
+
+                                <MenuItem Header="Help">
+                                    <MenuItem Header="Help &amp; troubleshooting…" Click="OnHelp"
+                                              ToolTip="Offline pages for the common problems: sign-in loops, microphone, silent notifications, missing runtime, failing downloads, a forgotten app password"/>
+                                    <Separator/>
+                                    <MenuItem Header="View log…" Click="OnViewLog"
+                                              ToolTip="Read the diagnostic log in the app, with its redaction check"/>
+                                    <MenuItem Header="Open log folder" Click="OnOpenLogFolder"/>
+                                    <MenuItem Header="Diagnostics…" Click="OnDiagnostics"
+                                              ToolTip="Versions, runtime health, proxy, memory, startup timings, data sizes, and recent errors — with a Copy button and the support-bundle export"/>
+                                    <MenuItem Header="Export support bundle…" Click="OnExportSupportBundle"
+                                              ToolTip="One .zip with the diagnostics report, the redacted log tail, sanitized settings, and download history — previewed first, uploaded nowhere"/>
+                                    <Separator/>
+                                    <MenuItem Header="About ArenaDesktop" Click="OnAbout"/>
+                                </MenuItem>
+
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
