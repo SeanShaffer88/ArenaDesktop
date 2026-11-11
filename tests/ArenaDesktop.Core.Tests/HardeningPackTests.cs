@@ -123,12 +123,15 @@ public class HardeningPackTests
         {
             var path = Path.Combine(dir, "broken.json");
             File.WriteAllText(path, "{ not json");
+            // Preserve stamps with LOCAL time (the name is for a person to
+            // read), so the expectation is derived the same way rather than
+            // hardcoded — otherwise this passes only on a UTC machine.
             var stamp = new DateTimeOffset(2026, 11, 11, 14, 32, 5, TimeSpan.Zero);
             var copy = CorruptFile.Preserve(path, stamp);
             Assert.NotNull(copy);
             Assert.True(File.Exists(copy));
             Assert.Contains(CorruptFile.Marker, copy);
-            Assert.Contains("20261111-143205", copy);
+            Assert.Contains(stamp.ToLocalTime().ToString("yyyyMMdd-HHmmss"), copy);
             Assert.Equal("{ not json", File.ReadAllText(copy!));
             // The original is untouched — the caller decides its fate.
             Assert.True(File.Exists(path));
