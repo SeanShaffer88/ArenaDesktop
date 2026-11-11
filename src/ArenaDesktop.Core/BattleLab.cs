@@ -17,6 +17,56 @@ public sealed class BattlePrompt
     public string Body { get; set; } = "";
 }
 
+/// <summary>
+/// What a prompt must be before it is saved (hardening pack).
+///
+/// The editor saves on every keystroke of the name box, so there is
+/// always a moment where the name is empty — while the user is
+/// retyping it, for instance. Writing that through left a prompt with
+/// no name in the library list, the run queue and the journal, all of
+/// which label rows by it. The journal also records the name at run
+/// time, so a blank one would have been recorded permanently.
+///
+/// The rule is deliberately small: a blank name falls back to a
+/// readable placeholder rather than blocking the save, because blocking
+/// would mean the box could never be cleared to retype it.
+/// </summary>
+public static class PromptNaming
+{
+    /// <summary>One phrase so every surface agrees which prompt is unnamed.</summary>
+    public const string Untitled = "Untitled prompt";
+
+    /// <summary>The name to store: trimmed text, or <see cref="Untitled"/> when blank.</summary>
+    public static string Normalize(string? name) =>
+        string.IsNullOrWhiteSpace(name) ? Untitled : name.Trim();
+
+    /// <summary>True when this prompt still carries the fallback name.</summary>
+    public static bool IsUntitled(BattlePrompt prompt) =>
+        string.Equals(Normalize(prompt.Name), Untitled, StringComparison.Ordinal);
+
+    /// <summary>
+    /// The library's existing labels plus the fallback: a fresh prompt
+    /// should not silently take the name of one already saved. Returns
+    /// the first free "Untitled prompt", "Untitled prompt 2", … so two
+    /// new prompts are always distinguishable in the list.
+    /// </summary>
+    public static string NextUntitled(IEnumerable<BattlePrompt> existing)
+    {
+        var taken = new HashSet<string>(
+            (existing ?? Enumerable.Empty<BattlePrompt>()).Select(p => Normalize(p?.Name)),
+            StringComparer.OrdinalIgnoreCase);
+        if (!taken.Contains(Untitled))
+            return Untitled;
+        for (var n = 2; n < 10_000; n++)
+        {
+            var candidate = $"{Untitled} {n}";
+            if (!taken.Contains(candidate))
+                return candidate;
+        }
+        return $"{Untitled} {Guid.NewGuid():N}";
+    }
+}
+
 /// <summary>Who won a recorded Battle (ArenaDesktop v0.2.0, Battle Lab).</summary>
 public enum BattleOutcome
 {
@@ -153,6 +203,44 @@ public static class PromptBlanks
         return found;
     }
 
+    /// <summary>
+    /// The blanks this fill would LEAVE empty (hardening pack). A field the
+    /// user skipped keeps its <c>[placeholder]</c> in the copied text — the
+    /// window says so, but only in general terms, and by the time the text
+    /// is on the clipboard nobody re-reads the dialog. Naming them lets the
+    /// caller report exactly what is still unfilled.
+    /// </summary>
+    public static IReadOnlyList<string> Unfilled(string? body, IReadOnlyDictionary<string, string> values)
+    {
+        var blanks = Extract(body);
+        if (blanks.Count == 0)
+            return Array.Empty<string>();
+        // A key with a blank value is not a fill: the field would show
+        // empty, Fill would leave the placeholder, and reporting it as
+        // filled here would contradict the copied text.
+        var filled = new HashSet<string>(
+            (values ?? new Dictionary<string, string>())
+                .Where(pair => !string.IsNullOrWhiteSpace(pair.Value))
+                .Select(pair => pair.Key.Trim()),
+            StringComparer.OrdinalIgnoreCase);
+        return blanks.Where(b => !filled.Contains(b)).ToList();
+    }
+
+    /// <summary>
+    /// The one-line summary of a fill: "2 blanks left as they were: topic,
+    /// tone", or empty when everything was filled.
+    /// </summary>
+    public static string UnfilledSummary(string? body, IReadOnlyDictionary<string, string> values)
+    {
+        var left = Unfilled(body, values);
+        if (left.Count == 0)
+            return "";
+        var label = string.Join(", ", left.Select(b => $"[{b}]"));
+        return left.Count == 1
+            ? $"1 blank left as it was: {label}"
+            : $"{left.Count} blanks left as they were: {label}";
+    }
+
     public static string Fill(string? body, IReadOnlyDictionary<string, string> values)
     {
         if (string.IsNullOrEmpty(body) || values is null || values.Count == 0)
@@ -199,28 +287,17 @@ public static class BattleLabStore
         }
         catch (Exception)
         {
-            try
-            {
-                var backup = $"{path}.corrupt-{DateTime.Now:yyyyMMdd-HHmmss}";
-                File.Copy(path, backup, overwrite: false);
-            }
-            catch
-            {
-                // Best effort only — returning an empty library is the contract.
-            }
+            // Best effort only — returning an empty library is the
+            // contract, but the unreadable file is preserved beside it
+            // (CorruptFile) so a library the user cared about is still
+            // on disk to recover from.
+            CorruptFile.Preserve(path, DateTimeOffset.Now);
             return new BattleLabData();
         }
     }
 
-    public static void Save(string path, BattleLabData data)
-    {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(Sanitized(data), Options));
-        File.Move(tmp, path, overwrite: true);
-    }
+    public static void Save(string path, BattleLabData data) =>
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(Sanitized(data), Options));
 
     /// <summary>Drop anything a hand-edited file shouldn't be able to smuggle in: null rows, id-less prompts, queue ids naming no prompt, duplicate queue entries are kept (running a prompt twice is legitimate) but order is untouched.</summary>
     public static BattleLabData Sanitized(BattleLabData data)
@@ -229,7 +306,11 @@ public static class BattleLabStore
         data.Prompts.RemoveAll(p => p is null || string.IsNullOrWhiteSpace(p.Id));
         foreach (var prompt in data.Prompts)
         {
-            prompt.Name ??= "";
+            // Hardening pack: a blank or whitespace-only name (from a
+            // hand-edited file, or written before the editor normalized
+            // it) becomes the readable fallback so every list that labels
+            // a row by name still shows something.
+            prompt.Name = PromptNaming.Normalize(prompt.Name);
             prompt.Category ??= "";
             prompt.Body ??= "";
         }

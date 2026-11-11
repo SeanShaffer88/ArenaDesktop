@@ -248,6 +248,15 @@
                         <Button x:Name="UnpinModeButton" Content="Unpin" Width="76" Height="26" Click="OnUnpinModeSetting"
                                 ToolTip="Stop offering the pinned mode" Visibility="Collapsed"/>
                     </StackPanel>
+                    <!-- Hardening pack: the clipboard is shared state, so
+                         clearing it is offered, explained, and off by default. -->
+                    <TextBlock Style="{StaticResource Note}" Margin="0,14,0,0"
+                               Text="A copied prompt stays on the Windows clipboard until something replaces it. Clearing it after a delay limits how long it sits there for other apps and clipboard-history tools."/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <TextBlock Text="Clear copied prompts after:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="ClipboardClearCombo" Width="120"
+                                  ToolTip="Only text ArenaDesktop copied is cleared — anything you copied afterwards is left alone"/>
+                    </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,6,0,0">
                         <TextBlock Text="Shell text size:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="TextScaleCombo" Width="170"
@@ -280,6 +289,14 @@
                               ToolTip="Cools the toolbar down to a faint presence while the Arena page has focus"/>
                     <TextBlock Style="{StaticResource Note}"
                                Text="The toolbar returns to full strength when you point at it or tab back into the shell. The Arena page itself is never affected."/>
+                    <!-- Hardening pack: the status bar is a visual surface;
+                         this lets a screen-reader user hear its outcomes. -->
+                    <CheckBox x:Name="SpeakStatusCheck" Content="Announce status messages to screen readers"
+                              Checked="OnSpeakStatusChanged" Unchecked="OnSpeakStatusChanged"
+                              Margin="0,12,0,0"
+                              ToolTip="Speaks ordinary outcomes — a copy that failed, a refused link, a saved setting — through the polite live region"/>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Download and update events are announced either way. This only widens that to everyday status-bar outcomes; progress lines stay silent so they never talk over the page."/>
                 </StackPanel>
 
                 <StackPanel x:Name="SectionZoom">

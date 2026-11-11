@@ -12,6 +12,12 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
             <StackPanel x:Name="FieldsPanel"/>
         </ScrollViewer>
+        <!-- Hardening pack: a live count of what is still unfilled, so a
+             skipped field is visible before Copy rather than only after. -->
+        <TextBlock x:Name="RemainingText" Margin="0,10,0,0" FontSize="11" TextWrapping="Wrap"
+                   Foreground="{StaticResource MutedBrush}"
+                   AutomationProperties.Name="Blanks still empty"
+                   AutomationProperties.LiveSetting="Polite"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
             <Button Content="Copy" Width="86" Height="30" IsDefault="True" Click="OnOk"
                     Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"/>

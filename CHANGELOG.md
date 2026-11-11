@@ -2,6 +2,31 @@
 
 All notable changes to ArenaDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.5.0] — Unreleased
+
+A hardening pack: durability, honest status, and the small everyday frictions between a person and the text they are working with. Nothing here changes what the app is for.
+
+### Added
+
+- **Settings survive a crash mid-write.** Every settings, library, field-pass, downloads and session file is now written to a unique temporary file and swapped into place, with the swap retried a few times against a virus scanner's brief hold on the file. An interrupted save can no longer leave a half-written file where the previous good one was.
+- **A corrupt file is preserved, not discarded.** When a store can't be read, the unreadable file is copied aside as `<name>.corrupt-<date>-<time>` before defaults are written, so a bug report can still include it and a hand-repair is still possible.
+- **Settings writes are coalesced.** Flipping several checkboxes used to mean several full-file writes; changes are now batched into one write at most every two seconds, with forced writes on close, profile switch, pin and settings-OK so nothing is lost. A tally of writes, deferred, coalesced and failed appears in the diagnostics report.
+- **Clipboard lifetime (opt-in, off by default).** Battle Lab can now take a copied prompt back off the clipboard after 1, 2, 5 or 15 minutes (Settings → Behavior). It only ever clears text it put there itself, so anything you copy afterwards always wins. Prompts can name private projects or a customer; the clipboard is readable by every app on the PC and kept by clipboard-history tools.
+- **Spoken status messages (opt-in).** Accessibility setting that reads status-line changes to a screen reader through a polite live region. Filler ("Loading…"), repeats of the last message and anything over 140 characters are filtered out first, so the announcement is information rather than noise.
+- **F6 focuses the Arena page,** so you can start typing in the page without a mouse, and **Ctrl+Shift+S copies the status line** — both fixed, both in the Shortcuts window.
+- **Find in the log.** The log viewer gains a find bar with Next/Previous, match counts ("3 of 12") and Enter/Shift+Enter. Enter and Escape behave as expected; the match is selected and scrolled to.
+- **The tray's Downloads submenu no longer offers dead links.** History records what was downloaded, not what still exists; entries whose file has been deleted or moved are now filtered out, so every item opens.
+- **Prompt library export as Markdown or CSV.** The export dialog now offers JSON (unchanged round trip), Markdown for sharing, and CSV for a spreadsheet. CSV output is quoted and escaped per RFC 4180 and defused against spreadsheet formula injection, because a prompt body is arbitrary user text meant to be opened by someone else.
+
+### Changed
+
+- **Downloads list keeps your place.** Typing in the search box rebuilt the whole list, which threw away the selection and the scroll position. Rows are now reused when the record is unchanged, so the list stays where you left it — and a selection survives a filter change.
+- **Blank prompt names are impossible.** The editor saves on every keystroke, so an emptied name box wrote a nameless prompt into the library, the run queue and the journal. A blank name now becomes "Untitled prompt", and a new prompt never reuses an existing label.
+- **Skipped blanks are reported.** The fill-in dialog names the blanks that will keep their `[placeholder]` before you press Copy, and the status line says which ones survived after the copy, instead of leaving the placeholder to turn up in the pasted prompt.
+- **The Downloads window is keyboard-operable.** Enter opens the selected file, Delete removes it (with the same confirmation as the button), Ctrl+C copies its path, and F5 reloads the history.
+- **The update check uses one re-entry guard** instead of a hand-managed flag, so a second check while the first is still running is refused rather than racing it.
+- **Log reads are bounded.** Diagnostics and the support bundle now read the tail of the log instead of the whole file, so a large log no longer slows down a report.
+
 ## [0.4.0] — Unreleased
 
 ### Added

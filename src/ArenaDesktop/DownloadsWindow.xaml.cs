@@ -187,8 +187,60 @@ public partial class DownloadsWindow : Window
         // search, the state filter and the sort.
         var sizeTag = (SizeFilterCombo!.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string;
         var band = DownloadSizeBands.Find(sizeTag);
+        // Hardening pack: rebuilding the ItemsSource on every keystroke
+        // destroyed the selection and the scroll position — typing a
+        // second character threw the list back to the top. Reuse the rows
+        // that are already on screen (same record => same Row, so the
+        // container's selection survives) and only create the ones that
+        // are new. The identity check costs one pass over the filtered
+        // list and saves the whole visual tree from being thrown away.
         var filtered = DownloadsView.Apply(_allRecords, SearchText?.Text, filter, band, sort);
-        DownloadsList.ItemsSource = filtered.Select(r => new Row { Record = r }).ToList();
+        var previous = DownloadsList.ItemsSource as IReadOnlyList<Row>;
+        // A queue, not a dictionary: two records can legitimately share a
+        // path, a timestamp and a state (the same file downloaded twice in
+        // the same second), and keying a dictionary on that tuple would
+        // throw. Rows are matched in order, which is also the order they
+        // appear in, so the surviving row keeps its container.
+        var reusable = new Dictionary<(string, DateTimeOffset, DownloadRecordState), Queue<Row>>();
+        if (previous is not null)
+        {
+            foreach (var row in previous)
+            {
+                var key = (row.Record.FullPath, row.Record.CompletedUtc, row.Record.State);
+                if (!reusable.TryGetValue(key, out var queue))
+                    reusable[key] = queue = new Queue<Row>();
+                queue.Enqueue(row);
+            }
+        }
+        var rows = filtered
+            .Select(record =>
+            {
+                var key = (record.FullPath, record.CompletedUtc, record.State);
+                return reusable.TryGetValue(key, out var queue) && queue.Count > 0
+                    ? queue.Dequeue()
+                    : new Row { Record = record };
+            })
+            .ToList();
+        var selectedBefore = Selected;
+        // Same rows in the same order: leave the items alone entirely, so
+        // the selection and the scroll offset stay exactly where they are.
+        var unchanged = previous is not null
+            && rows.Count == previous.Count
+            && rows.Zip(previous).All(pair => ReferenceEquals(pair.First, pair.Second));
+        if (!unchanged)
+        {
+            DownloadsList.ItemsSource = rows;
+            if (selectedBefore is not null)
+            {
+                // Keep the user's place across a filter change: the same
+                // record stays selected, so the action buttons stay live.
+                DownloadsList.SelectedItem = rows.FirstOrDefault(row => ReferenceEquals(row, selectedBefore)
+                    || (row.Record.FullPath == selectedBefore.Record.FullPath
+                        && row.Record.CompletedUtc == selectedBefore.Record.CompletedUtc
+                        && row.Record.State == selectedBefore.Record.State));
+            }
+        }
+        UpdateButtons();
         if (_allRecords.Count == 0)
             NoteText.Text = "Nothing here yet — files you download from Arena will appear in this list.";
         else if (filtered.Count == 0)
@@ -198,6 +250,58 @@ public partial class DownloadsWindow : Window
     }
 
     private void OnSearchOrFilterChanged(object sender, object e) => ApplyHistoryQuery();
+
+    /// <summary>
+    /// Keyboard access to the history list (hardening pack). Every action
+    /// here had a button, and every one of those buttons was reachable
+    /// only by tabbing to it or reaching for the mouse: the list itself
+    /// had no keys at all. Enter opens the file, Delete removes it from
+    /// this PC (through the same confirmation as the button), Ctrl+C puts
+    /// the path on the clipboard, and F5 re-reads the history.
+    ///
+    /// Handled only when the key does something, so typing in the search
+    /// box (which shares the window) is never stolen.
+    /// </summary>
+    private void OnHistoryKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (Selected is not { } row)
+            return;
+        switch (e.Key)
+        {
+            case System.Windows.Input.Key.Enter:
+                OnOpen(sender, e);
+                e.Handled = true;
+                break;
+            case System.Windows.Input.Key.Delete:
+                OnDeleteFile(sender, e);
+                e.Handled = true;
+                break;
+            case System.Windows.Input.Key.C when (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0:
+                CopyPathOf(row);
+                e.Handled = true;
+                break;
+            case System.Windows.Input.Key.F5:
+                Refresh();
+                NoteText.Text = "History reloaded.";
+                e.Handled = true;
+                break;
+        }
+    }
+
+    /// <summary>The path goes on the clipboard, with the same failure wording the Copy button uses.</summary>
+    private void CopyPathOf(Row row)
+    {
+        try
+        {
+            System.Windows.Clipboard.SetText(row.Record.FullPath);
+            NoteText.Text = "Path copied to the clipboard.";
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Downloads window keyboard copy failed: {ex.Message}");
+            NoteText.Text = "Couldn't copy — the clipboard is busy. Try again.";
+        }
+    }
 
     private void UpdateButtons()
     {

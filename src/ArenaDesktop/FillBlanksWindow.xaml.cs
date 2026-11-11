@@ -40,7 +40,31 @@ public partial class FillBlanksWindow : Window
             FieldsPanel.Children.Add(field);
             _fields.Add((blank, field));
         }
+        foreach (var (_, field) in _fields)
+            field.TextChanged += (_, _) => UpdateRemaining();
         Loaded += (_, _) => _fields[0].Field.Focus();
+        UpdateRemaining();
+    }
+
+    /// <summary>
+    /// Hardening pack: keep "N blanks left as they were" current. The note
+    /// names the blanks rather than counting them, so a user who skipped one
+    /// sees WHICH before they press Copy instead of discovering the
+    /// placeholder in the pasted text.
+    /// </summary>
+    private void UpdateRemaining()
+    {
+        var left = _fields
+            .Where(f => string.IsNullOrWhiteSpace(f.Field.Text))
+            .Select(f => f.Name)
+            .ToList();
+        // The TextBlock is the polite live region declared in XAML, so a
+        // screen reader reads this text when it changes — no extra call.
+        RemainingText.Text = left.Count == 0
+            ? ""
+            : left.Count == 1
+                ? $"1 blank will stay as [{left[0]}] — fill it in to replace it."
+                : $"{left.Count} blanks will stay as they are: {string.Join(", ", left.Select(b => $"[{b}]"))}.";
     }
 
     /// <summary>The values the user typed, keyed by blank name; blanks left empty are absent.</summary>

@@ -91,6 +91,7 @@
             <ListBox x:Name="DownloadsList" Background="{StaticResource SurfaceBrush}"
                      Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource HairlineBrush}"
                      MouseDoubleClick="OnOpen" SelectionChanged="OnSelectionChanged"
+                     KeyDown="OnHistoryKeyDown"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      AutomationProperties.Name="Download history">
                 <ListBox.ItemTemplate>

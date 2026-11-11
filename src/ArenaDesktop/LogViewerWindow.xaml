@@ -4,7 +4,8 @@
         Title="ArenaDesktop log"
         Width="760" Height="560" MinWidth="520" MinHeight="380"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
+        KeyDown="OnWindowKeyDown">
     <Window.Resources>
         <Style x:Key="Note" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
@@ -20,6 +21,29 @@
                        AutomationProperties.Name="Redaction check result"/>
             <TextBlock x:Name="FindingsText" Style="{StaticResource Note}"
                        AutomationProperties.Name="Redaction findings by line"/>
+            <!-- Hardening pack: find. The log is up to a megabyte of text
+                 and the reason to open it is to locate one line. -->
+            <DockPanel Margin="0,8,0,0">
+                <TextBlock Text="Find" VerticalAlignment="Center" Margin="0,0,6,0"
+                           Foreground="{StaticResource MutedBrush}"/>
+                <Button x:Name="FindNextButton" DockPanel.Dock="Right" Content="Next" Width="60" Height="28"
+                        Margin="6,0,0,0" Click="OnFindNext"
+                        ToolTip="Jump to the next match (Enter in the box does the same)"/>
+                <Button x:Name="FindPreviousButton" DockPanel.Dock="Right" Content="Previous" Width="70" Height="28"
+                        Margin="6,0,0,0" Click="OnFindPrevious"
+                        ToolTip="Jump to the previous match (Shift+Enter in the box does the same)"/>
+                <TextBlock x:Name="FindStatus" DockPanel.Dock="Right" VerticalAlignment="Center"
+                           Margin="8,0,0,0" FontSize="11"
+                           Foreground="{StaticResource MutedBrush}"
+                           MinWidth="104" TextAlignment="Right"
+                           AutomationProperties.Name="Find results count"
+                           AutomationProperties.LiveSetting="Polite"/>
+                <TextBox x:Name="FindBox" Height="28" VerticalContentAlignment="Center"
+                         Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                         BorderBrush="{StaticResource HairlineBrush}"
+                         TextChanged="OnFindChanged" KeyDown="OnFindKeyDown"
+                         AutomationProperties.Name="Find in the log"/>
+            </DockPanel>
         </StackPanel>
 
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">

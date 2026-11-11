@@ -71,6 +71,11 @@ public static class DownloadHistoryStore
         }
         catch (Exception)
         {
+            // History is a convenience record, not user data — but a file
+            // that EXISTS and won't parse is still worth keeping, because
+            // the next Save would otherwise overwrite it with an empty
+            // list and the evidence would be gone (hardening pack).
+            CorruptFile.Preserve(path, DateTimeOffset.Now);
             return new List<DownloadRecord>();
         }
     }
@@ -78,12 +83,7 @@ public static class DownloadHistoryStore
     public static void Save(string path, List<DownloadRecord> records, int cap = MaxEntries)
     {
         cap = Math.Max(1, cap);
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(records.Take(cap).ToList(), Options));
-        File.Move(tmp, path, overwrite: true);
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(records.Take(cap).ToList(), Options));
     }
 
     /// <summary>Prepend a finished download and persist, keeping the cap.</summary>
@@ -508,5 +508,35 @@ public static class DownloadText
                     parts.Add(FormatSpeed(download.SpeedBytesPerSecond));
                 return string.Join(" · ", parts);
         }
+    }
+}
+
+/// <summary>
+/// Which finished downloads the tray may offer (hardening pack). The
+/// history records what was downloaded, not what still exists, so a file
+/// deleted from Explorer or a drive that has since gone leaves a menu
+/// entry whose click fails with nothing to show for it. <see cref="Pick"/>
+/// keeps only entries whose file is still there, so the menu never offers
+/// a dead link. <paramref name="exists"/> is injected to keep this pure.
+/// </summary>
+public static class RecentDownloads
+{
+    /// <summary>
+    /// The most recent completed records, newest first, skipping failures
+    /// (there may be no file) and anything whose file has gone.
+    /// </summary>
+    public static IReadOnlyList<DownloadRecord> Pick(
+        IEnumerable<DownloadRecord> records, Func<string, bool> exists, int max)
+    {
+        if (records is null || exists is null || max <= 0)
+            return Array.Empty<DownloadRecord>();
+        return records
+            .Where(r => r is not null
+                        && r.State == DownloadRecordState.Completed
+                        && !string.IsNullOrWhiteSpace(r.FullPath)
+                        && exists(r.FullPath))
+            .OrderByDescending(r => r.CompletedUtc)
+            .Take(max)
+            .ToList();
     }
 }

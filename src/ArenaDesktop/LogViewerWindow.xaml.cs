@@ -18,6 +18,12 @@ namespace ArenaDesktop;
 public partial class LogViewerWindow : Window
 {
     private string _logText = "";
+    // Hardening pack: find state. The matches are recomputed only when the
+    // query changes; Next/Previous just move the index, so a 1 MB log is
+    // scanned once per keystroke rather than once per press.
+    private IReadOnlyList<LogSearch.Match> _matches = Array.Empty<LogSearch.Match>();
+    private int _matchIndex = -1;
+    private string _lastQuery = "";
 
     public LogViewerWindow()
     {
@@ -52,6 +58,10 @@ public partial class LogViewerWindow : Window
         }
         LogText.Text = _logText;
         LogText.ScrollToEnd();
+        // A refresh replaces the text under an existing query; re-run it
+        // so the highlight and the count still describe what is on screen.
+        if (!string.IsNullOrEmpty(FindBox.Text))
+            RunSearch(FindBox.Text, forward: true);
         var lineCount = _logText.Split('\n').Length;
         var findings = RedactionAudit.Scan(_logText);
         AuditText.Text = RedactionAudit.Summarize(findings, lineCount);
@@ -59,6 +69,104 @@ public partial class LogViewerWindow : Window
             ? ""
             : string.Join("\n", findings.Take(30).Select(f => $"Line {f.LineNumber}: {f.Description}.")) +
               (findings.Count > 30 ? $"\n…and {findings.Count - 30} more." : "");
+    }
+
+    // ───────────────────────── find (hardening pack) ─────────────────────────
+
+    /// <summary>
+    /// Ctrl+F moves to the find box, the same key the page's own finder
+    /// uses — the log viewer is a text surface, and a reader's hands
+    /// expect the same chord. F3 repeats the last search, and Escape in
+    /// the box (handled there) clears it.
+    /// </summary>
+    private void OnWindowKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.F
+            && (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0)
+        {
+            FindBox.Focus();
+            FindBox.SelectAll();
+            e.Handled = true;
+        }
+        else if (e.Key == System.Windows.Input.Key.F3 && _matches.Count > 0)
+        {
+            StepSearch(forward: (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Shift) == 0);
+            e.Handled = true;
+        }
+    }
+
+    private void OnFindChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) =>
+        RunSearch(FindBox.Text, forward: true);
+
+    private void OnFindKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter)
+        {
+            StepSearch(forward: (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Shift) == 0);
+            e.Handled = true;
+        }
+        else if (e.Key == System.Windows.Input.Key.Escape)
+        {
+            // Escape in the find box clears the search rather than closing
+            // the window — the window's Close button is the way out.
+            FindBox.Text = "";
+            LogText.Focus();
+            e.Handled = true;
+        }
+    }
+
+    private void OnFindNext(object sender, RoutedEventArgs e) => StepSearch(forward: true);
+
+    private void OnFindPrevious(object sender, RoutedEventArgs e) => StepSearch(forward: false);
+
+    /// <summary>
+    /// Recompute the match set for <paramref name="query"/> and select a
+    /// match. Typing starts from the top of the log, which is where a
+    /// reader is looking when they begin a search; pressing Enter or the
+    /// arrows moves from there.
+    /// </summary>
+    private void RunSearch(string? query, bool forward)
+    {
+        if (!string.Equals(query ?? "", _lastQuery, StringComparison.Ordinal))
+        {
+            _lastQuery = query ?? "";
+            _matches = LogSearch.FindAll(_logText, _lastQuery);
+            _matchIndex = -1;
+        }
+        if (_matches.Count == 0)
+        {
+            FindStatus.Text = LogSearch.Describe(0, -1);
+            LogText.Select(0, 0);
+            return;
+        }
+        _matchIndex = forward ? 0 : LogSearch.Step(_matches.Count, -1, forward: false);
+        SelectCurrent();
+    }
+
+    private void StepSearch(bool forward)
+    {
+        if (_matches.Count == 0)
+        {
+            // Enter on an empty result set re-runs the search, so a refresh
+            // that added the line the user was looking for is picked up.
+            RunSearch(FindBox.Text, forward);
+            return;
+        }
+        _matchIndex = LogSearch.Step(_matches.Count, _matchIndex, forward);
+        SelectCurrent();
+    }
+
+    private void SelectCurrent()
+    {
+        if (_matchIndex < 0 || _matchIndex >= _matches.Count)
+            return;
+        var match = _matches[_matchIndex];
+        LogText.Select(match.Index, match.Length);
+        LogText.ScrollToLine(LogText.GetLineIndexFromCharacterIndex(match.Index));
+        FindStatus.Text = LogSearch.Describe(_matches.Count, _matchIndex);
+        // Selecting the match is what moves the caret; without focus the
+        // highlight is drawn but the reader cannot continue from it.
+        LogText.Focus();
     }
 
     private void OnCopyRedacted(object sender, RoutedEventArgs e)

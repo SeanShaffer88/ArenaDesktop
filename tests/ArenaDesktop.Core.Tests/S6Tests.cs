@@ -70,6 +70,9 @@ public class S6Tests
             "zoom-out", "zoom-reset", "focus-mode", "fullscreen", "escape",
             "mode-battle", "mode-direct", "mode-side-by-side", "mode-leaderboard",
             "mode-agent", "mode-image", "mode-code", "mode-video", "mode-search",
+            // Hardening pack: the two page/status keys the shell dispatches
+            // before the remappable block.
+            "focus-page", "status-line",
         };
         Assert.Equal(
             expected.OrderBy(x => x),

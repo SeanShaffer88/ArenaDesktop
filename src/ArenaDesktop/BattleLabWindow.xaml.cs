@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 using ArenaDesktop.Core;
 using Brush = System.Windows.Media.Brush;
 using Color = System.Windows.Media.Color;
@@ -31,6 +32,14 @@ public partial class BattleLabWindow : Window
     private string? _lastCopiedPromptName;
     private string? _lastCopiedModeId;
     private string? _startedQueuePromptId;
+
+    // Hardening pack: the clipboard lifetime. A copied prompt is the one
+    // thing this window hands to shared, long-lived state, so the app
+    // remembers exactly what it put there and when it should go.
+    private readonly AppSettings _settings;
+    private string? _clipboardCopiedText;
+    private DateTimeOffset? _clipboardClearAtUtc;
+    private DispatcherTimer? _clipboardTimer;
 
     /// <summary>One journal mode-filter choice: a label and the mode id it filters by (null = all modes).</summary>
     private sealed class ModeFilterOption
@@ -89,10 +98,11 @@ public partial class BattleLabWindow : Window
         }
     }
 
-    public BattleLabWindow(DiagnosticLog log, Action<string> openCopiedPromptInMode)
+    public BattleLabWindow(DiagnosticLog log, Action<string> openCopiedPromptInMode, AppSettings? settings = null)
     {
         _log = log;
         _openCopiedPromptInMode = openCopiedPromptInMode;
+        _settings = settings ?? new AppSettings();
         _library = BattleLabLibrary.Open(AppPaths.BattleLabPath);
         InitializeComponent();
         CopyTargetCombo.ItemsSource = new[]
@@ -122,6 +132,8 @@ public partial class BattleLabWindow : Window
         RefreshJournal();
         if (PromptList.Items.Count > 0)
             PromptList.SelectedIndex = 0;
+        // Hardening pack: the clipboard timer belongs to this window.
+        Closed += (_, _) => StopClipboardTimer();
     }
 
     /// <summary>The page the copy button opens: the mode picked beside it, Battle when nothing is picked.</summary>
@@ -211,7 +223,11 @@ public partial class BattleLabWindow : Window
         var prompt = _library.FindPrompt(_selectedPromptId);
         if (prompt is null)
             return;
-        _library.UpdatePrompt(prompt.Id, PromptNameText.Text, PromptCategoryCombo.Text, PromptBodyText.Text);
+        // Hardening pack: a name box mid-edit is empty, and the editor
+        // saves on every change; store the fallback rather than a blank
+        // label that the library, queue and journal would all show.
+        var savedName = PromptNaming.Normalize(PromptNameText.Text);
+        _library.UpdatePrompt(prompt.Id, savedName, PromptCategoryCombo.Text, PromptBodyText.Text);
         UpdateBlanksHint(_library.FindPrompt(prompt.Id));
         // Reflect renames in the list without disturbing the editor.
         var selectedId = _selectedPromptId;
@@ -228,12 +244,17 @@ public partial class BattleLabWindow : Window
             return;
         var prompt = _library.FindPrompt(_selectedPromptId);
         if (prompt is not null)
-            _library.UpdatePrompt(prompt.Id, PromptNameText.Text, PromptCategoryCombo.Text, PromptBodyText.Text);
+            // The category was committed, not the name — keep whatever
+            // name the prompt already had rather than a mid-edit blank.
+            _library.UpdatePrompt(prompt.Id, PromptNaming.Normalize(prompt.Name),
+                PromptCategoryCombo.Text, PromptBodyText.Text);
     }
 
     private void OnNewPrompt(object sender, RoutedEventArgs e)
     {
-        var prompt = _library.AddPrompt("New prompt", "General",
+        // Hardening pack: never reuse a name, so two new prompts are never
+        // two identical rows in the list.
+        var prompt = _library.AddPrompt(PromptNaming.NextUntitled(_library.Prompts), "General",
             "Write the prompt here. Square brackets like [topic] become blanks to fill in at copy time.");
         SearchText.Text = "";
         RefreshLibrary();
@@ -279,20 +300,36 @@ public partial class BattleLabWindow : Window
 
     // ────────────────────── library export / import ──────────────────────
 
+    /// <summary>
+    /// Export the library (hardening pack: three formats, one dialog).
+    /// JSON is the round trip the Import button reads; Markdown is what a
+    /// person shares; CSV is what a spreadsheet opens. The filter is the
+    /// format picker — the chosen filter decides the content and the
+    /// suggested extension, so the two can never disagree.
+    /// </summary>
     private void OnExportLibrary(object sender, RoutedEventArgs e)
     {
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
-            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
+            Filter = "JSON library (*.json)|*.json|Markdown (*.md)|*.md|Spreadsheet CSV (*.csv)|*.csv",
             Title = "Export the Battle Lab prompt library",
-            FileName = "battle-lab-library.json",
+            FileName = PromptExportText.FileNameFor("json", DateTimeOffset.Now),
+            DefaultExt = ".json",
+            AddExtension = true,
         };
         if (dialog.ShowDialog(this) != true)
             return;
+        // The chosen filter index is the format: 0 JSON, 1 Markdown, 2 CSV.
+        var (contents, label) = dialog.FilterIndex switch
+        {
+            1 => (PromptExportText.ToMarkdown(_library.Prompts), "Markdown"),
+            2 => (PromptExportText.ToCsv(_library.Prompts), "CSV"),
+            _ => (_library.ExportPromptsJson(), "JSON"),
+        };
         try
         {
-            File.WriteAllText(dialog.FileName, _library.ExportPromptsJson());
-            SetStatus($"Exported {_library.Prompts.Count} prompts to {Path.GetFileName(dialog.FileName)}.");
+            File.WriteAllText(dialog.FileName, contents);
+            SetStatus($"Exported {_library.Prompts.Count} prompts as {label} to {Path.GetFileName(dialog.FileName)}.");
         }
         catch (Exception ex)
         {
@@ -434,6 +471,7 @@ public partial class BattleLabWindow : Window
     private void CopyAndOpenBattle(BattlePrompt prompt, bool fromQueue)
     {
         var finalText = prompt.Body;
+        IReadOnlyDictionary<string, string> blanksFilled = new Dictionary<string, string>();
         var blanks = PromptBlanks.Extract(prompt.Body);
         if (blanks.Count > 0)
         {
@@ -441,6 +479,7 @@ public partial class BattleLabWindow : Window
             dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
             if (dialog.ShowDialog() != true)
                 return;
+            blanksFilled = dialog.Values;
             finalText = dialog.Fill(prompt.Body);
         }
         // Enhancement pack: a very long prompt is checked before it
@@ -458,16 +497,96 @@ public partial class BattleLabWindow : Window
             SetStatus("Copying to the clipboard failed — try again.");
             return;
         }
+        ArmClipboardClear(finalText);
         var target = CopyTarget;
         _lastCopiedPromptName = prompt.Name;
         _lastCopiedModeId = target.Id;
         if (fromQueue)
             _startedQueuePromptId = prompt.Id;
         _log.Info($"Battle Lab: copied prompt '{prompt.Name}' and opened {target.Label}");
-        SetStatus($"'{prompt.Name}' copied — paste it into {target.Label} (Ctrl+V).");
+        // Hardening pack: if the user skipped blanks, the copied text still
+        // carries their [placeholders] — say so, and name them, instead of
+        // letting the placeholder surface only in the pasted prompt.
+        var unfilledNote = PromptBlanks.UnfilledSummary(prompt.Body, blanksFilled);
+        SetStatus(unfilledNote.Length == 0
+            ? $"'{prompt.Name}' copied — paste it into {target.Label} (Ctrl+V)."
+            : $"'{prompt.Name}' copied, but {unfilledNote}. Paste it into {target.Label} (Ctrl+V).");
         RefreshQueue();
         _openCopiedPromptInMode(target.Id);
     }
+
+    // ─────────────────────── clipboard lifetime (hardening pack) ───────────────────────
+
+    /// <summary>
+    /// Remember what was just copied and when it should be cleared
+    /// (hardening pack). No timer runs when the setting is off — the
+    /// default — so nothing changes for anyone who didn't ask.
+    /// </summary>
+    private void ArmClipboardClear(string copiedText)
+    {
+        _clipboardCopiedText = null;
+        _clipboardClearAtUtc = null;
+        _clipboardTimer?.Stop();
+        var minutes = ClipboardLifetime.Sanitize(_settings.ClipboardClearMinutes);
+        if (!ClipboardLifetime.ShouldArm(minutes))
+            return;
+        _clipboardCopiedText = copiedText;
+        _clipboardClearAtUtc = ClipboardLifetime.ClearAt(DateTimeOffset.UtcNow, minutes);
+        _clipboardTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _clipboardTimer.Tick -= OnClipboardTimerTick;
+        _clipboardTimer.Tick += OnClipboardTimerTick;
+        _clipboardTimer.Start();
+    }
+
+    /// <summary>
+    /// Clear the clipboard once the delay is up — but only when it still
+    /// holds exactly the text this window copied. Anything else there is
+    /// the user's own copy and is left untouched, which is the promise
+    /// the Settings note makes.
+    /// </summary>
+    private void OnClipboardTimerTick(object? sender, EventArgs e)
+    {
+        if (_clipboardClearAtUtc is not { } clearAt)
+        {
+            _clipboardTimer?.Stop();
+            return;
+        }
+        string? current = null;
+        try
+        {
+            current = Clipboard.ContainsText() ? Clipboard.GetText() : null;
+        }
+        catch
+        {
+            // The clipboard can be held by another app for a moment;
+            // try again on the next tick rather than guessing.
+            return;
+        }
+        if (!ClipboardLifetime.ShouldClear(DateTimeOffset.UtcNow, clearAt, _clipboardCopiedText, current))
+        {
+            // The deadline passed but the clipboard now holds something
+            // else — the user's own copy wins, and this is over.
+            if (DateTimeOffset.UtcNow >= clearAt)
+                _clipboardClearAtUtc = null;
+            return;
+        }
+        try
+        {
+            Clipboard.Clear();
+            SetStatus("Copied prompt cleared from the clipboard.");
+            _log.Info("Battle Lab: copied prompt cleared from the clipboard on schedule");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Battle Lab: clipboard clear failed: {ex.Message}");
+        }
+        _clipboardCopiedText = null;
+        _clipboardClearAtUtc = null;
+        _clipboardTimer?.Stop();
+    }
+
+    /// <summary>Stop the clipboard timer when the window closes (the clipboard itself is the user's business after that).</summary>
+    private void StopClipboardTimer() => _clipboardTimer?.Stop();
 
     // ─────────────────────────── run queue ───────────────────────────
 

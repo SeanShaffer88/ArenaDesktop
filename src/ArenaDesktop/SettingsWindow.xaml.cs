@@ -282,6 +282,8 @@ public partial class SettingsWindow : Window
         ThemeCombo.SelectedIndex = (int)_working.Theme;
         LayoutCombo.SelectedIndex = (int)_working.ShellLayout;
         DimToolbarCheck.IsChecked = _working.DimToolbarWhenReading;
+        SpeakStatusCheck.IsChecked = _working.SpeakStatusMessages;
+        RebuildClipboardLifetimeCombo();
         var accentIndex = _accentKeys.IndexOf(_working.AccentColor);
         AccentCombo.SelectedIndex = accentIndex >= 0 ? accentIndex : 0;
         TextScaleCombo.SelectedItem = ShellTextScale.FormatPercent(_working.ShellFontScale);
@@ -347,6 +349,10 @@ public partial class SettingsWindow : Window
     {
         // Enhancement pack: the toolbar-dimming preference.
         _working.DimToolbarWhenReading = DimToolbarCheck.IsChecked == true;
+        // Hardening pack: the status announcements and the clipboard lifetime.
+        _working.SpeakStatusMessages = SpeakStatusCheck.IsChecked == true;
+        _working.ClipboardClearMinutes =
+            ClipboardClearCombo.SelectedItem is ClipboardLifetimeOption clipOption ? clipOption.Minutes : 0;
         _working.StartWithWindows = StartWithWindowsCheck.IsChecked == true;
         _working.StartMinimizedToTray = StartMinimizedCheck.IsChecked == true;
         _working.CloseToTray = CloseToTrayCheck.IsChecked == true;
@@ -861,6 +867,37 @@ public partial class SettingsWindow : Window
     {
         if (DimToolbarCheck is not null)
             _working.DimToolbarWhenReading = DimToolbarCheck.IsChecked == true;
+    }
+
+    /// <summary>One choice in the clipboard-lifetime combo (hardening pack).</summary>
+    private sealed record ClipboardLifetimeOption(string Label, int Minutes)
+    {
+        public override string ToString() => Label;
+    }
+
+    /// <summary>
+    /// Fill the clipboard-lifetime combo with "Never" plus the offered
+    /// delays, and select the stored one (hardening pack). An unknown
+    /// stored value reads as Never — the sanitizer's answer, restated
+    /// here so the UI and the model can never disagree.
+    /// </summary>
+    private void RebuildClipboardLifetimeCombo()
+    {
+        if (ClipboardClearCombo is null)
+            return;
+        var options = new List<ClipboardLifetimeOption> { new("Never", 0) };
+        options.AddRange(ClipboardLifetime.OfferedMinutes.Select(m =>
+            new ClipboardLifetimeOption(m == 1 ? "1 minute" : $"{m} minutes", m)));
+        var selectedMinutes = ClipboardLifetime.Sanitize(_working.ClipboardClearMinutes);
+        ClipboardClearCombo.ItemsSource = options;
+        ClipboardClearCombo.SelectedItem = options.FirstOrDefault(o => o.Minutes == selectedMinutes) ?? options[0];
+    }
+
+    /// <summary>Hardening pack: the status-announcement toggle, written into the working clone like every other checkbox here.</summary>
+    private void OnSpeakStatusChanged(object sender, RoutedEventArgs e)
+    {
+        if (SpeakStatusCheck is not null)
+            _working.SpeakStatusMessages = SpeakStatusCheck.IsChecked == true;
     }
 
     /// <summary>Enhancement pack: the pinned-mode row in Behavior — what is pinned, and a one-click way to clear it.</summary>

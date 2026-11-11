@@ -169,28 +169,16 @@ public static class FieldPassStore
         }
         catch (Exception)
         {
-            try
-            {
-                var backup = $"{path}.corrupt-{DateTime.Now:yyyyMMdd-HHmmss}";
-                File.Copy(path, backup, overwrite: false);
-            }
-            catch
-            {
-                // Best effort only — returning a fresh pass is the contract.
-            }
+            // Best effort only — returning a fresh pass is the contract;
+            // the unreadable file is kept beside it (CorruptFile) so the
+            // verdicts the user recorded are not silently discarded.
+            CorruptFile.Preserve(path, DateTimeOffset.Now);
             return new FieldPassData();
         }
     }
 
-    public static void Save(string path, FieldPassData data)
-    {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(Sanitized(data), Options));
-        File.Move(tmp, path, overwrite: true);
-    }
+    public static void Save(string path, FieldPassData data) =>
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(Sanitized(data), Options));
 
     /// <summary>Keep only records naming a real catalogue step, at most one per step, with a defined verdict; order follows the catalogue, so the file reads in walk order.</summary>
     public static FieldPassData Sanitized(FieldPassData data)

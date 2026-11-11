@@ -304,7 +304,10 @@ public static class ShortcutCheatSheet
         _ when action.Id.StartsWith("mode-", StringComparison.Ordinal) => "Arena modes",
         ShortcutCatalog.SettingsId or ShortcutCatalog.DownloadsId or ShortcutCatalog.HomeId or "shortcuts" => "Opening things",
         "find" or "print" or "reload" or "restore-closed" => "The page",
-        "back" or "forward" => "Moving around",
+        "back" or "forward" or "focus-page" => "Moving around",
+        // The status line is read off the page, not the window: group it
+        // with the page keys so "read" finds it where a user looks.
+        "status-line" => "The page",
         "zoom-in" or "zoom-out" or "zoom-reset" => "Zoom",
         _ => "The window",
     };

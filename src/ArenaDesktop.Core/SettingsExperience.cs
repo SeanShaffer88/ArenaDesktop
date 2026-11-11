@@ -29,7 +29,7 @@ public static class SettingsSearch
     public static readonly IReadOnlyList<SettingsSectionInfo> Sections = new[]
     {
         new SettingsSectionInfo(BehaviorId, "Behavior",
-            "start with windows startup sign in autostart start in tray minimized close to tray suspend memory timeout check for updates update updates channel release pre-release prerelease beta snooze remind later frequency daily weekly manual rollback previous version what's new setup wizard first run welcome protocol links arenadesktop links url handler command line launching startup mode modes favorite favorites open mode battle last used pin pinned pinning"),
+            "start with windows startup sign in autostart start in tray minimized close to tray suspend memory timeout check for updates update updates channel release pre-release prerelease beta snooze remind later frequency daily weekly manual rollback previous version what's new setup wizard first run welcome protocol links arenadesktop links url handler command line launching startup mode modes favorite favorites open mode battle last used pin pinned pinning clipboard clear clearing copy copied prompt prompts paste security privacy shared history wipe timeout minutes"),
         new SettingsSectionInfo(TrayId, "Tray & notifications",
             "tray icon single click double click reopen flash taskbar attention quiet hours do not disturb notifications balloon silent night"),
         new SettingsSectionInfo(ProfilesId, "Account profiles",
@@ -39,7 +39,7 @@ public static class SettingsSearch
         new SettingsSectionInfo(ZoomId, "Zoom",
             "zoom default percent bigger smaller text size page extended range low vision 500"),
         new SettingsSectionInfo(AccessibilityId, "Keyboard & accessibility",
-            "keyboard shortcuts keys remap rebind change hotkey global show hide anywhere dictate reduce motion animation effects announcements screen reader narrator focus dialog extended zoom range low vision accessibility"),
+            "keyboard shortcuts keys remap rebind change hotkey global show hide anywhere dictate reduce motion animation effects announcements announce announcement screen reader narrator spoken speak speech status message messages focus dialog extended zoom range low vision accessibility"),
         new SettingsSectionInfo(DownloadsId, "Downloads",
             "downloads folder save ask where collision already exists rename history keep cap notify finished balloon health check writable free space sort size filter old smallest newest"),
         new SettingsSectionInfo(DataId, "Data",
@@ -173,6 +173,11 @@ public static class SettingsReset
         // dimming are preferences and reset with the rest.
         target.PinnedModeId = fresh.PinnedModeId;
         target.DimToolbarWhenReading = fresh.DimToolbarWhenReading;
+        // Hardening pack: the clipboard lifetime and status announcements
+        // are preferences too — a reset returns them to "never clear"
+        // and "don't announce", the quiet defaults.
+        target.ClipboardClearMinutes = fresh.ClipboardClearMinutes;
+        target.SpeakStatusMessages = fresh.SpeakStatusMessages;
         // A reset returns the app to its first-run state, wizard
         // included: the setup wizard offers itself again next launch.
         target.FirstRunCompleted = fresh.FirstRunCompleted;

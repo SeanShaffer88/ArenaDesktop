@@ -41,6 +41,13 @@ public partial class MainWindow : Window
     private WindowStyle _preFullScreenStyle;
 
     // v0.2.0 — update check (the check itself lives in UpdateService)
+    /// <summary>
+    /// Re-entry guard for the update check (hardening pack). Kept alongside
+    /// <see cref="_checkingUpdate"/> because the bool is what the menu's
+    /// enabled state reads; the guard is what actually refuses a second run.
+    /// </summary>
+    private readonly BusyGuard _updateCheckGuard = new();
+
     private bool _checkingUpdate;
     private string? _updateTag;
     private string? _updateUrl;
@@ -474,6 +481,62 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Show a finished jump's notice and start its clock (enhancement pack).</summary>
+    /// <summary>
+    /// Move the keyboard into the Arena page (hardening pack, F6). The
+    /// web view's own child window is what actually takes focus; the
+    /// control's Focus() is the supported way in, and a failure (the
+    /// runtime hasn't started) says so rather than doing nothing.
+    /// </summary>
+    private void FocusArenaPage()
+    {
+        if (!_webReady || Browser.CoreWebView2 is null)
+        {
+            SetStatus("The page isn't ready yet");
+            return;
+        }
+        // The WPF control's Focus() is what moves keyboard focus into the
+        // web content; CoreWebView2 itself has no Focus method (that
+        // lives on CoreWebView2Controller.MoveFocus, which the WPF
+        // wrapper does not expose). A refusal is worth saying out loud
+        // rather than leaving the key silently doing nothing.
+        try
+        {
+            if (!Browser.Focus())
+                _log.Warn("Focusing the page was refused (the host window may not be active)");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Focusing the page failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Copy the status bar's text (hardening pack, Ctrl+Shift+S): the
+    /// left segment and the right segment, when one is showing. Uses the
+    /// same clipboard handling as every other copy in the shell.
+    /// </summary>
+    private void CopyStatusLine()
+    {
+        var left = StatusText.Text ?? "";
+        var right = StatusRight.Text ?? "";
+        var text = string.IsNullOrWhiteSpace(right) ? left : $"{left} — {right}";
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            SetStatus("There's nothing in the status bar to copy");
+            return;
+        }
+        try
+        {
+            System.Windows.Clipboard.SetText(text);
+            SetStatus("Status line copied");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Status line copy failed: {ex.Message}");
+            SetStatus("Copying to the clipboard failed — try again.");
+        }
+    }
+
     private void ShowArrivalNotice(ArenaMode mode)
     {
         SetStatus(ArrivalNotice.ForMode(mode));
@@ -676,7 +739,9 @@ public partial class MainWindow : Window
             _battleLabWindow.Activate();
             return;
         }
-        var window = new BattleLabWindow(_log, OpenBattleWithCopiedPrompt) { Owner = this };
+        // The Lab reads the clipboard lifetime from the live settings, so
+        // a change made in Settings applies the next time it opens.
+        var window = new BattleLabWindow(_log, OpenBattleWithCopiedPrompt, _settings) { Owner = this };
         window.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(window);
         ShellTextScaling.Apply(window, _settings.ShellFontScale);
         window.Closed += (_, _) => _battleLabWindow = null;
@@ -776,9 +841,22 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// The tray's Downloads submenu (hardening pack). The history records
+    /// what was downloaded, not what still exists: a file deleted from
+    /// Explorer, moved, or on a drive that has since gone leaves a menu
+    /// entry whose click fails with nothing to show for it. Filtering on
+    /// File.Exists here means the menu only offers files that will open,
+    /// and the "No downloads yet" line covers the case where history has
+    /// entries but none of their files survive.
+    /// </summary>
     private IReadOnlyList<DownloadRecord> RecentDownloadsForTray()
     {
-        try { return DownloadHistoryStore.Load(AppPaths.DownloadsHistoryPath, 5); }
+        try
+        {
+            var history = DownloadHistoryStore.Load(AppPaths.DownloadsHistoryPath, 5);
+            return RecentDownloads.Pick(history, File.Exists, 5);
+        }
         catch (Exception ex)
         {
             _log.Warn($"Tray recent-downloads load failed: {ex.Message}");
@@ -846,7 +924,9 @@ public partial class MainWindow : Window
     {
         Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         _watchdogTimer?.Stop();
-        SaveSettings();
+        _saveTimer?.Stop();
+        // Force: this is the last moment the state can be written.
+        FlushSettings();
         if (!_reallyExit && _settings.CloseToTray)
         {
             e.Cancel = true;
@@ -920,7 +1000,55 @@ public partial class MainWindow : Window
         ZoomLabel.Text = ZoomMath.FormatPercent(EffectiveZoom());
     }
 
+    /// <summary>
+    /// An ordinary save request: remember the state, then write it — at
+    /// once when nothing has been written recently, otherwise on a short
+    /// timer (hardening pack). Nothing is ever dropped: a deferred write
+    /// is retried by <see cref="OnSaveTimerTick"/> and forced out by
+    /// <see cref="FlushSettings"/> on the paths that cannot wait.
+    /// </summary>
     private void SaveSettings()
+    {
+        if (!_saveCoalescer.Request(DateTimeOffset.UtcNow))
+        {
+            _saveStats.NoteDeferred();
+            if (_saveTimer is null)
+            {
+                _saveTimer = new DispatcherTimer { Interval = SaveCoalescer.MinInterval };
+                _saveTimer.Tick += OnSaveTimerTick;
+            }
+            if (!_saveTimer.IsEnabled)
+                _saveTimer.Start();
+            return;
+        }
+        WriteSettingsNow();
+    }
+
+    private void OnSaveTimerTick(object? sender, EventArgs e)
+    {
+        if (!_saveCoalescer.IsDue(DateTimeOffset.UtcNow))
+            return;
+        _saveTimer?.Stop();
+        WriteSettingsNow();
+    }
+
+    /// <summary>
+    /// Write the settings immediately, whatever the coalescer thinks —
+    /// for closing, profile switches, and anything the user just
+    /// confirmed. Safe to call when nothing is pending.
+    /// </summary>
+    private void FlushSettings()
+    {
+        // Unconditional on purpose: every caller is a moment where losing
+        // the state would be visible (closing, switching profile, locking
+        // the app). TakePending exists so a pending flag never outlives
+        // the write that satisfies it.
+        _saveCoalescer.TakePending();
+        _saveTimer?.Stop();
+        WriteSettingsNow();
+    }
+
+    private void WriteSettingsNow()
     {
         try
         {
@@ -951,12 +1079,15 @@ public partial class MainWindow : Window
                 }
             }
             SettingsStore.Save(AppPaths.SettingsPath, _settings);
+            _saveCoalescer.MarkWritten(DateTimeOffset.UtcNow);
+            _saveStats.NoteWrite();
             // S8 #79: saves are frequent (every navigation), so the
             // backup service applies its once-a-day throttle itself.
             BackupService.MaybeAutoBackup(_log);
         }
         catch (Exception ex)
         {
+            _saveStats.NoteFailure();
             _log.Warn($"Settings save failed: {ex.Message}");
         }
     }
@@ -1855,9 +1986,35 @@ public partial class MainWindow : Window
         RailForwardButton.IsEnabled = ForwardButton.IsEnabled;
     }
 
+    /// <summary>
+    /// The last line written into the status bar, for the duplicate check
+    /// <see cref="SpeakableStatus"/> does (hardening pack) — a repeated
+    /// line is one event, not two.
+    /// </summary>
+    private string? _lastStatusSpoken;
+
+    // Hardening pack: ordinary saves are coalesced (a navigation every
+    // few seconds must not rewrite settings.json each time), forced saves
+    // are not, and the tally is a Diagnostics fact.
+    private readonly SaveCoalescer _saveCoalescer = new();
+    private readonly SettingsWriteStats _saveStats = new();
+    private DispatcherTimer? _saveTimer;
+
     private void SetStatus(string text, string? right = null)
     {
         StatusText.Text = text;
+        // Hardening pack: a screen-reader user now hears the ordinary
+        // outcomes a sighted user reads off the bar (a failed copy, a
+        // refused link, "Settings saved"). Core decides WHICH lines are
+        // worth saying — progress chatter stays silent — and the setting
+        // keeps it off for everyone who never asked for it.
+        if (_settings.SpeakStatusMessages && SpeakableStatus.ShouldSpeak(text, _lastStatusSpoken))
+        {
+            var spoken = SpeakableStatus.Spoken(text);
+            if (spoken.Length > 0)
+                Announcer.Polite(spoken);
+            _lastStatusSpoken = text;
+        }
         // Enhancement pack: an empty right-hand segment falls back to the
         // pinned-mode label, so pinning stays visible through ordinary
         // status messages; a running download's detail and any explicit
@@ -1990,7 +2147,8 @@ public partial class MainWindow : Window
             return;
         }
         _settings.PinnedModeId = mode.Id;
-        SaveSettings();
+        // A user-confirmed action saves at once (no coalescing).
+        WriteSettingsNow();
         RefreshPinnedModeChrome();
         SetStatus($"Pinned {mode.Label} — click the status bar to come back to it");
         _log.Info($"Pinned mode: {mode.Id}");
@@ -1999,7 +2157,7 @@ public partial class MainWindow : Window
     private void OnUnpinMode(object sender, RoutedEventArgs e)
     {
         _settings.PinnedModeId = null;
-        SaveSettings();
+        WriteSettingsNow();
         RefreshPinnedModeChrome();
         SetStatus("Mode unpinned");
         _log.Info("Pinned mode cleared");
@@ -2244,7 +2402,8 @@ public partial class MainWindow : Window
             Browser.ZoomFactor = EffectiveZoom();
         if (!_settings.SuspendWhenInTray)
             _tray.CancelPendingSuspend();
-        SaveSettings();
+        // Settings OK is a user-confirmed moment: write now, not later.
+        WriteSettingsNow();
         RefreshProfileIndicator();
         // S11 #96/#99 live apply (see the adoption above).
         _hotkeyManager?.Apply(_settings);
@@ -2298,7 +2457,9 @@ public partial class MainWindow : Window
         _settings.Profiles = workingClone.Profiles;
         _settings.ActiveProfileId = targetProfileId;
         _settings.Sanitized();
-        SaveSettings();
+        // Force: the app is about to restart, so a deferred write would
+        // simply never happen.
+        FlushSettings();
         _log.Info($"Switching to profile {targetProfileId}; restarting");
         try
         {
@@ -3002,9 +3163,13 @@ public partial class MainWindow : Window
     /// </summary>
     private async Task CheckForUpdatesAsync(bool manual)
     {
-        if (_checkingUpdate)
+        // Hardening pack: one guard instead of a bool + hand-written
+        // finally. A second manual check while the first is still awaiting
+        // is refused (Scope.Entered is false), and disposal is what clears
+        // the flag, so no return path can leave the menu item dead.
+        using var scope = _updateCheckGuard.TryEnter();
+        if (!scope.Entered)
             return;
-        _checkingUpdate = true;
         try
         {
             if (manual)
@@ -3282,7 +3447,7 @@ public partial class MainWindow : Window
         PinItem.IsChecked = _settings.AlwaysOnTop;
         Topmost = _settings.AlwaysOnTop;
         SetStatus(_settings.AlwaysOnTop ? "Window will stay on top" : "Window no longer stays on top");
-        SaveSettings();
+        WriteSettingsNow();
     }
 
     /// <summary>Shell layout choice (v0.2.0 — the ⋯-menu twin of the Settings Appearance picker), persisted at once like the pin toggle. The Compact Focus item keeps toggle behaviour: unticking it returns to Standard. The other two items select their layout outright.</summary>
@@ -3297,7 +3462,7 @@ public partial class MainWindow : Window
     {
         _settings.ShellLayout = layout;
         ApplyShellLayout();
-        SaveSettings();
+        WriteSettingsNow();
         SetStatus(layout switch
         {
             ShellLayout.CompactFocus => "Compact Focus layout — slim toolbar, status pill in the corner",
@@ -3704,7 +3869,10 @@ public partial class MainWindow : Window
         List<StartupTimings> runs = new();
         try { runs = StartupTimingsStore.Load(AppPaths.StartupTimingsPath); }
         catch (Exception ex) { _log.Warn($"Diagnostics startup-timings read failed: {ex.Message}"); }
-        var logText = ReadLogText();
+        // Hardening pack: the report only ever reads the newest error
+        // lines, so read the file's tail rather than all 1 MB of it on
+        // every Diagnostics open / support-bundle export.
+        var logText = TextFileSlice.ReadTailLines(AppPaths.LogPath, 400);
         return new DiagnosticsData
         {
             AppVersion = $"{typeof(App).Assembly.GetName().Version}",
@@ -3736,7 +3904,40 @@ public partial class MainWindow : Window
             // session state only, nothing read from the Arena page.
             StartupTrendLine = StartupTrend.Summary(runs),
             SessionLines = SessionReport.Lines(_session, DateTimeOffset.UtcNow, PinnedMode.Resolve(_settings.PinnedModeId)?.Label),
+            // Hardening pack: the readiness verdict, from pieces the app
+            // already measures (the runtime probe and the settings
+            // folder). Downloads readiness is the folder check's answer
+            // when Settings has run it, otherwise "not checked".
+            ReadinessLines = BuildReadiness().Render().Split('\n').ToList(),
+            // Hardening pack: the coalescer's own tally, so the report
+            // distinguishes "settings saved constantly" from "settings
+            // actually written constantly".
+            SettingsWriteLine = _saveStats.ReportLine,
         };
+    }
+
+    /// <summary>
+    /// "Will this PC run me?", answered from what the app already knows
+    /// (hardening pack). The settings folder is probed here because a
+    /// read-only %APPDATA% is a real failure mode the app would otherwise
+    /// only discover on the next save.
+    /// </summary>
+    private ReadinessReport BuildReadiness()
+    {
+        var writable = true;
+        try
+        {
+            Directory.CreateDirectory(AppPaths.RootDir);
+            var probe = Path.Combine(AppPaths.RootDir, $".write-probe-{Guid.NewGuid():N}.tmp");
+            File.WriteAllText(probe, "probe");
+            File.Delete(probe);
+        }
+        catch (Exception ex)
+        {
+            writable = false;
+            _log.Warn($"Readiness: settings folder is not writable ({ex.GetType().Name})");
+        }
+        return ReadinessReport.Compose(_runtimeHealth, writable, downloadsOk: null);
     }
 
     // ───────────────────────── support bundle (S10 #90/#95) ─────────────────────────
@@ -3797,7 +3998,7 @@ public partial class MainWindow : Window
                 WriteBundleEntry(zip, SupportBundle.DiagnosticsFile,
                     DiagnosticsReport.Compose(BuildDiagnosticsData()));
                 WriteBundleEntry(zip, SupportBundle.LogFile,
-                    SupportBundle.LogExcerpt(ReadLogText()));
+                    SupportBundle.LogExcerpt(TextFileSlice.ReadTailLines(AppPaths.LogPath, 200)));
                 WriteBundleEntry(zip, SupportBundle.SettingsFile,
                     SupportBundle.SettingsJson(_settings));
                 WriteBundleEntry(zip, SupportBundle.DownloadsFile, downloadsJson);
@@ -3893,6 +4094,26 @@ public partial class MainWindow : Window
         if (e.Key == Key.F11)
         {
             SetFullScreen(!_isFullScreen);
+            e.Handled = true;
+            return;
+        }
+        // Hardening pack: F6 moves the keyboard into the Arena page. A
+        // user who tabbed into the shell had no gesture that came back to
+        // the page — the browser-tab convention (F6 cycles panes) is the
+        // one people already know, so it means that here too.
+        if (e.Key == Key.F6)
+        {
+            FocusArenaPage();
+            e.Handled = true;
+            return;
+        }
+        // Hardening pack: Ctrl+Shift+S copies the status line. The bar is
+        // a TextBlock, so it can't take keyboard focus — copying it is
+        // the useful outcome for a keyboard-only user anyway (and for
+        // anyone quoting an error into a bug report).
+        if (e.Key == Key.S && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            CopyStatusLine();
             e.Handled = true;
             return;
         }
