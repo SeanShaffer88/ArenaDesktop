@@ -254,6 +254,11 @@ public partial class SettingsWindow : Window
         CollisionPolicyCombo.SelectedIndex = _working.CollisionPolicy == DownloadCollisionPolicy.AskWhereToSave ? 1 : 0;
         HistoryCapCombo.SelectedItem = DownloadHistoryStore.SanitizeCap(_working.DownloadHistoryCap).ToString();
         DownloadsFolderText.Text = _working.DownloadsFolder ?? "";
+        // Enhancement pack: the folder health check and the pinned-mode row.
+        RefreshDownloadsFolderHealth();
+        RefreshPinnedModeRow();
+        // (Behavior also owns the pinned-mode row; its note above the
+        // row points at ⋯ → Pin this mode for setting it.)
 
         // S6: extended zoom range (its handler rebuilds the step lists
         // when it changes), reduce motion, the shortcut editor rows.
@@ -276,6 +281,9 @@ public partial class SettingsWindow : Window
         // S5: appearance controls + the toolbar editor + the data note.
         ThemeCombo.SelectedIndex = (int)_working.Theme;
         LayoutCombo.SelectedIndex = (int)_working.ShellLayout;
+        DimToolbarCheck.IsChecked = _working.DimToolbarWhenReading;
+        SpeakStatusCheck.IsChecked = _working.SpeakStatusMessages;
+        RebuildClipboardLifetimeCombo();
         var accentIndex = _accentKeys.IndexOf(_working.AccentColor);
         AccentCombo.SelectedIndex = accentIndex >= 0 ? accentIndex : 0;
         TextScaleCombo.SelectedItem = ShellTextScale.FormatPercent(_working.ShellFontScale);
@@ -339,6 +347,12 @@ public partial class SettingsWindow : Window
     /// <summary>Read the plain controls back into the working settings (OK and Export share this).</summary>
     private void HarvestControls()
     {
+        // Enhancement pack: the toolbar-dimming preference.
+        _working.DimToolbarWhenReading = DimToolbarCheck.IsChecked == true;
+        // Hardening pack: the status announcements and the clipboard lifetime.
+        _working.SpeakStatusMessages = SpeakStatusCheck.IsChecked == true;
+        _working.ClipboardClearMinutes =
+            ClipboardClearCombo.SelectedItem is ClipboardLifetimeOption clipOption ? clipOption.Minutes : 0;
         _working.StartWithWindows = StartWithWindowsCheck.IsChecked == true;
         _working.StartMinimizedToTray = StartMinimizedCheck.IsChecked == true;
         _working.CloseToTray = CloseToTrayCheck.IsChecked == true;
@@ -783,7 +797,123 @@ public partial class SettingsWindow : Window
         var chosen = dialog.ShowDialog(this) == true;
         FocusReturn.Restore(invoker);
         if (chosen)
+        {
             DownloadsFolderText.Text = dialog.FolderName;
+            RefreshDownloadsFolderHealth();
+        }
+    }
+
+    /// <summary>
+    /// Enhancement pack: check that the chosen downloads folder exists,
+    /// can be written to, and has room, and say so in one plain line.
+    /// The check is a single tiny probe file, created and deleted at
+    /// once; a folder that can't be probed is reported as unprobed,
+    /// never as healthy.
+    /// </summary>
+    private void RefreshDownloadsFolderHealth()
+    {
+        if (DownloadsFolderHealthText is null)
+            return;
+        var folder = DownloadsFolderText?.Text;
+        DownloadsFolderCheck check;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(folder))
+            {
+                check = new DownloadsFolderCheck(null, false, false, null, null);
+            }
+            else if (!Directory.Exists(folder))
+            {
+                check = new DownloadsFolderCheck(folder, Exists: false, Writable: false, FreeBytes: null, Error: null);
+            }
+            else
+            {
+                var probe = Path.Combine(folder, $".arenadesktop-write-test-{Guid.NewGuid():N}.tmp");
+                try
+                {
+                    File.WriteAllText(probe, "probe");
+                    File.Delete(probe);
+                }
+                catch
+                {
+                    check = new DownloadsFolderCheck(folder, Exists: true, Writable: false, FreeBytes: null, Error: null);
+                    DownloadsFolderHealthText.Text = check.Line;
+                    DownloadsFolderHealthText.Visibility = Visibility.Visible;
+                    return;
+                }
+                long? free = null;
+                try
+                {
+                    free = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(folder)) ?? "").AvailableFreeSpace;
+                }
+                catch
+                {
+                    free = null; // a UNC path or an odd drive — the line says space unknown
+                }
+                check = new DownloadsFolderCheck(folder, Exists: true, Writable: true, FreeBytes: free, Error: null);
+            }
+        }
+        catch (Exception ex)
+        {
+            check = DownloadsFolderCheck.Failed(folder, ex.Message);
+        }
+        DownloadsFolderHealthText.Text = check.Line;
+        DownloadsFolderHealthText.Visibility = Visibility.Visible;
+        _log.Info($"Downloads folder check: {check.Line}");
+    }
+
+    /// <summary>Enhancement pack: the toolbar-dimming toggle, written straight into the working clone (OK still decides whether it ships).</summary>
+    private void OnDimToolbarChanged(object sender, RoutedEventArgs e)
+    {
+        if (DimToolbarCheck is not null)
+            _working.DimToolbarWhenReading = DimToolbarCheck.IsChecked == true;
+    }
+
+    /// <summary>One choice in the clipboard-lifetime combo (hardening pack).</summary>
+    private sealed record ClipboardLifetimeOption(string Label, int Minutes)
+    {
+        public override string ToString() => Label;
+    }
+
+    /// <summary>
+    /// Fill the clipboard-lifetime combo with "Never" plus the offered
+    /// delays, and select the stored one (hardening pack). An unknown
+    /// stored value reads as Never — the sanitizer's answer, restated
+    /// here so the UI and the model can never disagree.
+    /// </summary>
+    private void RebuildClipboardLifetimeCombo()
+    {
+        if (ClipboardClearCombo is null)
+            return;
+        var options = new List<ClipboardLifetimeOption> { new("Never", 0) };
+        options.AddRange(ClipboardLifetime.OfferedMinutes.Select(m =>
+            new ClipboardLifetimeOption(m == 1 ? "1 minute" : $"{m} minutes", m)));
+        var selectedMinutes = ClipboardLifetime.Sanitize(_working.ClipboardClearMinutes);
+        ClipboardClearCombo.ItemsSource = options;
+        ClipboardClearCombo.SelectedItem = options.FirstOrDefault(o => o.Minutes == selectedMinutes) ?? options[0];
+    }
+
+    /// <summary>Hardening pack: the status-announcement toggle, written into the working clone like every other checkbox here.</summary>
+    private void OnSpeakStatusChanged(object sender, RoutedEventArgs e)
+    {
+        if (SpeakStatusCheck is not null)
+            _working.SpeakStatusMessages = SpeakStatusCheck.IsChecked == true;
+    }
+
+    /// <summary>Enhancement pack: the pinned-mode row in Behavior — what is pinned, and a one-click way to clear it.</summary>
+    private void RefreshPinnedModeRow()
+    {
+        if (PinnedModeText is null)
+            return;
+        var mode = PinnedMode.Resolve(_working.PinnedModeId);
+        PinnedModeText.Text = mode is null ? "Nothing pinned." : $"Pinned: {mode.Label}";
+        UnpinModeButton.Visibility = mode is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void OnUnpinModeSetting(object sender, RoutedEventArgs e)
+    {
+        _working.PinnedModeId = null;
+        RefreshPinnedModeRow();
     }
 
     // ───────────────────────── S7: privacy & security ─────────────────────────

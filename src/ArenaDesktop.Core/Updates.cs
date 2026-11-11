@@ -635,3 +635,51 @@ public static class ReleaseNotesFormatter
         return text[..cut].TrimEnd() + "\n\n" + MoreTail;
     }
 }
+
+// ───────────────────────── update-check failure copy (enhancement pack) ─────────────────────────
+
+/// <summary>How an update check ended (moved to Core by the enhancement pack so its failure copy is testable).</summary>
+public enum UpdateOutcomeKind
+{
+    Available,
+    UpToDate,
+    Unreachable,
+    BadData,
+    Failed,
+}
+
+/// <summary>
+/// The words a failed manual update check uses (enhancement pack): what
+/// kind of failure it was and the one thing to try next, so the status
+/// bar and the update window say something more useful than "couldn't
+/// check". Never invents a cause it doesn't have — <see
+/// cref="UpdateOutcomeKind.Failed"/> is the honest catch-all.
+/// </summary>
+public static class UpdateFailureText
+{
+    /// <summary>One short sentence naming the failure.</summary>
+    public static string Explain(UpdateOutcomeKind kind) => kind switch
+    {
+        UpdateOutcomeKind.Unreachable => "The update check couldn't reach GitHub.",
+        UpdateOutcomeKind.BadData => "GitHub answered, but the release list didn't look right.",
+        UpdateOutcomeKind.Available => "An update is available.",
+        UpdateOutcomeKind.UpToDate => "You're already up to date.",
+        _ => "The update check didn't finish.",
+    };
+
+    /// <summary>The one thing to try next — a step, never a promise.</summary>
+    public static string NextStep(UpdateOutcomeKind kind) => kind switch
+    {
+        UpdateOutcomeKind.Unreachable => "Check your connection, then try again — ArenaDesktop keeps working offline.",
+        UpdateOutcomeKind.BadData => "Try again in a few minutes; if it keeps happening, the release may be mid-publish.",
+        UpdateOutcomeKind.Available => "Open the update from the ⋯ menu.",
+        UpdateOutcomeKind.UpToDate => "Nothing to do — you're on the newest version.",
+        _ => "Try again later; the app works normally until then.",
+    };
+
+    /// <summary>Explain + next step in one line, for the update window.</summary>
+    public static string Line(UpdateOutcomeKind kind) => $"{Explain(kind)} {NextStep(kind)}";
+
+    /// <summary>The status-bar line for a manual check that ended badly (short: one sentence plus the step).</summary>
+    public static string StatusLine(UpdateOutcomeKind kind) => Line(kind);
+}

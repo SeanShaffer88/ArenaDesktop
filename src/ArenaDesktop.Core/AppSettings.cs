@@ -172,6 +172,45 @@ public sealed class AppSettings
     /// <summary>Toolbar items the user hid (S5 #45). Sanitized by ToolbarLayout (Back can never be hidden).</summary>
     public List<string> ToolbarHidden { get; set; } = new();
 
+    // Enhancement pack (v0.4.0): pinned mode + toolbar dimming.
+    /// <summary>
+    /// The pinned mode (enhancement pack): one Arena mode the app can
+    /// jump back to from the status bar and the ⋯ menu, and names in the
+    /// Diagnostics session block. Null = nothing pinned, which is the
+    /// default so the status line stays as quiet as it has always been.
+    /// Sanitized by <see cref="PinnedMode.Sanitize"/>; a pinned mode never
+    /// changes what a launch opens on its own.
+    /// </summary>
+    public string? PinnedModeId { get; set; }
+
+    /// <summary>
+    /// Dim the toolbar while the Arena page has keyboard focus
+    /// (enhancement pack). Off by default — the existing look is the
+    /// touchstone; this is an opt-in for a quieter shell. The toolbar
+    /// returns to full strength on hover or when the shell takes focus,
+    /// and the page itself is never affected (see <see cref="ShellQuiet"/>).
+    /// </summary>
+    public bool DimToolbarWhenReading { get; set; }
+
+    /// <summary>
+    /// Minutes before a copied prompt is cleared from the clipboard
+    /// (hardening pack). 0 = never clear, which is the default: the
+    /// clipboard is shared state, and silently emptying it is the kind of
+    /// surprise a default must not spring. Sanitized by
+    /// <see cref="ClipboardLifetime.Sanitize"/>; the app only ever clears
+    /// text it put there itself.
+    /// </summary>
+    public int ClipboardClearMinutes { get; set; }
+
+    /// <summary>
+    /// Announce status-bar outcomes to assistive technology (hardening
+    /// pack). Off by default — the three existing announcements
+    /// (downloads, updates) stay unconditional, and this only widens the
+    /// polite live region to ordinary outcomes like a failed copy. A
+    /// screen-reader user turns it on; everyone else never hears a thing.
+    /// </summary>
+    public bool SpeakStatusMessages { get; set; }
+
     // Modes pack (v0.3.0): startup mode + favorite modes.
     /// <summary>
     /// Which Arena mode a launch opens with when it would otherwise
@@ -386,6 +425,11 @@ public sealed class AppSettings
         // longer exist and ids that name no mode.
         StartupMode = StartupModes.Sanitize(StartupMode);
         FavoriteModeIds = FavoriteModes.Sanitize(FavoriteModeIds);
+        // Enhancement pack (v0.4.0): the pinned mode must name a real
+        // mode (anything else reads as "nothing pinned"), and dimming
+        // the toolbar is a plain on/off preference.
+        PinnedModeId = PinnedMode.Sanitize(PinnedModeId);
+        ClipboardClearMinutes = ClipboardLifetime.Sanitize(ClipboardClearMinutes);
         LastModeIdByProfile ??= new Dictionary<string, string>();
         foreach (var key in LastModeIdByProfile.Keys.ToList())
         {
@@ -549,29 +593,17 @@ public static class SettingsStore
         }
         catch (Exception)
         {
-            try
-            {
-                var backup = $"{path}.corrupt-{DateTime.Now:yyyyMMdd-HHmmss}";
-                File.Copy(path, backup, overwrite: false);
-            }
-            catch
-            {
-                // Best effort only — returning defaults is the contract.
-            }
+            // Best effort only — returning defaults is the contract.
+            CorruptFile.Preserve(path, DateTimeOffset.Now);
             return new AppSettings();
         }
     }
 
-    public static void Save(string path, AppSettings settings)
-    {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(settings, Options));
-        File.Move(tmp, path, overwrite: true);
-    }
+    public static void Save(string path, AppSettings settings) =>
+        // AtomicFile owns the temp-file dance (unique temp name, retried
+        // swap, cleanup on failure) so every store in the app writes the
+        // same way — hardening pack.
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(settings, Options));
 
     // Settings export / import (v0.4.0): the same JSON the app itself
     // writes, so a backup made by any build loads in any other. Import

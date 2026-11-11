@@ -73,6 +73,10 @@
                         <Button x:Name="ImportLibraryButton" Content="Import library…" Height="28" Margin="0,6,0,0"
                                 Click="OnImportLibrary" ToolTip="Merge a library file into this one — you choose what happens when a title is already here"
                                 AutomationProperties.Name="Import library"/>
+                        <!-- Enhancement pack: list prompts that share a body or a name. -->
+                        <Button x:Name="FindDuplicatesButton" Content="Find duplicates" Height="28" Margin="0,6,0,0"
+                                Click="OnFindDuplicates" ToolTip="List prompts whose text is identical, or whose name is used more than once"
+                                AutomationProperties.Name="Find duplicates"/>
                     </StackPanel>
                     <TextBox x:Name="SearchText" DockPanel.Dock="Top" Height="26" Margin="0,0,0,8"
                              Style="{StaticResource Field}" TextChanged="OnSearchChanged"

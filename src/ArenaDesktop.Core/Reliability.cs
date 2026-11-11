@@ -309,15 +309,8 @@ public static class StartupTimingsStore
         return runs;
     }
 
-    public static void Save(string path, List<StartupTimings> runs)
-    {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(runs.Take(MaxKept).ToList(), Options));
-        File.Move(tmp, path, overwrite: true);
-    }
+    public static void Save(string path, List<StartupTimings> runs) =>
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(runs.Take(MaxKept).ToList(), Options));
 }
 
 // ───────────────────── memory readout (S8 #74) ─────────────────────
@@ -765,6 +758,40 @@ public sealed class DiagnosticsData
 
     /// <summary>The most recent ERROR log lines, already redacted (see LogReading). Null = not collected.</summary>
     public IReadOnlyList<string>? RecentErrors { get; init; }
+
+    /// <summary>
+    /// The startup-time trend line (enhancement pack) — computed from
+    /// <see cref="StartupRuns"/> by <see cref="StartupTrend"/>; rendered
+    /// only when collected, so callers that don't supply it keep the
+    /// report's previous shape.
+    /// </summary>
+    public string? StartupTrendLine { get; init; }
+
+    /// <summary>
+    /// The session block (enhancement pack): pages, time on Arena,
+    /// mode jumps, downloads and the pinned mode — this run only, saved
+    /// nowhere. Null = not collected.
+    /// </summary>
+    public IReadOnlyList<string>? SessionLines { get; init; }
+
+    /// <summary>
+    /// The one-line "will this PC run me?" verdict plus its facts
+    /// (hardening pack): the runtime, the settings folder and the
+    /// downloads folder in the order a person would ask about them.
+    /// Optional, so callers that don't collect it keep the report's
+    /// previous shape.
+    /// </summary>
+    public IReadOnlyList<string>? ReadinessLines { get; init; }
+
+    /// <summary>
+    /// How many times settings were written, deferred and coalesced this
+    /// session (hardening pack). Settings are saved on every checkbox
+    /// flip, so a report that counts the writes shows at a glance whether
+    /// the coalescer is doing its job — and a non-zero failure count is
+    /// the one number here that needs acting on. Optional: a report from
+    /// a caller that doesn't count keeps its previous shape.
+    /// </summary>
+    public string? SettingsWriteLine { get; init; }
 }
 
 public static class DiagnosticsReport
@@ -795,6 +822,27 @@ public static class DiagnosticsReport
             lines.Add("");
             lines.Add("App & PC");
             lines.AddRange(facts);
+        }
+        // Hardening pack: the readiness verdict sits near the top, before
+        // the details — a reader deciding "is this even installed right?"
+        // shouldn't have to scroll past the memory numbers to find out.
+        if (!string.IsNullOrWhiteSpace(data.SettingsWriteLine))
+        {
+            lines.Add("");
+            lines.Add("Settings writes this session");
+            lines.Add(data.SettingsWriteLine!.TrimEnd());
+        }
+        if (data.ReadinessLines is { Count: > 0 } readiness)
+        {
+            lines.Add("");
+            lines.AddRange(readiness);
+        }
+        // Enhancement pack: what this run actually did. Session state
+        // only — the block says so, and nothing here came from the page.
+        if (data.SessionLines is { Count: > 0 } sessionLines)
+        {
+            lines.Add("");
+            lines.AddRange(sessionLines);
         }
         lines.Add("");
         lines.Add("WebView2 runtime");
@@ -840,6 +888,9 @@ public static class DiagnosticsReport
             foreach (var run in data.StartupRuns)
                 lines.Add($"  {run.StartedUtc.ToLocalTime():yyyy-MM-dd HH:mm} — {run.Describe()}");
         }
+        // Enhancement pack: the trend line, when the shell collected it.
+        if (!string.IsNullOrWhiteSpace(data.StartupTrendLine))
+            lines.Add("  Trend: " + data.StartupTrendLine);
         lines.Add("");
         lines.Add("Files");
         lines.Add($"  Settings: {data.SettingsPath}");

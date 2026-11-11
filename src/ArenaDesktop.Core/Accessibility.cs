@@ -252,6 +252,15 @@ public static class ShortcutCatalog
             new[] { "Ctrl+D8" }),
         new ShortcutAction("mode-search", "Go to Web Search", ShortcutScope.InApp, Remappable: false,
             new[] { "Ctrl+D9" }),
+        // Hardening pack: the two "where did focus go?" keys. A keyboard
+        // user who tabs into the page has no gesture that comes back to
+        // the shell, and a sighted user reading the status bar has no way
+        // to reach it; both are one key away now, and both are listed
+        // here so the cheat sheet stays complete.
+        new ShortcutAction("focus-page", "Focus the Arena page (start typing without clicking)", ShortcutScope.InApp, Remappable: false,
+            new[] { "F6" }),
+        new ShortcutAction("status-line", "Read the status line (copy it with Ctrl+C)", ShortcutScope.InApp, Remappable: false,
+            new[] { "Ctrl+Shift+S" }),
         new ShortcutAction("fullscreen", "Full screen", ShortcutScope.InApp, Remappable: false,
             new[] { "F11" }),
         new ShortcutAction("escape", "Close find / leave focus mode or full screen", ShortcutScope.InApp, Remappable: false,

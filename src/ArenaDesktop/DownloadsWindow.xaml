@@ -70,16 +70,28 @@
                     <ComboBoxItem Content="Completed" Tag="Completed"/>
                     <ComboBoxItem Content="Failed" Tag="Failed"/>
                 </ComboBox>
+                <ComboBox x:Name="SizeFilterCombo" Width="126" Margin="8,0,0,0" SelectionChanged="OnSearchOrFilterChanged"
+                          ToolTip="Show only files in this size range"
+                          AutomationProperties.Name="Size filter">
+                    <ComboBoxItem Content="Any size" IsSelected="True"/>
+                    <ComboBoxItem Content="Under 1 MB" Tag="under-1mb"/>
+                    <ComboBoxItem Content="1&#x2013;10 MB" Tag="1-10mb"/>
+                    <ComboBoxItem Content="Over 10 MB" Tag="over-10mb"/>
+                    <ComboBoxItem Content="Over 100 MB" Tag="over-100mb"/>
+                </ComboBox>
                 <ComboBox x:Name="SortCombo" Width="120" Margin="8,0,0,0" SelectionChanged="OnSearchOrFilterChanged"
                           ToolTip="Sort the history" AutomationProperties.Name="Sort downloads">
                     <ComboBoxItem Content="Newest first" Tag="NewestFirst" IsSelected="True"/>
+                    <ComboBoxItem Content="Oldest first" Tag="OldestFirst"/>
                     <ComboBoxItem Content="Largest first" Tag="LargestFirst"/>
+                    <ComboBoxItem Content="Smallest first" Tag="SmallestFirst"/>
                     <ComboBoxItem Content="Name A–Z" Tag="NameAscending"/>
                 </ComboBox>
             </StackPanel>
             <ListBox x:Name="DownloadsList" Background="{StaticResource SurfaceBrush}"
                      Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource HairlineBrush}"
                      MouseDoubleClick="OnOpen" SelectionChanged="OnSelectionChanged"
+                     KeyDown="OnHistoryKeyDown"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      AutomationProperties.Name="Download history">
                 <ListBox.ItemTemplate>

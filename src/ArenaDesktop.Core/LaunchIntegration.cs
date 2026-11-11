@@ -267,15 +267,8 @@ public sealed record ProtocolParseResult(LaunchIntent? Intent, string? Note, str
 /// </summary>
 public static class PendingIntentStore
 {
-    public static void Save(string path, LaunchIntent intent)
-    {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, intent.ToJson());
-        File.Move(tmp, path, overwrite: true);
-    }
+    public static void Save(string path, LaunchIntent intent) =>
+        AtomicFile.WriteAllText(path, intent.ToJson());
 
     /// <summary>Read and remove the pending intent. Missing, corrupt, or unreadable all read as null — the caller just wakes the window, which is the pre-S11 behavior and always safe.</summary>
     public static LaunchIntent? Take(string path)
