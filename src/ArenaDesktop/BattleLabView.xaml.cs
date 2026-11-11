@@ -8,6 +8,10 @@ using Brush = System.Windows.Media.Brush;
 using Color = System.Windows.Media.Color;
 using MessageBox = System.Windows.MessageBox;
 using Clipboard = System.Windows.Clipboard;
+// The project enables UseWindowsForms (for the tray icon), and its
+// implicit usings bring System.Windows.Forms in too — so the bare name
+// UserControl is ambiguous here. This app's controls are WPF's.
+using UserControl = System.Windows.Controls.UserControl;
 
 namespace ArenaDesktop;
 
