@@ -538,6 +538,22 @@ public class HardeningPackTests
         Assert.False(SpeakableStatus.ShouldSpeak("Downloading image.png — 42% (1.2 MB/s)"));
         Assert.False(SpeakableStatus.ShouldSpeak("Download complete: chart.png — click to open"));
         Assert.False(SpeakableStatus.ShouldSpeak("Download interrupted: file.bin"));
+        // Progress lines that name what they're doing keep the prefix rule.
+        Assert.False(SpeakableStatus.ShouldSpeak("Starting up"));
+        Assert.False(SpeakableStatus.ShouldSpeak("Restoring your last page"));
+        Assert.False(SpeakableStatus.ShouldSpeak("Paused"));
+        Assert.False(SpeakableStatus.ShouldSpeak("Ready…"));
+    }
+
+    [Fact]
+    public void SpeakableStatus_DoesNotSwallowOutcomesThatUseAProgressWord()
+    {
+        // "ready" and "paused" are chatter only when they ARE the line.
+        // These are real results and must be spoken.
+        Assert.True(SpeakableStatus.ShouldSpeak("This PC is ready."));
+        Assert.True(SpeakableStatus.ShouldSpeak("Downloads paused by you."));
+        Assert.True(SpeakableStatus.ShouldSpeak("ArenaDesktop is ready to paste."));
+        Assert.True(SpeakableStatus.ShouldSpeak("already done"));
     }
 
     [Fact]
@@ -576,8 +592,12 @@ public class HardeningPackTests
             Prompt("Outline", "Writing", "Outline the argument."),
         });
         Assert.StartsWith("# Battle Lab prompts", md);
-        // One heading per category, in sorted order, not one per prompt.
-        Assert.Equal(2, md.Split("## ").Length - 1);
+        // One heading per category, not one per prompt. Counted by line:
+        // splitting on "## " would also match the "## " inside "### ".
+        var categoryHeadings = md.Split('\n').Count(line => line.StartsWith("## ", StringComparison.Ordinal));
+        Assert.Equal(2, categoryHeadings);
+        var promptHeadings = md.Split('\n').Count(line => line.StartsWith("### ", StringComparison.Ordinal));
+        Assert.Equal(3, promptHeadings);
         Assert.Contains("## Code", md);
         Assert.Contains("## Writing", md);
         Assert.Contains("### Refactor", md);
@@ -780,7 +800,9 @@ public class HardeningPackTests
         var matches = LogSearch.FindAll("aaaa", "aa");
         Assert.Equal(3, matches.Count);
         Assert.Equal(new[] { 0, 1, 2 }, matches.Select(m => m.Index).ToArray());
-        Assert.Equal(5, matches[0].End);
+        // End is the end of THIS match (0 + 2), not the end of the text.
+        Assert.Equal(2, matches[0].End);
+        Assert.Equal(4, matches[^1].End);
     }
 
     [Fact]

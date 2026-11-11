@@ -29,21 +29,43 @@ public static class SpeakableStatus
     public const int MaxSpokenLength = 140;
 
     /// <summary>
-    /// Substrings that mark a line as progress chatter, never an outcome.
-    /// Matched case-insensitively anywhere in the line.
+    /// Prefixes that START a progress line. "Loading Arena…", "Starting
+    /// up", "Restoring your last page" — these always mean the app is busy,
+    /// and the line names what it is busy with, so a prefix test is right.
     /// </summary>
-    private static readonly string[] ChatterMarkers =
+    private static readonly string[] ChatterPrefixes =
     {
         "loading",
+        "starting",
+        "restoring",
+    };
+
+    /// <summary>
+    /// Words that are chatter only when they ARE the whole line ("Ready",
+    /// "Paused"). Matched exactly, never as a substring or a word: "This PC
+    /// is ready." and "Downloads paused by you." are outcomes the user asked
+    /// for, and swallowing them would silence real information.
+    /// </summary>
+    private static readonly string[] ChatterWords =
+    {
         "ready",
+        "paused",
+    };
+
+    /// <summary>
+    /// Phrases that mark a line as chatter in any position. These are long
+    /// and specific enough that a false positive is not a risk, and they
+    /// are the exact shapes the shell formats for progress. Each is
+    /// already announced through <c>AnnouncementText</c> where it matters,
+    /// so speaking it here too would double up.
+    /// </summary>
+    private static readonly string[] ChatterPhrases =
+    {
         "downloading",
         "download complete:",   // announced by AnnouncementText with the file name
         "download paused:",
         "download cancelled:",
         "download interrupted:", // announced assertively with the reason
-        "starting",
-        "restoring",
-        "paused",
     };
 
     /// <summary>
@@ -63,12 +85,48 @@ public static class SpeakableStatus
         if (previousStatus is not null
             && string.Equals(text, previousStatus.Trim(), StringComparison.Ordinal))
             return false;
-        foreach (var marker in ChatterMarkers)
+        foreach (var phrase in ChatterPhrases)
         {
-            if (text.Contains(marker, StringComparison.OrdinalIgnoreCase))
+            if (text.Contains(phrase, StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+        foreach (var prefix in ChatterPrefixes)
+        {
+            if (text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+        // A bare progress word on its own ("Ready", "Paused") is chatter.
+        // A line that merely USES the word is an outcome — "This PC is
+        // ready." and "Downloads paused by you." are things the user asked
+        // for, so matching them would swallow real information.
+        foreach (var word in ChatterWords)
+        {
+            if (IsJustProgressWord(text, word))
                 return false;
         }
         return true;
+    }
+
+    /// <summary>
+    /// True when the line is nothing but the progress word (surrounded only
+    /// by punctuation or an ellipsis). "Ready", "Ready…" and "Loading…"
+    /// are chatter; "This PC is ready." is a result. The test is
+    /// deliberately this narrow: the cost of missing a chatter line is one
+    /// extra short sentence read aloud, and the cost of over-matching is a
+    /// real outcome the user never hears.
+    /// </summary>
+    private static bool IsJustProgressWord(string text, string word)
+    {
+        if (text.Length < word.Length)
+            return false;
+        // Strip leading/trailing punctuation and whitespace, then compare.
+        var start = 0;
+        while (start < text.Length && !char.IsLetterOrDigit(text[start]))
+            start++;
+        var end = text.Length;
+        while (end > start && !char.IsLetterOrDigit(text[end - 1]))
+            end--;
+        return string.Equals(text[start..end], word, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
