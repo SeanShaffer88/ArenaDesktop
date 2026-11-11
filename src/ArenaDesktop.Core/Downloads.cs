@@ -106,6 +106,32 @@ public static class DownloadHistoryStore
         return removed;
     }
 
+    /// <summary>
+    /// Remove several entries in one pass (enhancement pack 10: the
+    /// Downloads window's bulk actions).
+    ///
+    /// One load and one save, not N of each: cleaning up forty files
+    /// through the single-record path rewrote the whole history forty
+    /// times, and a failure halfway left the file describing a state the
+    /// list no longer matched. Matching is by path + timestamp, the same
+    /// identity <see cref="Remove"/> uses.
+    /// </summary>
+    /// <returns>How many entries were removed.</returns>
+    public static int RemoveMany(string path, IEnumerable<DownloadRecord> records, int cap = MaxEntries)
+    {
+        var targets = (records ?? Enumerable.Empty<DownloadRecord>())
+            .Where(r => r is not null)
+            .Select(r => (r.FullPath, r.CompletedUtc))
+            .ToHashSet();
+        if (targets.Count == 0)
+            return 0;
+        var all = Load(path, cap);
+        var removed = all.RemoveAll(r => targets.Contains((r.FullPath, r.CompletedUtc)));
+        if (removed > 0)
+            Save(path, all, cap);
+        return removed;
+    }
+
     public static void Clear(string path) => Save(path, new List<DownloadRecord>());
 }
 

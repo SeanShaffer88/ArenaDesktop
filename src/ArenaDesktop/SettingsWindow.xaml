@@ -490,6 +490,15 @@
                     <CheckBox x:Name="AppLockTrayHideCheck" Content="Also lock when the window hides to the tray"
                               ToolTip="On by default. Startup locking and Lock now apply either way"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <TextBlock Text="Lock after" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <ComboBox x:Name="AppLockIdleCombo" Width="120" SelectionChanged="OnAppLockIdleChanged"
+                                  ToolTip="Lock itself after this long with no keyboard or mouse input anywhere on the PC. Off by default"
+                                  AutomationProperties.Name="Lock after idle time"/>
+                        <TextBlock Text="with no input" VerticalAlignment="Center" Margin="6,0,0,0"
+                                   Foreground="{StaticResource MutedBrush}"/>
+                    </StackPanel>
+                    <TextBlock x:Name="AppLockIdleNote" Style="{StaticResource Note}" Margin="0,4,0,0"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                         <Button x:Name="SetLockPasswordButton" Content="Set or change password…" Width="170" Click="OnSetLockPassword"
                                 ToolTip="Set a new app password or PIN (4–64 characters; 6 or more is better)"/>
                         <Button x:Name="RemoveLockPasswordButton" Content="Remove password…" Width="140" Margin="8,0,0,0" Click="OnRemoveLockPassword"

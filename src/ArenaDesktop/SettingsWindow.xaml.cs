@@ -443,6 +443,8 @@ public partial class SettingsWindow : Window
         _working.GeneralAutofillEnabled = GeneralAutofillCheck.IsChecked == true;
         _working.AppLockEnabled = AppLockEnabledCheck.IsChecked == true && AppLock.HasValidRecord(_working);
         _working.AppLockOnTrayHide = AppLockTrayHideCheck.IsChecked == true;
+        _working.AppLockIdleMinutes = (AppLockIdleCombo.SelectedItem as IdleLockOption)?.Minutes
+                                      ?? IdleLock.NeverMinutes;
         // S5 #48: remember where Settings was left (size + section).
         if (ActualWidth > 0)
             _working.SettingsWindowWidth = ActualWidth;
@@ -1320,18 +1322,76 @@ public partial class SettingsWindow : Window
     // discards them, exactly like every other setting here.
     private bool _syncingLockControls;
 
+    /// <summary>One entry in the idle-lock picker (enhancement pack 10).</summary>
+    private sealed record IdleLockOption(int Minutes, string Label)
+    {
+        public override string ToString() => Label;
+    }
+
+    /// <summary>
+    /// Fill the idle picker from <see cref="IdleLock.OfferedMinutes"/>.
+    /// Rebuilt (not appended to) so reopening Settings cannot duplicate
+    /// entries, and the stored value is selected when it is one of the
+    /// offered ones — an out-of-range value would already have been
+    /// sanitized to "never" on load.
+    /// </summary>
+    private void RebuildIdleLockCombo(int selectedMinutes)
+    {
+        if (AppLockIdleCombo is null)
+            return;
+        AppLockIdleCombo.Items.Clear();
+        foreach (var minutes in IdleLock.OfferedMinutes)
+        {
+            var label = minutes == IdleLock.NeverMinutes
+                ? "Never"
+                : minutes < 60
+                    ? $"{minutes} minutes"
+                    : $"{minutes / 60} hour{(minutes == 60 ? "" : "s")}";
+            AppLockIdleCombo.Items.Add(new IdleLockOption(minutes, label));
+        }
+        // OfType, not a cast: ComboBox.Items is only the non-generic
+        // ICollection, so `as IEnumerable<IdleLockOption>` would quietly
+        // be null and the picker would always sit on "Never" no matter
+        // what had been saved.
+        var wanted = AppLockIdleCombo.Items
+            .OfType<IdleLockOption>()
+            .FirstOrDefault(o => o.Minutes == IdleLock.Sanitize(selectedMinutes));
+        AppLockIdleCombo.SelectedItem = wanted ?? AppLockIdleCombo.Items[0];
+    }
+
+    /// <summary>Keep the explanatory line in step with the picker.</summary>
+    private void OnAppLockIdleChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_syncingLockControls || AppLockIdleNote is null)
+            return;
+        var minutes = (AppLockIdleCombo.SelectedItem as IdleLockOption)?.Minutes ?? IdleLock.NeverMinutes;
+        AppLockIdleNote.Text = AppLock.HasValidRecord(_working)
+            ? IdleLock.SummaryText(minutes)
+            : "Set a password first — ArenaDesktop never locks itself while no password is set.";
+    }
+
     private void RefreshLockUi()
     {
         var hasRecord = AppLock.HasValidRecord(_working);
         _syncingLockControls = true;
         AppLockEnabledCheck.IsChecked = _working.AppLockEnabled && hasRecord;
         AppLockTrayHideCheck.IsChecked = _working.AppLockOnTrayHide;
+        RebuildIdleLockCombo(_working.AppLockIdleMinutes);
+        AppLockIdleNote.Text = hasRecord
+            ? IdleLock.SummaryText(_working.AppLockIdleMinutes)
+            : "Set a password first — ArenaDesktop never locks itself while no password is set.";
         _syncingLockControls = false;
         AppLockTrayHideCheck.IsEnabled = hasRecord;
+        AppLockIdleCombo.IsEnabled = hasRecord;
         RemoveLockPasswordButton.Visibility = hasRecord ? Visibility.Visible : Visibility.Collapsed;
+        // The idle-lock sentence is only added when it is actually set:
+        // naming a lock that never fires would be worse than silence.
+        var idleSentence = IdleLock.IsEnabled(_working.AppLockIdleMinutes)
+            ? $" It also locks itself after {IdleLock.Sanitize(_working.AppLockIdleMinutes)} minutes with no input."
+            : "";
         AppLockStatusText.Text = hasRecord
             ? _working.AppLockEnabled
-                ? "App lock is ON — your password or PIN is asked at startup, from Lock now (tray and ⋯ menus), and when the window hides to the tray if that switch is on."
+                ? "App lock is ON — your password or PIN is asked at startup, from Lock now (tray and ⋯ menus), and when the window hides to the tray if that switch is on." + idleSentence
                 : "A password is set, but the lock is OFF — tick “Require my app password or PIN” to use it."
             : "App lock is off. Set a password or PIN to require it before ArenaDesktop opens.";
     }

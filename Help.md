@@ -128,3 +128,21 @@ A pinned mode is saved with your settings, so it survives a restart; a settings 
 ⋯ menu → *This session…* opens a small window that counts what your current run of ArenaDesktop has actually done: how long the window has been on screen with Arena open, how many pages you visited, how many mode jumps, finished downloads and copied prompts, and a reading-time-by-mode table. "Copy summary" puts the same lines on the clipboard as plain text for a bug report.
 
 Two honest limits: the numbers live in memory for the life of the process, so they go away when the app closes — nothing is written to disk, and nothing is sent anywhere. And the time is measured from the window being on screen, ignoring gaps longer than four hours, so it can't overstate attention after a sleep or a clock change. The app still reads nothing from the Arena page.
+
+## How do I use the idle auto-lock?
+
+Settings → Privacy & security → *App lock* has a **Lock after … with no input** picker below the password controls: **Never** (the default), 5, 15, 30 or 60 minutes, or 2 hours.
+
+It uses the password or PIN the app lock already asks for, so the picker stays disabled until one is set — a timeout with no password would either do nothing or lock you out of your own app, and it does neither. When the timer trips, ArenaDesktop hides to the tray and locks; clicking the tray icon (or using *Open* from its menu) brings the lock screen forward, and the right password or PIN brings the window back exactly where you left it.
+
+Two details worth knowing. The app checks every 30 seconds, so the lock happens within half a minute of the time you chose rather than exactly on it. And the idle time comes from Windows, not from the app: if the system can't report it, ArenaDesktop does nothing rather than guess — a quiet period you did not get locked for is better than being locked mid-sentence.
+
+The lock never runs while the app is already locked, and it never runs while the app is in use elsewhere in the background — the check is about you being away from the keyboard, not about ArenaDesktop being unfocused.
+
+## Why does the log viewer have level buttons?
+
+The log records everything the app does, and that is mostly INFO. The **Errors / Warnings / Info / Unparsed** buttons above the text narrow it to the lines you came for, each showing how many lines it would show. They compose with find: with only Warnings selected, the match count describes warnings, not the whole file.
+
+The level is read from the `[LEVEL]` marker the app writes at the start of each line, not by searching the message text — so an INFO line that happens to mention an error is not misfiled as one. A line that doesn't match the expected shape is grouped under *Unparsed* rather than hidden, and with everything selected the filter is off entirely.
+
+Two things always work on the **whole** file, not the filtered view: *Copy redacted log* and the redaction check. A report missing the lines you filtered out would be worse than no report.

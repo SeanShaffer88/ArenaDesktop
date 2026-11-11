@@ -21,6 +21,14 @@
                        AutomationProperties.Name="Redaction check result"/>
             <TextBlock x:Name="FindingsText" Style="{StaticResource Note}"
                        AutomationProperties.Name="Redaction findings by line"/>
+            <!-- Enhancement pack 10: level filter. A megabyte of log is
+                 mostly INFO; the ERROR someone opened the viewer to find
+                 is buried in it. Each chip shows its count so the choice
+                 is informed before it is made. -->
+            <WrapPanel x:Name="LevelChips" Margin="0,8,0,0" Orientation="Horizontal">
+                <TextBlock Text="Show" VerticalAlignment="Center" Margin="0,0,8,0"
+                           Foreground="{StaticResource MutedBrush}"/>
+            </WrapPanel>
             <!-- Hardening pack: find. The log is up to a megabyte of text
                  and the reason to open it is to locate one line. -->
             <DockPanel Margin="0,8,0,0">
