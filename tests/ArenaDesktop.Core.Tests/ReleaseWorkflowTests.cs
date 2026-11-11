@@ -153,6 +153,58 @@ public class ReleaseWorkflowTests
     }
 
     [Fact]
+    public void BattleLabIsAPaneInTheMainWindow_NotAWindowOfItsOwn()
+    {
+        // v0.8.0: Battle Lab moved from its own window into a side pane.
+        // The shell side of that is a split in MainWindow.xaml plus a
+        // control in src/ArenaDesktop — this pins the arrangement so a
+        // later edit cannot quietly put the window back.
+        var shell = Path.Combine(RepoRoot(), "src", "ArenaDesktop");
+        Assert.False(File.Exists(Path.Combine(shell, "BattleLabWindow.xaml")),
+            "BattleLabWindow.xaml is back — the Lab is a pane now.");
+        Assert.True(File.Exists(Path.Combine(shell, "BattleLabView.xaml")),
+            "BattleLabView.xaml is missing — the Lab pane cannot be built.");
+
+        var doc = System.Xml.Linq.XDocument.Load(Path.Combine(shell, "MainWindow.xaml"));
+        var split = doc.Descendants().FirstOrDefault(e =>
+            e.Attribute("{http://schemas.microsoft.com/winfx/2006/xaml}Name")?.Value == "ContentSplit");
+        Assert.NotNull(split);
+        var named = split!.Descendants()
+            .Select(e => e.Attribute("{http://schemas.microsoft.com/winfx/2006/xaml}Name")?.Value)
+            .Where(v => v is not null)
+            .ToHashSet();
+        // The three cells, the divider and the host the Lab is added to.
+        foreach (var name in new[] { "PageColumn", "PaneSplitterColumn", "PaneColumn", "PaneSplitter", "SidePane", "SidePaneHost" })
+            Assert.Contains(name, named);
+        // The page itself must still be inside the split, in the first column.
+        var content = split.Descendants().First(e =>
+            e.Attribute("{http://schemas.microsoft.com/winfx/2006/xaml}Name")?.Value == "ContentGrid");
+        Assert.Equal("0", content.Attribute("Grid.Column")?.Value);
+    }
+
+    [Fact]
+    public void BattleLabPane_HasItsOwnKeyAndEveryEntryPointUsesIt()
+    {
+        // One way in, one way out: the shortcut is in the catalog (so the
+        // shortcuts window lists it), and the menu prints the same keys.
+        var action = ShortcutCatalog.Find("side-pane");
+        Assert.NotNull(action);
+        Assert.Equal("Ctrl+Shift+B", action!.Gestures[0]);
+        Assert.False(action.Remappable);
+
+        var menu = MoreMenu();
+        var item = menu.Descendants().FirstOrDefault(e =>
+            e.Attribute("{http://schemas.microsoft.com/winfx/2006/xaml}Name")?.Value == "BattleLabItem");
+        Assert.NotNull(item);
+        Assert.Equal("Ctrl+Shift+B", item!.Attribute("InputGestureText")?.Value);
+        // Tray, --battle-lab and the arenadesktop:// link all route
+        // through the same shell method, so there is only one pane.
+        var window = File.ReadAllText(Path.Combine(RepoRoot(), "src", "ArenaDesktop", "MainWindow.xaml.cs"));
+        Assert.Contains("OpenBattleLabPane", window);
+        Assert.Contains("ShowSidePane", window);
+    }
+
+    [Fact]
     public void MainMenu_KeepsEveryCommandItHad()
     {
         // Nothing may be lost in a regroup. These are the handlers the

@@ -38,6 +38,22 @@ The release notes ArenaDesktop shows on the first launch of a new version. This 
 
 - **The Diagnostics route check keeps itself fresh.** While the Diagnostics window is open, the mode-route check re-runs every two minutes, and the last finished check's time ("Last checked 14:32") shows beside the button; closing the window stops the re-checks. The Check mode routes button works exactly as before when you want a check right now.
 
+## [0.8.0] — Unreleased
+
+Battle Lab stops being a window you switch to and becomes a pane beside the page you are working on.
+
+### Changed
+
+- **Battle Lab is a side pane.** It used to open in a window of its own, so running a prompt meant leaving the battle you were mid-way through. It now opens beside the Arena page in the same window, behind a draggable splitter (⋯ menu → **Tools** → Battle Lab, the tray menu, `--battle-lab`, `arenadesktop://battle-lab`, or the new **Ctrl+Shift+B**). The page keeps its width: the pane takes space from it, never covers it.
+- **The pane reflows to fit.** The Lab was drawn for a 1220px window, so its three columns would leave the editor a hundred pixels wide in half a screen. It now picks the arrangement that fits: three columns when the pane is 940px or wider, two with the results journal underneath at 600px and up, and one tabbed column (Prompts / Editor / Journal) below that. The thresholds are pinned in Core with tests.
+- **The split has a floor, and says so.** Below 706px of content width the window is widened first; if it still will not fit, the app says Battle Lab needs a wider window in the status bar and stays single-pane rather than showing two unusable columns. Dragging the splitter can never squeeze the page under its own floor.
+- **Closing the pane keeps your place.** The Lab is built once and kept after it is hidden, so reopening lands on the same prompt, filters and run queue. The ⋯ item reads **Hide Battle Lab pane** while it is open.
+- **Ctrl+Shift+B opens or closes it**, listed with the other shortcuts.
+
+### Removed
+
+- **The Battle Lab window.** `BattleLabWindow` is deleted; the same logic lives in `BattleLabView`, a control the main window hosts. Every entry point opens the single pane, so two Battle Labs can no longer exist at once.
+
 ## [0.7.0] — Unreleased
 
 Two changes to the app's shape rather than its features: it ships for x64 only, and the ⋯ menu is organised into five groups instead of one long list.

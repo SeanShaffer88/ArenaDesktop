@@ -261,6 +261,10 @@ public static class ShortcutCatalog
             new[] { "F6" }),
         new ShortcutAction("status-line", "Read the status line (copy it with Ctrl+C)", ShortcutScope.InApp, Remappable: false,
             new[] { "Ctrl+Shift+S" }),
+        // v0.8.0: Battle Lab is a pane, so it needs a way in and out
+        // that doesn't mean two mouse trips through the ⋯ menu.
+        new ShortcutAction("side-pane", "Open or close the Battle Lab pane", ShortcutScope.InApp, Remappable: false,
+            new[] { "Ctrl+Shift+B" }),
         new ShortcutAction("fullscreen", "Full screen", ShortcutScope.InApp, Remappable: false,
             new[] { "F11" }),
         new ShortcutAction("escape", "Close find / leave focus mode or full screen", ShortcutScope.InApp, Remappable: false,

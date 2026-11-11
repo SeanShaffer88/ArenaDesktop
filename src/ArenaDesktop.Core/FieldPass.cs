@@ -74,7 +74,7 @@ public static class FieldPassCatalog
             FieldPassTarget.Settings),
         new FieldPassStep("battle-lab",
             "Battle Lab",
-            "Open the Battle Lab and pick one of the sample prompts. If it has blanks like [topic], fill them in when asked, then choose \"Copy prompt & open Battle\".",
+            "Open the Battle Lab pane (Ctrl+Shift+B) and pick one of the sample prompts. If it has blanks like [topic], fill them in when asked, then choose \"Copy prompt & open Battle\".",
             "The main window comes forward on the Battle page, and the finished prompt is on the clipboard, ready to paste (Ctrl+V) into the prompt box.",
             FieldPassTarget.BattleLab),
         new FieldPassStep("arena-modes",

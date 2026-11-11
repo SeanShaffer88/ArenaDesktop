@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using ArenaDesktop.Core;
@@ -7,22 +8,42 @@ using Brush = System.Windows.Media.Brush;
 using Color = System.Windows.Media.Color;
 using MessageBox = System.Windows.MessageBox;
 using Clipboard = System.Windows.Clipboard;
+// The project enables UseWindowsForms (for the tray icon), and its
+// implicit usings bring System.Windows.Forms in too — so the bare name
+// UserControl is ambiguous here. This app's controls are WPF's.
+using UserControl = System.Windows.Controls.UserControl;
 
 namespace ArenaDesktop;
 
 /// <summary>
-/// Battle Lab (v0.2.0): the prompt library, the run queue, and the
-/// results journal in their own window. Everything is stored by
-/// <see cref="BattleLabLibrary"/> in Core and saved as you go — there
-/// is no Save button. The copy button fills the prompt's blanks,
-/// puts the finished text on the clipboard, and brings the main
-/// window forward on the page picked beside it (Battle, Direct Chat
-/// or Side by Side — v0.3.0; Battle is the default); pasting is the
-/// user's. Nothing is ever injected into or read from the Arena page,
-/// and journal results are recorded by hand.
+/// Battle Lab as a control (v0.8.0). It used to be a window of its
+/// own and is now the side pane of the main window, so a prompt can be
+/// read while writing the battle it belongs to. The library, editor, run queue and journal
+/// are unchanged; what is new is the <see cref="ApplyArrangement"/>
+/// reflow (three columns, two columns, or one tabbed column, chosen by
+/// <see cref="SplitWorkspace"/>) and the close button.
+///
+/// Everything is stored by <see cref="BattleLabLibrary"/> in Core and
+/// saved as you go — there is no Save button. The copy button fills
+/// the prompt's blanks, puts the finished text on the clipboard, and
+/// brings the main window forward on the page picked beside it;
+/// pasting is the user's. Nothing is ever injected into or read from
+/// the Arena page, and journal results are recorded by hand.
 /// </summary>
-public partial class BattleLabWindow : Window
+
+public partial class BattleLabView : UserControl
 {
+    /// <summary>Raised when the user closes the pane from its own ✕; the main window owns the split and does the closing.</summary>
+    public event EventHandler? CloseRequested;
+
+    /// <summary>Which of the three arrangements is on screen (three columns, two, or one tabbed column).</summary>
+    public SplitWorkspace.PaneArrangement Arrangement { get; private set; } = SplitWorkspace.PaneArrangement.ThreeColumns;
+
+    /// <summary>The pane that is currently visible: 0 prompts, 1 editor, 2 journal. Only meaningful when tabbed.</summary>
+    public int ActivePane { get; private set; }
+
+    private readonly PaneArrangementTracker _arrangementTracker = new();
+
     private readonly DiagnosticLog _log;
     private readonly BattleLabLibrary _library;
     private readonly Action<string> _openCopiedPromptInMode;
@@ -98,7 +119,7 @@ public partial class BattleLabWindow : Window
         }
     }
 
-    public BattleLabWindow(DiagnosticLog log, Action<string> openCopiedPromptInMode, AppSettings? settings = null)
+    public BattleLabView(DiagnosticLog log, Action<string> openCopiedPromptInMode, AppSettings? settings = null)
     {
         _log = log;
         _openCopiedPromptInMode = openCopiedPromptInMode;
@@ -132,8 +153,10 @@ public partial class BattleLabWindow : Window
         RefreshJournal();
         if (PromptList.Items.Count > 0)
             PromptList.SelectedIndex = 0;
-        // Hardening pack: the clipboard timer belongs to this window.
-        Closed += (_, _) => StopClipboardTimer();
+        // The pane can be closed, reopened, and re-parented between
+        // arrangements; the timer is stopped when it leaves the tree and
+        // restarted implicitly by the next copy, so nothing outlives it.
+        Unloaded += (_, _) => StopClipboardTimer();
     }
 
     /// <summary>The page the copy button opens: the mode picked beside it, Battle when nothing is picked.</summary>
@@ -260,6 +283,7 @@ public partial class BattleLabWindow : Window
         RefreshLibrary();
         PromptList.SelectedItem = (PromptList.ItemsSource as List<PromptRow>)?
             .FirstOrDefault(r => r.Prompt.Id == prompt.Id);
+        FocusPane(1);
         PromptNameText.Focus();
         PromptNameText.SelectAll();
     }
@@ -269,7 +293,7 @@ public partial class BattleLabWindow : Window
         var prompt = SelectedPrompt;
         if (prompt is null)
             return;
-        if (MessageBox.Show(this,
+        if (MessageBox.Show(OwnerWindow,
                 $"Delete the prompt '{prompt.Name}'? It also leaves the run queue. Journal entries keep their history.",
                 "Delete prompt", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK)
             return;
@@ -317,7 +341,7 @@ public partial class BattleLabWindow : Window
             DefaultExt = ".json",
             AddExtension = true,
         };
-        if (dialog.ShowDialog(this) != true)
+        if (ShowFileDialog(dialog) != true)
             return;
         // The chosen filter index is the format: 0 JSON, 1 Markdown, 2 CSV.
         var (contents, label) = dialog.FilterIndex switch
@@ -345,7 +369,7 @@ public partial class BattleLabWindow : Window
             Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
             Title = "Import a Battle Lab prompt library",
         };
-        if (dialog.ShowDialog(this) != true)
+        if (ShowFileDialog(dialog) != true)
             return;
         string json;
         try
@@ -360,7 +384,7 @@ public partial class BattleLabWindow : Window
         }
         // One choice per import, applied to the whole file: how
         // title clashes resolve (the merge itself is Core's).
-        var strategyDialog = new ImportStrategyWindow { Owner = this };
+        var strategyDialog = new ImportStrategyWindow { Owner = OwnerWindow };
         strategyDialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(strategyDialog);
         if (strategyDialog.ShowDialog() != true)
             return;
@@ -400,13 +424,13 @@ public partial class BattleLabWindow : Window
         if (report is null)
         {
             SetStatus($"No duplicates — all {_library.Prompts.Count} prompts are unique by text and by name.");
-            MessageBox.Show(this,
+            MessageBox.Show(OwnerWindow,
                 "Nothing to report: every prompt in the library has different text, and no name is used twice.",
                 "Find duplicates", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         SetStatus("Duplicates found — see the report.");
-        MessageBox.Show(this, report, "Find duplicates", MessageBoxButton.OK, MessageBoxImage.Information);
+        MessageBox.Show(OwnerWindow, report, "Find duplicates", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     /// <summary>
@@ -420,7 +444,7 @@ public partial class BattleLabWindow : Window
         if (!PastedTextPolicy.NeedsWarning(text))
             return true;
         var preview = PastedTextPolicy.Preview(text);
-        var answer = MessageBox.Show(this,
+        var answer = MessageBox.Show(OwnerWindow,
             $"{PastedTextPolicy.WarningText(text)}\n\nStart of the prompt:\n{preview}\n\n" +
             "Choose Yes to copy it anyway, No to export it as a .txt file instead, or Cancel to do neither.",
             $"Long prompt — {promptName}", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
@@ -447,7 +471,7 @@ public partial class BattleLabWindow : Window
             Title = "Export the prompt as a text file",
         };
         var invoker = ArenaDesktop.FocusReturn.Capture();
-        var chosen = dialog.ShowDialog(this) == true;
+        var chosen = ShowFileDialog(dialog) == true;
         ArenaDesktop.FocusReturn.Restore(invoker);
         if (!chosen)
             return;
@@ -475,7 +499,7 @@ public partial class BattleLabWindow : Window
         var blanks = PromptBlanks.Extract(prompt.Body);
         if (blanks.Count > 0)
         {
-            var dialog = new FillBlanksWindow(prompt.Name, blanks) { Owner = this };
+            var dialog = new FillBlanksWindow(prompt.Name, blanks) { Owner = OwnerWindow };
             dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
             if (dialog.ShowDialog() != true)
                 return;
@@ -512,6 +536,10 @@ public partial class BattleLabWindow : Window
             ? $"'{prompt.Name}' copied — paste it into {target.Label} (Ctrl+V)."
             : $"'{prompt.Name}' copied, but {unfilledNote}. Paste it into {target.Label} (Ctrl+V).");
         RefreshQueue();
+        // In the tabbed arrangement, copying from the prompts list would
+        // otherwise leave the editor hidden behind the list the user just
+        // acted on. Follow the action.
+        FocusPane(1);
         _openCopiedPromptInMode(target.Id);
     }
 
@@ -736,7 +764,7 @@ public partial class BattleLabWindow : Window
         // The mode defaults to the page the prompt was last copied
         // to (or the copy picker's current target when nothing has
         // been copied yet); the dialog lets the user correct it.
-        var dialog = new LogResultWindow(names, fallback, _lastCopiedModeId ?? CopyTarget.Id) { Owner = this };
+        var dialog = new LogResultWindow(names, fallback, _lastCopiedModeId ?? CopyTarget.Id) { Owner = OwnerWindow };
         dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
         if (dialog.ShowDialog() != true)
             return;
@@ -766,7 +794,7 @@ public partial class BattleLabWindow : Window
     {
         if (JournalList.SelectedItem is not JournalRow row)
             return;
-        if (MessageBox.Show(this, $"Delete this journal entry for '{row.PromptName}'?",
+        if (MessageBox.Show(OwnerWindow, $"Delete this journal entry for '{row.PromptName}'?",
                 "Delete entry", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK)
             return;
         _library.DeleteJournalEntry(row.Entry.Id);
@@ -782,7 +810,7 @@ public partial class BattleLabWindow : Window
             Title = "Export the Battle Lab journal",
             FileName = $"battle-lab-journal-{DateTime.Now:yyyy-MM-dd}.md",
         };
-        if (dialog.ShowDialog(this) != true)
+        if (ShowFileDialog(dialog) != true)
             return;
         try
         {
@@ -798,4 +826,174 @@ public partial class BattleLabWindow : Window
     }
 
     private void SetStatus(string text) => StatusText.Text = text;
+
+    // ─────────────────────────── the side pane (v0.8.0) ───────────────────────────
+
+    /// <summary>
+    /// The window that owns this control's dialogs. As a window it was
+    /// itself; as a pane it is the main window, so a file dialog or a
+    /// message box still centres on something and does not outlive it.
+    /// </summary>
+    private Window? OwnerWindow =>
+        Window.GetWindow(this) ?? System.Windows.Application.Current?.MainWindow;
+
+    /// <summary>
+    /// Reflow to the width the shell gave us: three columns when the
+    /// pane is as wide as the old window, two when half a window is
+    /// all there is, one tabbed column when it is narrower than that.
+    /// Cheap to call on every resize — the tracker drops the calls that
+    /// would not change the answer.
+    /// </summary>
+    public void ApplyArrangement(double paneWidth)
+    {
+        if (!_arrangementTracker.NeedsChange(paneWidth))
+            return;
+        Arrangement = SplitWorkspace.Arrange(paneWidth);
+        PaneTabs.Visibility = Arrangement == SplitWorkspace.PaneArrangement.Tabbed
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        switch (Arrangement)
+        {
+            case SplitWorkspace.PaneArrangement.ThreeColumns:
+                PlaceThreeColumns();
+                break;
+            case SplitWorkspace.PaneArrangement.TwoColumns:
+                PlaceTwoColumns();
+                break;
+            default:
+                PlaceTabbed();
+                break;
+        }
+        ShowActivePane();
+    }
+
+    /// <summary>The original window's shape: library | editor | journal across one row.</summary>
+    private void PlaceThreeColumns()
+    {
+        LibraryColumn.Width = new GridLength(272);
+        EditorColumn.Width = new GridLength(1, GridUnitType.Star);
+        JournalColumn.Width = new GridLength(356);
+        TopRow.Height = new GridLength(1, GridUnitType.Star);
+        BottomRow.Height = new GridLength(0);
+
+        Place(LibraryPanel, 0, 0);
+        Place(EditorPanel, 0, 1);
+        Place(JournalPanel, 0, 2);
+        // Each panel owns exactly one column in this arrangement. This
+        // must be reset here: the two-column arrangement gives the
+        // journal a span of 2, and leaving it set would overlap the
+        // third column when the window widens again.
+        Grid.SetColumnSpan(LibraryPanel, 1);
+        Grid.SetColumnSpan(EditorPanel, 1);
+        Grid.SetColumnSpan(JournalPanel, 1);
+        LibraryPanel.Margin = new Thickness(0, 0, 10, 0);
+        EditorPanel.Margin = new Thickness(0, 0, 10, 0);
+        JournalPanel.Margin = new Thickness(0);
+        LibraryPanel.Visibility = Visibility.Visible;
+        EditorPanel.Visibility = Visibility.Visible;
+        JournalPanel.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// Half a window: library and editor side by side on top, journal
+    /// stacked underneath. The journal is the part that survives being
+    /// short better than the editor does — it is a scrolling list.
+    /// </summary>
+    private void PlaceTwoColumns()
+    {
+        LibraryColumn.Width = new GridLength(220);
+        EditorColumn.Width = new GridLength(1, GridUnitType.Star);
+        JournalColumn.Width = new GridLength(0);
+        TopRow.Height = new GridLength(1, GridUnitType.Star);
+        BottomRow.Height = new GridLength(1, GridUnitType.Star);
+
+        Place(LibraryPanel, 0, 0);
+        Place(EditorPanel, 0, 1);
+        Place(JournalPanel, 1, 0);
+        // The journal spans both columns now, so it must not keep the
+        // third column's gap.
+        Grid.SetColumnSpan(JournalPanel, 2);
+        Grid.SetColumnSpan(LibraryPanel, 1);
+        Grid.SetColumnSpan(EditorPanel, 1);
+        LibraryPanel.Margin = new Thickness(0, 0, 10, 0);
+        EditorPanel.Margin = new Thickness(0, 0, 0, 10);
+        JournalPanel.Margin = new Thickness(0);
+        LibraryPanel.Visibility = Visibility.Visible;
+        EditorPanel.Visibility = Visibility.Visible;
+        JournalPanel.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>One column, chosen by the tab strip: the last resort that is still usable.</summary>
+    private void PlaceTabbed()
+    {
+        LibraryColumn.Width = new GridLength(1, GridUnitType.Star);
+        EditorColumn.Width = new GridLength(0);
+        JournalColumn.Width = new GridLength(0);
+        TopRow.Height = new GridLength(1, GridUnitType.Star);
+        BottomRow.Height = new GridLength(0);
+
+        Place(LibraryPanel, 0, 0);
+        Place(EditorPanel, 0, 0);
+        Place(JournalPanel, 0, 0);
+        Grid.SetColumnSpan(LibraryPanel, 1);
+        Grid.SetColumnSpan(EditorPanel, 1);
+        Grid.SetColumnSpan(JournalPanel, 1);
+        LibraryPanel.Margin = new Thickness(0);
+        EditorPanel.Margin = new Thickness(0);
+        JournalPanel.Margin = new Thickness(0);
+        // Only the active one is visible; ShowActivePane decides which.
+        LibraryPanel.Visibility = Visibility.Collapsed;
+        EditorPanel.Visibility = Visibility.Collapsed;
+        JournalPanel.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>Move a panel to one cell of the Lab grid — re-parenting keeps its state, so this is safe to repeat.</summary>
+    private static void Place(FrameworkElement panel, int row, int column)
+    {
+        Grid.SetRow(panel, row);
+        Grid.SetColumn(panel, column);
+    }
+
+    /// <summary>Show the pane the tab strip names (only the tabbed arrangement hides anything).</summary>
+    private void ShowActivePane()
+    {
+        if (Arrangement != SplitWorkspace.PaneArrangement.Tabbed)
+            return;
+        LibraryPanel.Visibility = ActivePane == 0 ? Visibility.Visible : Visibility.Collapsed;
+        EditorPanel.Visibility = ActivePane == 1 ? Visibility.Visible : Visibility.Collapsed;
+        JournalPanel.Visibility = ActivePane == 2 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnPaneTab(object sender, RoutedEventArgs e)
+    {
+        ActivePane = PromptsTab.IsChecked == true ? 0 : EditorTab.IsChecked == true ? 1 : 2;
+        ShowActivePane();
+    }
+
+    /// <summary>
+    /// Bring the tab strip to a particular part of the Lab. Copying a
+    /// prompt opens the editor, so in the tabbed arrangement the pane
+    /// follows the action rather than leaving the user on a list.
+    /// </summary>
+    public void FocusPane(int pane)
+    {
+        ActivePane = Math.Clamp(pane, 0, 2);
+        PromptsTab.IsChecked = ActivePane == 0;
+        EditorTab.IsChecked = ActivePane == 1;
+        JournalTab.IsChecked = ActivePane == 2;
+        ShowActivePane();
+    }
+
+    /// <summary>
+    /// Show a file dialog owned by this control's window. The
+    /// owner-taking overload dereferences the window it is given, and a
+    /// control briefly detached from its window — mid reflow, or during
+    /// shutdown — can supply none, so fall back to the ownerless
+    /// overload rather than failing the click.
+    /// </summary>
+    private bool? ShowFileDialog(Microsoft.Win32.CommonDialog dialog) =>
+        OwnerWindow is { } owner ? dialog.ShowDialog(owner) : dialog.ShowDialog();
+
+    private void OnClosePane(object sender, RoutedEventArgs e) => CloseRequested?.Invoke(this, EventArgs.Empty);
 }
