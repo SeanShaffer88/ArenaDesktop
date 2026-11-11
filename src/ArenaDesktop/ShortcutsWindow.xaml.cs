@@ -1,5 +1,6 @@
 using System.Windows;
 using ArenaDesktop.Core;
+using Clipboard = System.Windows.Clipboard;
 
 namespace ArenaDesktop;
 
