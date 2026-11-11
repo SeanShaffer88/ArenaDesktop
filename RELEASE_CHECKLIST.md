@@ -2,6 +2,19 @@
 
 Run before publishing any release. CI covers the automated half; this is the on-machine half that automation can't prove.
 
+## Cutting a release
+
+Releases are built by `.github/workflows/release.yml`, on Windows runners, from the tagged commit. The steps were previously done by hand on one machine (the automated half below); that is now the pipeline's job, so a release is one tag.
+
+1. **Bump `<Version>`** in `src/ArenaDesktop/ArenaDesktop.csproj`, add the matching `## [x.y.z]` section to `CHANGELOG.md`, and regenerate `WhatsNew.md` from it (a Core test pins the two together).
+2. **Write `docs/release-notes/vx.y.z.md`** when the release needs to say more than its own changelog section — a version jump, a migration note, a known gap. Without this file the workflow uses the changelog section verbatim. It never edits either file.
+3. **Tag the merge commit on `main` and push the tag:** `git tag vx.y.z && git push origin vx.y.z`. Nothing is published before this.
+4. **The workflow verifies the tag against the code before building:** the tag must be `v<major>.<minor>.<patch>`, it must equal `<Version>`, and `WhatsNew.md` must carry that version's section. A mismatch fails in under a minute instead of shipping an app that cannot find its own release notes.
+5. **It then runs the full gate** (build at 0/0 and the FULL Core suite — never a subset, per AGENTS.md), publishes both architectures, builds both NSIS installers from the same staged folder the zips use, writes `SHA256SUMS.txt` over all four, verifies the sums against the files on disk, smoke-tests the real exe, publishes the release, and **re-downloads the published assets and re-verifies every hash** — the checklist's "a release is not shipped until its assets are hash-verified".
+6. **The pipeline refuses to overwrite a published release.** Re-running for an existing tag is a hard stop; delete the release or bump the version.
+
+The five assets are `ArenaDesktop-v<version>-windows-{x64,arm64}.zip`, `ArenaDesktop-Setup-v<version>-{x64,arm64}.exe`, and `SHA256SUMS.txt`. The installer names are a contract the in-app updater depends on; `S9Tests` pins them.
+
 ## Automated gate (run by the maintainer's agent, every slice)
 
 - [ ] `dotnet build ArenaDesktop.sln -c Release` — 0 errors, 0 warnings

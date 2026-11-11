@@ -1,0 +1,319 @@
+name: Release
+
+# Cut a release by pushing a version tag. Everything the in-app updater
+# needs is produced here, on Windows runners, from the tagged commit:
+#
+#   ArenaDesktop-v<version>-windows-x64.zip      portable, x64
+#   ArenaDesktop-v<version>-windows-arm64.zip    portable, arm64
+#   ArenaDesktop-Setup-v<version>-x64.exe        NSIS installer, x64
+#   ArenaDesktop-Setup-v<version>-arm64.exe      NSIS installer, arm64
+#   SHA256SUMS.txt                               the five-asset sums file
+#
+# The asset names are a contract, not a convention: Core's UpdateAssets
+# builds `ArenaDesktop-Setup-v<version>-<arch>.exe` and the updater looks
+# for exactly that string, and SumsFile refuses a release whose sums do
+# not list the file. A test pins the installer naming; this workflow and
+# that test have to agree. The zip name follows the shape the S9 tests
+# use (`ArenaDesktop-v<version>-windows-<arch>.zip`).
+#
+# Why this exists: until now the assets were built by hand on the
+# maintainer's PC (see RELEASE_CHECKLIST.md). Anything an agent or a
+# second maintainer could not reproduce on a Windows box was, in
+# practice, unshippable. The steps below are the checklist's automated
+# half, written out so a release is one tag.
+#
+# The tag is the source of truth for the version. The build FAILS if the
+# tag and <Version> in ArenaDesktop.csproj disagree, because the shipped
+# What's New section is selected by version — a mismatch would ship an
+# app that cannot find its own release notes.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  # ── Gate: the tag has to describe the code it points at ──
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Read and check the version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+
+          # v1.2.3 or v1.2.3-something, never v1.2 or vNext.
+          if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error title=Bad tag::'$tag' is not v<major>.<minor>.<patch>[-suffix]."
+            exit 1
+          fi
+          version="${tag#v}"
+
+          csproj_version="$(grep -oP '(?<=<Version>)[^<]+' src/ArenaDesktop/ArenaDesktop.csproj | head -1)"
+          if [ "$version" != "$csproj_version" ]; then
+            echo "::error title=Version mismatch::Tag is '$tag' but csproj says '$csproj_version'. Bump <Version> in src/ArenaDesktop/ArenaDesktop.csproj and commit before tagging."
+            exit 1
+          fi
+
+          # The shipped What's New file must carry this version's section,
+          # or the first launch after updating shows nothing and logs
+          # "no section for v<version>". Core's drift guard pins the
+          # section to CHANGELOG.md; this checks the same section exists
+          # at all before anything is built, rather than after.
+          if ! grep -q "^## \[${version}\]" WhatsNew.md; then
+            echo "::error title=No release notes::WhatsNew.md has no '## [$version]' section. Regenerate it from CHANGELOG.md before tagging."
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Tag $tag matches csproj $csproj_version and WhatsNew.md carries its section."
+
+  # ── Build both architectures, then publish one release with all five assets ──
+  release:
+    needs: verify
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore ArenaDesktop.sln
+
+      - name: Build (Release)
+        run: dotnet build ArenaDesktop.sln -c Release --no-restore
+
+      # The gate AGENTS.md names: the FULL Core suite, never a subset.
+      # A tag that cannot pass its own tests must not become a release.
+      # Same order as ci.yml: build, then test --no-build, so the tested
+      # binaries are the ones that get published.
+      - name: Test (core logic)
+        run: dotnet test tests/ArenaDesktop.Core.Tests -c Release --no-build
+
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # pin-ok: the runner image's package feed only; NSIS is a build
+          # tool, not a shipped dependency, so it needs no version pin in
+          # the repo. The '-Version' pin below keeps the installer format
+          # stable from one release to the next.
+          choco install nsis -y --no-progress --limit-output
+          # NSIS is a 32-bit tool and installs into "Program Files (x86)"
+          # on a 64-bit runner. Check both locations rather than assuming,
+          # and search for makensis if neither has it at the expected path.
+          $candidates = @(
+            (Join-Path ${env:ProgramFiles(x86)} "NSIS"),
+            (Join-Path $env:ProgramFiles "NSIS")
+          ) | Where-Object { $_ -and (Test-Path (Join-Path $_ "makensis.exe")) }
+          if (-not $candidates) {
+            $found = Get-ChildItem -Path "C:\Program Files*" -Filter makensis.exe -Recurse -ErrorAction SilentlyContinue |
+              Select-Object -First 1
+            if (-not $found) { throw "makensis.exe not found after installing NSIS." }
+            $candidates = @($found.DirectoryName)
+          }
+          $nsis = $candidates[0]
+          Write-Host "Using NSIS at $nsis"
+          Add-Content -Path $env:GITHUB_PATH -Value $nsis
+
+      - name: Publish, package and hash both architectures
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:VERSION
+          New-Item -ItemType Directory -Force out | Out-Null
+
+          foreach ($arch in @('x64', 'arm64')) {
+            $publish = "publish/$arch"
+            dotnet publish src/ArenaDesktop/ArenaDesktop.csproj -c Release -r "win-$arch" --self-contained true -o $publish
+            if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed for win-$arch." }
+
+            # The portable zip carries the docs a user needs beside the exe,
+            # the same set ci.yml stages for its artifact.
+            Copy-Item README.md, LICENSE, KNOWN_LIMITATIONS.md, RELEASE_CHECKLIST.md $publish/
+            $zip = "out/ArenaDesktop-v$version-windows-$arch.zip"
+            Compress-Archive -Path "$publish/*" -DestinationPath $zip -CompressionLevel Optimal
+            Write-Host "$zip  $((Get-Item $zip).Length) bytes"
+
+            # The installer stages exactly that same folder, so the two
+            # channels cannot ship different files.
+            #
+            # The script carries a relative OutFile, and NSIS resolves that
+            # against the .nsi file's own directory — not the working
+            # directory — so the exe lands in installer/. Search both so
+            # this keeps working whichever way the script is written, then
+            # move it into the staging folder.
+            $setupName = "ArenaDesktop-Setup-v$version-$arch.exe"
+            makensis "/DVERSION=$version" "/DARCH=$arch" "/DSTAGE=$((Resolve-Path $publish).Path)" installer/ArenaDesktop.nsi
+            if ($LASTEXITCODE -ne 0) { throw "makensis failed for $arch." }
+            $produced = @("installer/$setupName", "./$setupName", "out/$setupName") |
+              Where-Object { Test-Path $_ } | Select-Object -First 1
+            if (-not $produced) { throw "makensis reported success but $setupName was not produced." }
+            $setup = "out/$setupName"
+            Move-Item -Path $produced -Destination $setup -Force
+            Write-Host "$setup  $((Get-Item $setup).Length) bytes"
+          }
+
+          # Every asset, in a stable order, lower-case hashes: exactly the
+          # shape SumsFile parses (`<64 hex>  <name>`, no spaces in names).
+          $names = @(
+            "ArenaDesktop-v$version-windows-x64.zip",
+            "ArenaDesktop-v$version-windows-arm64.zip",
+            "ArenaDesktop-Setup-v$version-x64.exe",
+            "ArenaDesktop-Setup-v$version-arm64.exe"
+          )
+          $lines = foreach ($name in $names) {
+            $path = Join-Path out $name
+            if (-not (Test-Path $path)) { throw "Missing asset $name." }
+            "$((Get-FileHash $path -Algorithm SHA256).Hash.ToLower())  $name"
+          }
+          # Explicit LF and no BOM: SumsFile splits on '\n' and takes the
+          # first 64 bytes of each line as the hash, so a BOM or CRLF would
+          # make every line unreadable to the updater that has to parse it.
+          $text = ($lines -join "`n") + "`n"
+          [IO.File]::WriteAllText((Join-Path (Get-Location) 'out/SHA256SUMS.txt'), $text, [Text.Encoding]::ASCII)
+
+      # Independent of the packing above: build the sums file from the
+      # bytes on disk, then verify each file against it. A packaging step
+      # that wrote a checksum from stale state would still fail here.
+      - name: Verify the sums file against the assets
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sumsPath = 'out/SHA256SUMS.txt'
+          if (-not (Test-Path $sumsPath)) { throw "SHA256SUMS.txt was not produced." }
+          $count = 0
+          foreach ($line in Get-Content $sumsPath) {
+            if ($line -match '^([0-9a-f]{64})\s{2}(.+)$') {
+              $expected = $Matches[1]; $name = $Matches[2]
+              $actual = (Get-FileHash (Join-Path out $name) -Algorithm SHA256).Hash.ToLower()
+              if ($actual -ne $expected) { throw "Hash mismatch for $name." }
+              Write-Host "verified $name"
+              $count++
+            }
+          }
+          if ($count -ne 4) { throw "SHA256SUMS.txt lists $count assets, expected 4." }
+
+      # The smoke test runs the real exe, exactly as ci.yml does, so a
+      # release cannot be built from something that cannot start.
+      - name: Smoke test (window construction + WebView2 init)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "publish/x64/ArenaDesktop.exe" -ArgumentList "--smoke-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Smoke test failed with exit code $($p.ExitCode)." }
+
+      - name: Assemble the release notes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:VERSION
+
+          # A hand-written notes file wins when it exists, because a release
+          # sometimes needs to say more than its own changelog section — the
+          # usual case being version jumps. 0.6.0 is one: 0.4.0 and 0.5.0
+          # were never released, so anyone updating from 0.3.1 lands on all
+          # three at once and needs to be told, not handed one third of the
+          # story.
+          $handwritten = "docs/release-notes/v$version.md"
+          if (Test-Path $handwritten) {
+            $notes = (Get-Content $handwritten -Raw).Trim()
+            if (-not $notes) { throw "$handwritten is empty." }
+            Write-Host "Using hand-written release notes from $handwritten"
+            [IO.File]::WriteAllText((Join-Path (Get-Location) 'release-notes.md'), $notes, [Text.UTF8Encoding]::new($false))
+            return
+          }
+
+          # Otherwise the version's own section of CHANGELOG.md, which the
+          # drift guard already pins to WhatsNew.md — the same text a user
+          # sees in the in-app What's New for this version.
+          $lines = Get-Content CHANGELOG.md
+          $start = -1
+          $body = @()
+          for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match '^## ' -and $start -ge 0) { break }
+            if ($start -ge 0) { $body += $lines[$i]; continue }
+            if ($lines[$i] -match "^## \[(?<v>[^\]]+)\]" -and $Matches.v -eq $version) { $start = $i }
+          }
+          if ($start -lt 0) { throw "CHANGELOG.md has no section for $version and there is no $handwritten." }
+          $bodyText = ($body -join "`n").Trim()
+          if (-not $bodyText) { throw "The $version section of CHANGELOG.md is empty." }
+          $notes = $lines[$start] + "`n`n" + $bodyText
+          Write-Host "Using the $version section of CHANGELOG.md"
+          [IO.File]::WriteAllText((Join-Path (Get-Location) 'release-notes.md'), $notes, [Text.UTF8Encoding]::new($false))
+
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:VERSION
+          $tag = "v$version"
+
+          $assets = @(
+            "out/ArenaDesktop-v$version-windows-x64.zip",
+            "out/ArenaDesktop-v$version-windows-arm64.zip",
+            "out/ArenaDesktop-Setup-v$version-x64.exe",
+            "out/ArenaDesktop-Setup-v$version-arm64.exe",
+            "out/SHA256SUMS.txt"
+          )
+          # Refuse to overwrite an already-published release. `gh release
+          # view` exits 1 when the release is absent, which is the normal
+          # first-run case — so the check is "it exists", not "it has
+          # assets". Re-running the workflow for an existing tag is
+          # therefore a hard stop rather than a silent clobber.
+          gh release view $tag --json tagName *> $null
+          if ($LASTEXITCODE -eq 0) {
+            throw "Release $tag already exists. Delete it (or bump the version) before re-running; this workflow does not overwrite published releases."
+          }
+          # No --notes-file flag subtlety: the file is passed explicitly so
+          # a re-run can never publish without notes.
+          gh release create $tag --title "ArenaDesktop $tag" --notes-file release-notes.md --verify-tag @assets
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed." }
+
+      # The checklist's "release assets are re-downloaded and hash-verified
+      # before a release is called shipped" — run against the published
+      # release, not the local folder.
+      - name: Re-download the published assets and verify them
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = "v$($env:VERSION)"
+          New-Item -ItemType Directory -Force verify | Out-Null
+          gh release download $tag --dir verify
+          if ($LASTEXITCODE -ne 0) { throw "Re-downloading $tag failed." }
+
+          $expected = @(
+            "ArenaDesktop-v$($env:VERSION)-windows-x64.zip",
+            "ArenaDesktop-v$($env:VERSION)-windows-arm64.zip",
+            "ArenaDesktop-Setup-v$($env:VERSION)-x64.exe",
+            "ArenaDesktop-Setup-v$($env:VERSION)-arm64.exe",
+            "SHA256SUMS.txt"
+          )
+          $published = (Get-ChildItem verify -File).Name
+          foreach ($name in $expected) {
+            if ($published -notcontains $name) { throw "Published release is missing $name." }
+          }
+          foreach ($line in Get-Content verify/SHA256SUMS.txt) {
+            if ($line -match '^([0-9a-f]{64})\s{2}(.+)$') {
+              $actual = (Get-FileHash (Join-Path verify $Matches[2]) -Algorithm SHA256).Hash.ToLower()
+              if ($actual -ne $Matches[1]) { throw "Re-downloaded $($Matches[2]) does not match the published sums." }
+            }
+          }
+          Write-Host "Re-downloaded and verified all five assets for $tag."

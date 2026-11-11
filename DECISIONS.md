@@ -2,6 +2,16 @@
 
 A living log of significant architecture, UX, security, and dependency decisions.
 
+## 2026-11-11 — Releases are built by a workflow, not by hand
+
+- **The problem was reproducibility, not convenience.** Releases were built on one machine: `dotnet publish` per architecture, `makensis` per installer, sums written by hand. That left the project unable to ship whenever that machine was unavailable, and it meant every release depended on a human repeating eleven steps correctly. The steps were already documented in RELEASE_CHECKLIST.md — the pipeline is those steps, written out.
+- **Triggered by a tag, verified against the code.** `push: tags: v*` is the whole interface. The gate runs before anything is built: the tag must be `v<major>.<minor>.<patch>[-suffix]`, must equal `<Version>` in the csproj, and `WhatsNew.md` must carry that version's section. The version is the tag's, never derived from the branch — a tag is the only thing here that cannot drift.
+- **A hand-written notes file wins over the changelog section.** `docs/release-notes/vx.y.z.md` is optional; when present it is used verbatim, otherwise the version's CHANGELOG section is. This exists because a release sometimes has to say more than its own changes: 0.4.0 and 0.5.0 were developed and never published, so 0.6.0 is the first release since 0.3.1 and its notes carry all three. Resolution order is file, then changelog — the pipeline never edits either.
+- **The installer and the zip ship the same bytes.** Both are built from one `dotnet publish` folder per architecture, so the two channels cannot diverge. The zip gains the four docs `ci.yml` already stages; the installer packages that identical folder.
+- **It will not overwrite a published release.** A re-run for an existing tag fails rather than clobbering. Recovering means deleting the release or bumping the version — deliberately a human decision.
+- **It re-downloads what it published and re-verifies it.** The final step fetches all five assets back from the release and checks every hash against `SHA256SUMS.txt`. That is RELEASE_CHECKLIST's "a release is not shipped until its assets are hash-verified", moved from a manual step onto the critical path.
+- **What it does not do:** it does not sign (see the `sign-release.yml` enable path and the signing section below), and it does not replace the on-machine pass — the checklist's Windows 10/11 walkthrough still has to happen on real hardware before a build is called Verified.
+
 ## 2026-11-11 — Enhancement pack (twenty improvements)
 
 - **Everything new lives in Core first.** Each item is a small pure model with tests (`Enhancements.cs`, `Enhancements2.cs`, `Enhancements3.cs`): find-option policy and find-bar keys, zoom presets, session stats and the reading-time clock's rules, the error-code lookup, the shortcut cheat sheet's grouping/search, the long-prompt policy, download sort bands, the folder check, the startup trend, duplicate detection, the pinned mode, startup restoration, and the run-queue move. The shell only draws them, so each rule is pinned by tests rather than discovered in a handler.
