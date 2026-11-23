@@ -288,10 +288,14 @@ public static class PromptBlanks
 
     public static string Fill(string? body, IReadOnlyDictionary<string, string> values)
     {
-        if (string.IsNullOrEmpty(body) || values is null || values.Count == 0)
+        // v0.14.0: no early return for an empty value set — a blank can carry
+        // its own default, so "[tone=neutral]" must be filled even when the user
+        // supplied nothing at all. A body with no blanks still comes back
+        // unchanged (the replace simply matches nothing).
+        if (string.IsNullOrEmpty(body))
             return body ?? "";
         var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var pair in values)
+        foreach (var pair in values ?? new Dictionary<string, string>())
         {
             // A whitespace-only value is not a fill: the field showed empty,
             // and substituting "   " would silently delete the placeholder
