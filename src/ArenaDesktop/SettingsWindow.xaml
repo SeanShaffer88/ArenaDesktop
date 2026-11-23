@@ -41,6 +41,17 @@
             <TextBox x:Name="SettingsSearchText" TextChanged="OnSearchTextChanged"
                      ToolTip="Type to jump to a setting — matching sections stay visible and are highlighted; the rest hide while you search"/>
             <TextBlock x:Name="SearchSummary" Style="{StaticResource Note}"/>
+            <!-- v0.13.0: a panel that cannot be read says so here. Settings is
+                 the window a user opens *because* something is wrong; it must
+                 not be the window that refuses to open. -->
+            <Border x:Name="LoadFailureBanner" Visibility="Collapsed" Margin="0,8,0,0"
+                    Padding="8,6" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource AccentBrush}" BorderThickness="3,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="Some settings could not be shown." FontWeight="SemiBold"/>
+                    <TextBlock x:Name="LoadFailureDetail" Style="{StaticResource Note}"/>
+                </StackPanel>
+            </Border>
         </StackPanel>
 
         <ScrollViewer x:Name="SettingsScroller" VerticalScrollBarVisibility="Auto"

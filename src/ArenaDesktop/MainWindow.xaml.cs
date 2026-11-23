@@ -2866,9 +2866,24 @@ public partial class MainWindow : Window
         var clone = _settings.Clone();
         if (sectionId is not null && SettingsSearch.IsKnownSection(sectionId))
             clone.SettingsLastSection = sectionId;
-        var dialog = new SettingsWindow(clone, _log, _privacyGateway, SwitchToProfile,
-            notificationTest: RunTestNotification,
-            globalHotkeyStatus: () => _hotkeyManager?.StatusText ?? "") { Owner = this };
+        SettingsWindow dialog;
+        try
+        {
+            dialog = new SettingsWindow(clone, _log, _privacyGateway, SwitchToProfile,
+                notificationTest: RunTestNotification,
+                globalHotkeyStatus: () => _hotkeyManager?.StatusText ?? "") { Owner = this };
+        }
+        catch (Exception ex)
+        {
+            // v0.13.0: Settings failing to construct used to surface as a bare
+            // "unexpected error" box with no clue which window or why. Say what
+            // could not open, and hand over the report.
+            _log.Error($"Settings window creation failed: {ex}");
+            CrashPresenter.ShowText(this, _log,
+                "Settings could not open.",
+                $"The Settings window failed while it was being built: {CrashReport.Summary(ex)}");
+            return;
+        }
         // S6 #56: closing Settings returns focus to whatever invoked it
         // (usually the page itself).
         if (FocusReturn.ShowDialog(dialog) != true)

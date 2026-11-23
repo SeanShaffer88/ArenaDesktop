@@ -263,10 +263,11 @@ public partial class App : System.Windows.Application
             // only Message and the inner cause of its startup crash was lost.
             Log.Error($"Unhandled: {args.Exception}");
             args.Handled = true;
-            System.Windows.MessageBox.Show(
-                "ArenaDesktop hit an unexpected error but kept your session safe.\n\n" +
-                $"Details were written to the log:\n{AppPaths.LogPath}",
-                "ArenaDesktop", MessageBoxButton.OK, MessageBoxImage.Warning);
+            // v0.13.0: the dialog shows the exception and where it was thrown,
+            // and puts a bounded report on the clipboard, instead of sending
+            // the user to a log file with no idea what to look for. It falls
+            // back to the old message box if it cannot build itself.
+            CrashPresenter.Show(_window, Log, args.Exception);
         };
 
         _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
@@ -282,10 +283,9 @@ public partial class App : System.Windows.Application
         catch (Exception ex)
         {
             Log.Error($"Main window creation failed: {ex}");
-            System.Windows.MessageBox.Show(
-                "ArenaDesktop could not create its main window.\n\n" +
-                $"The full error was written to the log:\n{AppPaths.LogPath}",
-                "ArenaDesktop", MessageBoxButton.OK, MessageBoxImage.Error);
+            // v0.13.0: same reasoning as Settings — a startup failure is the
+            // one crash a user cannot work around, so it reports itself.
+            CrashPresenter.Show(null, Log, ex, "ArenaDesktop could not create its main window.");
             Shutdown(1);
             return;
         }

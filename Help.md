@@ -163,6 +163,18 @@ The pad is not a library, but it can fill one: **Save to Battle Lab** (or Ctrl+S
 
 If Settings → Behavior has "Clear copied prompts from the clipboard after…" turned on, a pad copy is cleared on that schedule too, unless you copy something else in the meantime or the app is locked.
 
+## ArenaDesktop showed me an error — what now?
+
+An error box means one part of the app hit something it did not expect. Your session is not closed and nothing was sent anywhere: ArenaDesktop has no telemetry, and a report leaves the machine only if you paste it somewhere yourself.
+
+Since v0.13.0 the box says **what** failed and **where** in the app it was thrown, and **Copy details** puts a short report on the clipboard: the exception, the app frame that threw it, and the last 25 lines of the log — passed through the same redaction check the support bundle uses, so an address, an email or anything token-shaped in the log is stripped before it is copied. Pasting that into a bug report is usually the difference between "it broke" and a fix.
+
+**Open log folder** takes you to `arenadesktop.log` if you would rather read it yourself: plain text, one line per event, rolled to `arenadesktop.log.old` at about 1 MB.
+
+If it happens **every time you open Settings**, look at the top of the Settings window: since v0.13.0 a panel that cannot be read is named in a banner ("Some settings could not be shown") and the rest of the window still works. The name in that banner is the part worth reporting.
+
+If it happens **at launch**, the app says the main window could not be created and offers the same report; `--safe-mode` starts clean at the home page with the customisations bypassed, which is the way back in.
+
 ## How do I find a command without the menus?
 
 Press **Ctrl+K** — or use ⋯ → **Tools** → *Command palette…*, the tray menu's **Command palette**, `--palette`, or an `arenadesktop://palette` link — and type the first few letters of what you want: a mode (`side`), a window (`settings`, `downloads`, `prompt pad`, `help`), a layout (`compact`, `rail`, `cycle`), or a verb (`zoom`, `print`, `find`). Each word you type must start a word in the command's name, group or keywords — the same rule Settings and Help search by, so one habit works in all three places.
