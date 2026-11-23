@@ -201,7 +201,7 @@ public class PadHandoffTests
 
             // A fresh load — the next launch — sees it.
             var reloaded = BattleLabLibrary.Open(path);
-            var saved = Assert.Single(reloaded.Prompts.Where(p => p.Body == "A prompt worth keeping"));
+            var saved = Assert.Single(reloaded.Prompts, p => p.Body == "A prompt worth keeping");
             Assert.Equal(PadHandoff.Category, saved.Category);
         }
         finally { Directory.Delete(dir, recursive: true); }

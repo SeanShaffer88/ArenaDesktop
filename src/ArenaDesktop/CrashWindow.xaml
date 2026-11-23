@@ -28,7 +28,9 @@
             <TextBlock Text="What happened" FontWeight="SemiBold"/>
             <TextBox x:Name="SummaryText" IsReadOnly="True" BorderThickness="0" Background="Transparent"
                      Foreground="{StaticResource TextBrush}" TextWrapping="Wrap" Margin="0,2,0,0"
-                     Style="{x:Null}" Padding="0"/>
+                     Style="{x:Null}" Padding="0"
+                     AutomationProperties.Name="What happened: the exception and the code that threw it"
+                     ToolTip="The exception, and the part of ArenaDesktop that was running when it was thrown"/>
             <TextBlock x:Name="WhereText" Style="{StaticResource Note}" Margin="0,4,0,0" TextWrapping="Wrap"/>
         </StackPanel>
 
@@ -53,6 +55,8 @@
         <TextBox x:Name="DetailsBox" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
                  FontFamily="Consolas" FontSize="11" VerticalScrollBarVisibility="Auto"
                  HorizontalScrollBarVisibility="Auto" Background="{StaticResource SurfaceBrush}"
-                 Foreground="{StaticResource MutedBrush}" BorderBrush="{StaticResource HairlineBrush}"/>
+                 Foreground="{StaticResource MutedBrush}" BorderBrush="{StaticResource HairlineBrush}"
+                 AutomationProperties.Name="Crash report details (what Copy details puts on the clipboard)"
+                 ToolTip="The same text Copy details copies — read it before you paste it anywhere"/>
     </DockPanel>
 </Window>
