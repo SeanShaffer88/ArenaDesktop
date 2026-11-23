@@ -358,6 +358,52 @@ public static class FieldPassSummary
     public static string CountsText(FieldPassCounts counts) =>
         $"{counts.Passed} passed · {counts.Problems} with a problem · {counts.Skipped} skipped · {counts.Remaining} not done";
 
+    /// <summary>
+    /// The pass as JSON (v0.14.0): what "Export report…" writes beside the
+    /// markdown, for anyone who wants to diff two passes or paste one into a
+    /// bug tracker. Same facts as <see cref="Render"/>, same promise — the
+    /// verdicts are the user's own, nothing here came from the Arena page.
+    /// </summary>
+    public static string ToJson(FieldPassSession session, string appVersion, DateTimeOffset generated)
+    {
+        var counts = session.Counts;
+        var steps = new List<object>();
+        for (var i = 0; i < FieldPassCatalog.Steps.Count; i++)
+        {
+            var step = FieldPassCatalog.Steps[i];
+            var record = session.RecordFor(step.Id);
+            steps.Add(new
+            {
+                number = i + 1,
+                id = step.Id,
+                title = step.Title,
+                verdict = (record?.Verdict ?? FieldPassVerdict.None).ToString(),
+                note = record?.Note ?? "",
+                recordedUtc = record?.RecordedUtc,
+            });
+        }
+        var document = new
+        {
+            schemaVersion = 1,
+            app = $"ArenaDesktop {appVersion}",
+            generated = generated.ToUniversalTime().ToString("O"),
+            counts = new
+            {
+                total = FieldPassCatalog.Steps.Count,
+                passed = counts.Passed,
+                problems = counts.Problems,
+                skipped = counts.Skipped,
+                remaining = counts.Remaining,
+            },
+            steps,
+        };
+        return JsonSerializer.Serialize(document, new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        });
+    }
+
     /// <summary>The full summary as plain markdown.</summary>
     public static string Render(FieldPassSession session, string appVersion, DateTimeOffset generated)
     {

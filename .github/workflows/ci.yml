@@ -10,6 +10,40 @@ permissions:
   contents: read
 
 jobs:
+  # v0.14.0: ARM64 is buildable again. It is a separate job because the
+  # point is the publish, not the tests (which the x64 job already runs);
+  # on an x64 runner this proves the RID's native assets — WebView2's
+  # arm64 loader included — resolve and package, which is the half of
+  # "ARM64 support" that can be checked without a Surface.
+  arm64:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore ArenaDesktop.sln
+
+      - name: Publish (win-arm64, self-contained)
+        run: dotnet publish src/ArenaDesktop/ArenaDesktop.csproj -c Release -r win-arm64 --self-contained true -o publish/win-arm64
+
+      - name: Check the ARM64 payload
+        shell: pwsh
+        run: |
+          $exe = "publish/win-arm64/ArenaDesktop.exe"
+          if (-not (Test-Path $exe)) { throw "ARM64 publish produced no exe" }
+          $runtime = "publish/win-arm64/ArenaDesktop.runtimeconfig.json"
+          $json = Get-Content $runtime -Raw | ConvertFrom-Json
+          $rid = $json.runtimeOptions.targetFramework
+          Write-Host "published $exe ($((Get-Item $exe).Length) bytes), target $rid"
+          if (-not (Test-Path "publish/win-arm64/WebView2Loader.dll")) {
+            throw "WebView2Loader.dll is missing from the ARM64 payload"
+          }
+
   build:
     runs-on: windows-latest
     steps:
