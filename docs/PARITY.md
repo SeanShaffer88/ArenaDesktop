@@ -18,6 +18,7 @@ renamed; "New" = written for ArenaDesktop.
 | Recovery (crash/network/hung page), safe mode | Inherited | Core Reliability tests green |
 | Updates (SHA-256 verified, rollback) | Inherited, re-pointed to SeanShaffer88/ArenaDesktop | Core Updates tests green |
 | Help / Diagnostics / support bundle | Inherited, reworded for Arena | Help drift-guard test green |
+| Crash ledger + data health (v0.14.0: UI, background-thread and unobserved-task crashes recorded, last-run marker, three-in-ten-minutes → safe mode, a per-file inventory with backup-first repair) | **New** | Core CrashHistory/DataHealth + CrashHistoryTests/DataHealthTests; nothing is uploaded |
 | Unexpected-error report (v0.13.0: exception type, throwing app frame, bounded + redacted log tail, Copy details / Open log folder, Esc closes; guarded Settings load with a named-panel banner) | **New** | Core CrashReport + CrashReportTests (type/message/frame/inner, bounds, redaction, never-throws) and CrashWiringTests (dialog, presenter fallback, per-step guards, help page); nothing is uploaded — the report leaves the machine only if the user pastes it |
 | CLI + arenadesktop:// protocol | Inherited + extended with mode flags/routes | CommandLine/LaunchIntegration tests green |
 | Arena modes (9: Battle/Direct/SideBySide/Leaderboard/Agent/Image/Code/Video/Web Search, URLs verified live 2026-10-27) | **New** | ArenaModesTests — registry, CLI, protocol, JSON round-trip, shortcut catalog |

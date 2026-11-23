@@ -94,7 +94,7 @@ The Battle Lab (⋯ menu → **Tools** → Battle Lab, the tray menu, or Ctrl+Sh
 
 Try this:
 1. Pick a prompt from the library on the left, or add your own with "+ New prompt". Edit its name, category, and text in the middle — there is no Save button; edits are stored straight away.
-2. Square brackets in the text, like [topic], are blanks. When you copy the prompt, ArenaDesktop asks you to fill each blank in, so one prompt can serve many runs.
+2. Square brackets in the text, like [topic], are blanks. When you copy the prompt, ArenaDesktop asks you to fill each blank in, so one prompt can serve many runs. Since v0.14.0 a blank can carry its own default — `[tone=neutral]` — and the default fills in when you leave that field alone; type your own value and it wins.
 3. Choose "Copy prompt & open Battle": the finished text goes to your clipboard and the main window comes forward on the Battle page. Click Arena's prompt box and paste (Ctrl+V) — ArenaDesktop never types into the page for you. The picker beside the copy button can aim the copy at Direct Chat or Side by Side instead; the button's name follows your pick.
 4. To line several prompts up, use "Add to run queue", then "Use next from queue" in the Battle Lab when you're ready for each one. "Add category to queue" lines up a whole category at once.
 5. After a battle, choose "+ Log a result" in the journal and record which side won (A, B, or a tie), which mode it ran in, and a note. Results are recorded by you — ArenaDesktop does not read anything from the Arena page, so a result only exists once you log it. The line above the journal is the scoreboard for the entries shown — filter by a prompt name, by mode, or by date (all time, the last 7 days, or the last 30 days) to narrow the record — and "Export journal…" saves the shown entries as a Markdown file.
@@ -181,7 +181,9 @@ Press **Ctrl+K** — or use ⋯ → **Tools** → *Command palette…*, the tray
 
 It covers the whole ⋯ menu since v0.11.0 — including the log, the support bundle, Connection security, About, Save as PDF, opening a second window, the five named zoom levels, Quick ask and Lock ArenaDesktop — so anything the menus can do, this box can do too.
 
-Move with **↑** and **↓**, run the highlighted command with **Enter**, and close the list with **Esc**. The keys printed beside a row are the keys that actually work, so a key you changed in Settings shows up here as the one to press, not the default. With an empty box the list shows every command, grouped — which is a reasonable way to find out what the app can do.
+Move with **↑** and **↓**, run the highlighted command with **Enter**, and close the list with **Esc**.
+
+Since v0.14.0 four verbs take an argument, and the row for it appears first: **`zoom 125`** (a percentage the page can do), **`find cables`** (opens the find bar with that text), **`profile Work`** (switches profile by name, id, or the start of a name) and **`mode side`** (one jump to that Arena mode). A malformed argument — `zoom 900`, an unknown profile — is treated as a search rather than clamped or guessed at. What you type after `find` goes into the find bar and nowhere else; it is not logged. The keys printed beside a row are the keys that actually work, so a key you changed in Settings shows up here as the one to press, not the default. With an empty box the list shows every command, grouped — which is a reasonable way to find out what the app can do.
 
 A command that cannot work is not offered: *Lock ArenaDesktop* appears only once a lock is set, and a zoom level appears only when the current range can hold it.
 
