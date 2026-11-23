@@ -32,6 +32,13 @@
                         ToolTip="Open the log file itself in your default text editor"/>
                 <Button x:Name="CopyLastErrorButton" Content="Copy last error" Width="120" Height="30" Margin="8,0,0,0" Click="OnCopyLastError" Visibility="Collapsed"
                         ToolTip="Copy just the most recent ERROR line from the log (redacted)"/>
+                <!-- v0.14.0: the data-file inventory has a button because
+                     "unreadable: unexpected character at 12" is only useful
+                     with something to do about it. Repair backs up first. -->
+                <Button x:Name="RepairDataButton" Content="Repair data files…" Width="150" Height="30" Margin="8,0,0,0" Click="OnRepairData" Visibility="Collapsed"
+                        ToolTip="Check the app's own files; anything that cannot be read is copied beside itself before it is reset"/>
+                <TextBlock x:Name="RepairNote" Style="{StaticResource Note}" Margin="10,8,0,0" Visibility="Collapsed"
+                           AutomationProperties.Name="Data repair result"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
                 <TextBlock x:Name="CopyNote" Style="{StaticResource Note}" Margin="0,4,10,0"/>

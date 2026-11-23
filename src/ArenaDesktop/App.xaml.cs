@@ -257,6 +257,11 @@ public partial class App : System.Windows.Application
         // a launch-only session still leaves a fresh backup behind.
         BackupService.MaybeAutoBackup(Log);
 
+        // v0.14.0: the crash ledger. Two jobs the dialog cannot do by itself:
+        // remember that this run ended in an error (so the next launch says
+        // so), and notice a loop — three crashes inside ten minutes is not
+        // something a report fixes, so the dialog offers safe mode instead.
+        var crashLedger = AppPaths.CrashHistoryPath;
         DispatcherUnhandledException += (_, args) =>
         {
             // Full exception (type, inner exceptions, stack) — v0.1.0 logged
@@ -267,12 +272,38 @@ public partial class App : System.Windows.Application
             // and puts a bounded report on the clipboard, instead of sending
             // the user to a log file with no idea what to look for. It falls
             // back to the old message box if it cannot build itself.
-            CrashPresenter.Show(_window, Log, args.Exception);
+            var loop = RecordCrash(crashLedger, "Unhandled (UI thread)", args.Exception);
+            CrashPresenter.Show(_window, Log, args.Exception, offerSafeMode: loop);
+        };
+
+        // v0.14.0: a crash off the UI thread has no dialog at all — WPF only
+        // sees the dispatcher's. Both of these record it first, so the next
+        // launch can say the last run died, and where.
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            if (args.ExceptionObject is Exception fatal)
+            {
+                Log.Error($"Unhandled (background thread): {fatal}");
+                RecordCrash(crashLedger, "Unhandled (background thread)", fatal);
+            }
+        };
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            // A task nobody awaited failed after its finalizer ran.
+            Log.Error($"Unobserved task exception: {args.Exception}");
+            RecordCrash(crashLedger, "Unobserved task", args.Exception);
+            args.SetObserved();
         };
 
         _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
         var listener = new Thread(WaitForShowSignal) { IsBackground = true, Name = "ShowSignal" };
         listener.Start();
+
+        // v0.14.0: the ledger survives this run unless it ends cleanly (OnExit
+        // clears the marker), so "the last run ended in an error" is a fact,
+        // not a guess.
+        if (CrashHistory.LastCrashLine(CrashHistoryStore.Load(crashLedger)) is { } lastRun)
+            Log.Warn(lastRun);
 
         Autostart.Sync(Settings.StartWithWindows);
 
@@ -568,6 +599,26 @@ public partial class App : System.Windows.Application
         }
     }
 
+    /// <summary>
+    /// Record a crash in the ledger and answer whether it looks like a loop
+    /// (v0.14.0). Never throws, and never puts page or prompt content in the
+    /// ledger — the headline and the exception summary only.
+    /// </summary>
+    private static bool RecordCrash(string ledgerPath, string headline, Exception exception)
+    {
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var data = CrashHistoryStore.Record(ledgerPath,
+                new CrashRecord(now, headline, CrashReport.Summary(exception)), now);
+            return CrashHistory.IsLoop(data, now);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private void WaitForShowSignal()
     {
         while (_showEvent is not null)
@@ -595,6 +646,10 @@ public partial class App : System.Windows.Application
     {
         try
         {
+            // v0.14.0: a clean exit clears "the last run ended in an error".
+            // Any path that skips this — a kill, a power cut, a crash — leaves
+            // the marker set, which is exactly the signal the next launch wants.
+            CrashHistoryStore.MarkCleanExit(AppPaths.CrashHistoryPath);
             Log.Info("ArenaDesktop exiting");
             _showEvent?.Dispose();
             _mutex?.ReleaseMutex();

@@ -21,12 +21,17 @@ public partial class CrashWindow : Window
 {
     private readonly string _package;
     private readonly string _logPath;
+    private readonly Action? _onRestartSafeMode;
 
-    public CrashWindow(string headline, string summary, string where, string logPath, string package)
+    public CrashWindow(string headline, string summary, string where, string logPath, string package,
+        Action? onRestartSafeMode = null)
     {
         InitializeComponent();
         _package = package;
         _logPath = logPath;
+        _onRestartSafeMode = onRestartSafeMode;
+        if (onRestartSafeMode is not null)
+            SafeModeButton.Visibility = Visibility.Visible;
         HeadlineText.Text = headline;
         SummaryText.Text = summary;
         WhereText.Text = where;
@@ -79,6 +84,14 @@ public partial class CrashWindow : Window
     }
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
+
+    private void OnRestartSafeMode(object sender, RoutedEventArgs e)
+    {
+        if (_onRestartSafeMode is null)
+            return;
+        Close();
+        _onRestartSafeMode();
+    }
 }
 
 /// <summary>
@@ -90,7 +103,7 @@ public static class CrashPresenter
 {
     /// <summary>Show the crash report for <paramref name="exception"/>; never throws.</summary>
     public static void Show(Window? owner, DiagnosticLog log, Exception exception,
-        string headline = "ArenaDesktop hit an unexpected error.")
+        string headline = "ArenaDesktop hit an unexpected error.", bool offerSafeMode = false)
     {
         string package;
         try
@@ -103,7 +116,8 @@ public static class CrashPresenter
         {
             package = CrashReport.Summary(exception);
         }
-        ShowPackage(owner, log, headline, CrashReport.Summary(exception), CrashReport.Where(exception), package);
+        ShowPackage(owner, log, headline, CrashReport.Summary(exception), CrashReport.Where(exception), package,
+            offerSafeMode);
     }
 
     /// <summary>
@@ -127,11 +141,12 @@ public static class CrashPresenter
     }
 
     private static void ShowPackage(Window? owner, DiagnosticLog log, string headline,
-        string summary, string where, string package)
+        string summary, string where, string package, bool offerSafeMode = false)
     {
         try
         {
-            var window = new CrashWindow(headline, summary, where, log.Path, package);
+            var window = new CrashWindow(headline, summary, where, log.Path, package,
+                offerSafeMode ? RestartInSafeMode : null);
             if (owner is { IsLoaded: true } && !ReferenceEquals(owner, window))
                 window.Owner = owner;
             window.ShowDialog();
@@ -151,6 +166,24 @@ public static class CrashPresenter
             {
                 // Nothing left to try.
             }
+        }
+    }
+
+    /// <summary>Relaunch with <c>--safe-mode</c> and close this instance (v0.14.0).</summary>
+    private static void RestartInSafeMode()
+    {
+        try
+        {
+            var exe = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(exe))
+                return;
+            Process.Start(new ProcessStartInfo(exe, "--safe-mode") { UseShellExecute = true });
+            Application.Current?.Shutdown();
+        }
+        catch
+        {
+            // Nothing to fall back to: the dialog is already gone, the log has
+            // this failure, and the user can restart by hand.
         }
     }
 

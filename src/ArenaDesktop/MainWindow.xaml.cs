@@ -285,6 +285,23 @@ public partial class MainWindow : Window
         Closing += OnClosing;
         Closed += (_, _) => _hotkeyManager?.Dispose();
         PreviewKeyDown += OnPreviewKeyDown;
+        // v0.14.0: if the ledger says the last run ended in an error, say so
+        // once, in the status bar — the ledger is cleared on a clean exit, so
+        // this cannot nag a user whose runs are fine.
+        NotePreviousRunOnce();
+    }
+
+    /// <summary>
+    /// The one-line notice that the previous run ended in a crash (v0.14.0).
+    /// The detail — exception summary, time, and the data-file inventory —
+    /// lives in Diagnostics, which this line points at.
+    /// </summary>
+    private void NotePreviousRunOnce()
+    {
+        if (CrashHistory.LastCrashLine(CrashHistoryStore.Load(AppPaths.CrashHistoryPath)) is not { } line)
+            return;
+        _log.Warn(line);
+        SetStatus("The last run ended in an error — Diagnostics (⋯ → Help) has the details.");
     }
 
     /// <summary>
@@ -4427,6 +4444,7 @@ public partial class MainWindow : Window
             onExportBundle: () => StartSupportBundleExport(window),
             onOpenLog: OpenTodaysLog,
             lastErrorProvider: () => LogReading.LastError(ReadLogText()),
+            onRepairData: RepairDataFiles,
             onFieldPass: () =>
             {
                 openFieldPassAfter = true;
@@ -4556,6 +4574,34 @@ public partial class MainWindow : Window
         ExitApp();
     }
 
+    /// <summary>
+    /// Repair the app's own unreadable files (v0.14.0), from Diagnostics. The
+    /// confirmation names the count and the promise: every file is copied
+    /// beside itself before it is reset, so nothing is lost by pressing it.
+    /// </summary>
+    private string RepairDataFiles()
+    {
+        var reports = DataHealth.Check(AppPaths.RootDir);
+        var bad = reports.Where(r => r.NeedsRepair).ToList();
+        if (bad.Count == 0)
+            return "Every data file that exists parses — nothing to repair.";
+        var answer = System.Windows.MessageBox.Show(this,
+            $"{bad.Count} data file(s) cannot be read:\n\n" +
+            string.Join("\n", bad.Select(r => "  " + r.Line)) +
+            "\n\nRepair copies each one beside itself first, then lets the app start that file fresh. " +
+            "Restart ArenaDesktop afterwards to pick the defaults up.\n\nRepair now?",
+            "Repair data files", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (answer != MessageBoxResult.Yes)
+            return "Nothing changed.";
+        var backups = DataHealth.RepairAll(reports, DateTimeOffset.Now);
+        foreach (var backup in backups)
+            _log.Info($"Data repair: backed up and reset {backup}");
+        _log.Info($"Data repair: {backups.Count} of {bad.Count} file(s) repaired");
+        if (backups.Count == 0)
+            return "Nothing could be repaired — no file was changed (the log has the reason).";
+        return $"{backups.Count} file(s) backed up and reset. Restart ArenaDesktop to start from defaults.";
+    }
+
     private DiagnosticsData BuildDiagnosticsData()
     {
         MemorySnapshot? currentMemory = null;
@@ -4592,6 +4638,12 @@ public partial class MainWindow : Window
                                 ?? _settings.ActiveProfileId,
             UpdateChannelLabel = UpdateChannelText.Label(_settings.UpdateChannel),
             AppLockOn = AppLock.IsLockActive(_settings),
+            // v0.14.0: the data-file inventory and the last run's ending —
+            // both read from this PC, both named so a report is actionable.
+            DataFileLines = DataHealth.Summary(DataHealth.Check(AppPaths.RootDir))
+                .Split('\n'),
+            LastRunLine = CrashHistory.LastCrashLine(
+                CrashHistoryStore.Load(AppPaths.CrashHistoryPath)),
             DataSizes = new (string, long?)[]
             {
                 ("Active profile data", ProfileDataInfo.MeasureFolderBytes(_profileDir)),
