@@ -244,7 +244,8 @@ public partial class MainWindow : Window
             openArenaMode: NavigateArenaMode,
             openBattleLab: OpenBattleLabFromTray,
             favoriteModeIds: () => _settings.FavoriteModeIds,
-            openPromptPad: OpenPromptPadWindow);
+            openPromptPad: OpenPromptPadWindow,
+            openCommandPalette: OpenCommandPaletteWindow);
 
         // S6 #54: live regions for assistive-tech announcements, and
         // the download events that feed them (the wording is Core's).
@@ -1049,6 +1050,96 @@ public partial class MainWindow : Window
         };
         _promptPadWindow = window;
         window.Show();
+    }
+
+    private void OnCommandPalette(object sender, RoutedEventArgs e) => OpenCommandPaletteWindow();
+
+    /// <summary>
+    /// The command palette (v0.10.0). Ctrl+K, the ⋯ menu, the tray,
+    /// <c>--palette</c> and an <c>arenadesktop://palette</c> link all land
+    /// here. Behind the app lock like every other surface (S7 #64), and it
+    /// runs nothing itself: the chosen id comes back and goes through
+    /// <see cref="ExecutePaletteCommand"/> once the dialog has closed, so a
+    /// command that opens another window cannot do it while this one is
+    /// still modal.
+    /// </summary>
+    public void OpenCommandPaletteWindow()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        ShowFromTray();
+        var dialog = new CommandPaletteWindow(_settings) { Owner = this };
+        dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
+        // S5: transient shell windows follow the text scale too.
+        ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
+        // S6 #56: focus returns to the invoker when the palette closes.
+        FocusReturn.ShowDialog(dialog);
+        if (dialog.SelectedCommandId is { } id)
+            ExecutePaletteCommand(id);
+    }
+
+    /// <summary>
+    /// Run one palette command by id. Every branch mirrors a menu item or
+    /// a key handler that already existed — the palette is a second door
+    /// onto those, never a second implementation, which is why nothing
+    /// here reaches the page directly. <c>mode:</c> ids carry the mode to
+    /// navigate to. An id nobody recognises is logged and ignored: a
+    /// stale catalog entry must not close a window or move the page.
+    /// </summary>
+    private void ExecutePaletteCommand(string id)
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (id.StartsWith(CommandPalette.ModePrefix, StringComparison.Ordinal))
+        {
+            NavigateArenaMode(id[CommandPalette.ModePrefix.Length..]);
+            return;
+        }
+        switch (id)
+        {
+            case "settings": OpenSettingsWindow(); break;
+            case "downloads": OnDownloads(this, new RoutedEventArgs()); break;
+            case "battle-lab-pane":
+                if (SidePaneShowing)
+                    HideSidePane();
+                else
+                    OpenBattleLabPane();
+                break;
+            case "prompt-pad": OpenPromptPadWindow(); break;
+            case "field-pass": OpenFieldPassWindow(); break;
+            case "shortcuts": OnShortcuts(this, new RoutedEventArgs()); break;
+            case "diagnostics": OnDiagnostics(this, new RoutedEventArgs()); break;
+            case "session": OnSessionWindow(this, new RoutedEventArgs()); break;
+            case "help": OnHelp(this, new RoutedEventArgs()); break;
+            case "check-updates": OnCheckForUpdates(this, new RoutedEventArgs()); break;
+            case "focus-mode": SetFocusMode(!_focusMode); break;
+            case "always-on-top": OnTogglePin(this, new RoutedEventArgs()); break;
+            case "layout-standard": SetShellLayout(ShellLayout.Standard); break;
+            case "layout-compact": SetShellLayout(ShellLayout.CompactFocus); break;
+            case "layout-left-rail": SetShellLayout(ShellLayout.LeftRail); break;
+            case "layout-cycle": CycleShellLayout(); break;
+            case "find": ShowFindBar(); break;
+            case "back": OnBack(this, new RoutedEventArgs()); break;
+            case "forward": OnForward(this, new RoutedEventArgs()); break;
+            case "home": OnHome(this, new RoutedEventArgs()); break;
+            case "reload": OnReload(this, new RoutedEventArgs()); break;
+            case "restore-closed": OnRestoreClosedPage(this, new RoutedEventArgs()); break;
+            case "zoom-in": StepZoom(up: true); break;
+            case "zoom-out": StepZoom(up: false); break;
+            case "zoom-reset": ResetZoom(); break;
+            case "print": OnPrint(this, new RoutedEventArgs()); break;
+            case "copy-address": OnCopyPageAddress(this, new RoutedEventArgs()); break;
+            case "open-in-browser": OnOpenInBrowser(this, new RoutedEventArgs()); break;
+            default:
+                _log.Warn($"Palette command '{id}' has no handler — ignoring it");
+                break;
+        }
     }
 
     /// <summary>
@@ -3495,6 +3586,9 @@ public partial class MainWindow : Window
             case LaunchIntentKind.OpenPromptPad:
                 OpenPromptPadWindow();
                 break;
+            case LaunchIntentKind.OpenCommandPalette:
+                OpenCommandPaletteWindow();
+                break;
             case LaunchIntentKind.ShowHelp:
                 ShowFromTray();
                 OnHelp(this, new RoutedEventArgs());
@@ -3964,6 +4058,17 @@ public partial class MainWindow : Window
         SetShellLayout(CompactFocusItem.IsChecked ? ShellLayout.CompactFocus : ShellLayout.Standard);
 
     private void OnSelectStandardLayout(object sender, RoutedEventArgs e) => SetShellLayout(ShellLayout.Standard);
+
+    /// <summary>
+    /// v0.10.0: the cycle that never had a key — Ctrl+Shift+K and the
+    /// palette's "Cycle the window layout" both land here. The order and
+    /// the repair for an undefined value are Core's (<see
+    /// cref="ShellLayoutCycle.Next"/>); the status line is the same one
+    /// the three layout items print, because SetShellLayout owns it.
+    /// </summary>
+    private void CycleShellLayout() => SetShellLayout(ShellLayoutCycle.Next(_settings.ShellLayout));
+
+    private void OnCycleLayout(object sender, RoutedEventArgs e) => CycleShellLayout();
 
     private void OnSelectLeftRailLayout(object sender, RoutedEventArgs e) => SetShellLayout(ShellLayout.LeftRail);
 
@@ -4610,6 +4715,24 @@ public partial class MainWindow : Window
                 HideSidePane();
             else
                 OpenBattleLabPane();
+            e.Handled = true;
+            return;
+        }
+        // v0.10.0: the command palette, and the layout cycle it gave a
+        // home. Ctrl+K alone opens the palette (the browser key of that
+        // name belongs to an address bar this app does not have);
+        // Ctrl+Shift+K cycles the three layouts, which until now had no
+        // key at all.
+        if (e.Key == Key.K && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            OpenCommandPaletteWindow();
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == Key.K
+            && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            CycleShellLayout();
             e.Handled = true;
             return;
         }

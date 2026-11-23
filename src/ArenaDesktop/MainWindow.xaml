@@ -157,6 +157,12 @@
                                                   ToolTip="Slim toolbar, and the status bar becomes a small pill in the corner — the Arena page gets the extra room"/>
                                         <MenuItem x:Name="LeftRailLayoutItem" Header="Left Rail layout" IsCheckable="True" Click="OnSelectLeftRailLayout"
                                                   ToolTip="Navigation and the Arena modes in a slim rail down the left edge, a thin title strip on top, and the status bar along the bottom"/>
+                                        <Separator/>
+                                        <!-- v0.10.0: the cycle had a Core
+                                             rule and no way to reach it. -->
+                                        <MenuItem Header="Cycle layout" Click="OnCycleLayout"
+                                                  InputGestureText="Ctrl+Shift+K"
+                                                  ToolTip="Standard → Compact Focus → Left Rail → Standard, so one key reaches all three"/>
                                     </MenuItem>
                                     <Separator/>
                                     <MenuItem Header="Find in page…" Click="OnFind" InputGestureText="Ctrl+F"/>
@@ -177,6 +183,13 @@
                                 </MenuItem>
 
                                 <MenuItem Header="Tools">
+                                    <!-- v0.10.0: one list for every command,
+                                         so a keyboard user never has to
+                                         learn which submenu a thing is in. -->
+                                    <MenuItem Header="Command palette…" Click="OnCommandPalette"
+                                              InputGestureText="Ctrl+K"
+                                              ToolTip="Type what you want to do — every Arena mode, window and layout in one searchable list"/>
+                                    <Separator/>
                                     <MenuItem Header="Downloads…" Click="OnDownloads"/>
                                     <!-- v0.8.0: the Lab is a side pane now, so
                                          the item says "Hide" while it is open

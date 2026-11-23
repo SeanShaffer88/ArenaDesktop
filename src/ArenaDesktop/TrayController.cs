@@ -63,6 +63,8 @@ public sealed class TrayController : IDisposable
     // Prompt pad (v0.9.0): optional like the rest of the tool windows.
     private readonly Action? _openPromptPad;
     private Forms.ToolStripMenuItem? _promptPadItem;
+    private readonly Action? _openCommandPalette;
+    private Forms.ToolStripMenuItem? _commandPaletteItem;
     private Forms.ToolStripMenuItem? _battleLabItem;
     private Forms.ToolStripMenuItem? _modesItem;
     private Forms.ToolStripMenuItem? _favoritesItem;
@@ -123,7 +125,8 @@ public sealed class TrayController : IDisposable
         Action<string>? openArenaMode = null,
         Action? openBattleLab = null,
         Func<IReadOnlyList<string>>? favoriteModeIds = null,
-        Action? openPromptPad = null)
+        Action? openPromptPad = null,
+        Action? openCommandPalette = null)
     {
         _log = log;
         _dispatcher = dispatcher;
@@ -154,6 +157,7 @@ public sealed class TrayController : IDisposable
         _openArenaMode = openArenaMode;
         _openBattleLab = openBattleLab;
         _openPromptPad = openPromptPad;
+        _openCommandPalette = openCommandPalette;
         _favoriteModeIds = favoriteModeIds;
     }
 
@@ -230,6 +234,15 @@ public sealed class TrayController : IDisposable
                 _promptPadItem = new Forms.ToolStripMenuItem("Prompt pad");
                 _promptPadItem.Click += (_, _) => _dispatcher.Invoke(_openPromptPad);
                 menu.Items.Add(_promptPadItem);
+            }
+            // Command palette (v0.10.0): the keyboard launcher, one
+            // click from the tray. Everything it lists lives behind the
+            // main window, so while locked this item is disabled.
+            if (_openCommandPalette is not null)
+            {
+                _commandPaletteItem = new Forms.ToolStripMenuItem("Command palette");
+                _commandPaletteItem.Click += (_, _) => _dispatcher.Invoke(_openCommandPalette);
+                menu.Items.Add(_commandPaletteItem);
             }
             _settingsItem = new Forms.ToolStripMenuItem("Settings…");
             _settingsItem.Click += (_, _) => _dispatcher.Invoke(_openSettings);
@@ -418,6 +431,7 @@ public sealed class TrayController : IDisposable
         if (_newWindowItem is not null) _newWindowItem.Enabled = !locked;
         if (_dictateItem is not null) _dictateItem.Enabled = !locked;
         if (_promptPadItem is not null) _promptPadItem.Enabled = !locked;
+        if (_commandPaletteItem is not null) _commandPaletteItem.Enabled = !locked;
         if (_reloadItem is not null) _reloadItem.Enabled = !locked;
         if (_downloadsItem is not null) _downloadsItem.Enabled = !locked;
         if (_settingsItem is not null) _settingsItem.Enabled = !locked;

@@ -2,6 +2,20 @@
 
 All notable changes to ArenaDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.10.0] — 2026-11-23
+
+Around thirty commands, four menus to find them in, and one command — the window layout cycle — with no way to be reached at all. This release adds one list you can type at: **Ctrl+K**, a few letters, Enter.
+
+### Added
+
+- **The command palette (Ctrl+K).** One searchable list of everything the app can be asked to do: the nine Arena modes, every window (Settings, Downloads, the Battle Lab pane, the prompt pad, the field pass, the shortcut list, Diagnostics, This session…, Help, Check for updates), the three layouts and their cycle, focus mode, always-on-top, Find in page, Back / Forward / Home / Reload / Restore the last closed page, the three zoom steps, Print, and the two page hand-offs. Type a few letters — every word must start a word in the command's name or keywords, the same rule Settings and Help search by — move with ↑ ↓, run with Enter, leave with Esc. Each row prints the key that actually works, including one you remapped. It opens from ⋯ → **Tools** → *Command palette…*, the tray menu, **Ctrl+K**, `--palette` / `--command-palette`, or `arenadesktop://palette`, and it starts nothing new: every command is a second door onto a menu item or key that already existed. It refuses to open while the app is locked.
+- **A key for the layout cycle: Ctrl+Shift+K.** Standard → Compact Focus → Left Rail → Standard in one gesture, also in ⋯ → **View** → **Layout** → *Cycle layout* and in the palette. `ShellLayoutCycle` has been in Core since v0.2.0; nothing could call it, because the parity target keeps its cycle inside a command palette this app did not have.
+- **The prompt pad keeps an unsent draft.** Closing the pad no longer loses what is in the box — the text comes back the next time it opens, stored in `prompt-pad.json` beside the remembered prompts and carried by portable mode like the rest of your data. Copying a prompt clears the draft, because by then the prompt is in the remembered list.
+
+### Changed
+
+- **The shortcut sheet lists Ctrl+K** with the shortcuts that open something, Help has a page for the palette, and the tray menu has an item for it. Nothing was removed or rebound: every key that worked in v0.9.0 still does the same thing.
+
 ## [0.9.0] — 2026-11-23
 
 A scratchpad for the prompt you only want once. Battle Lab is the library — kept, organised, journaled — and it is the wrong place for a prompt you are about to try exactly one time. The prompt pad is that place: open it, write or paste the prompt, and it goes on the clipboard while the Arena page you picked comes forward with the keyboard already in it.

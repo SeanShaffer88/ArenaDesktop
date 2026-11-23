@@ -4,6 +4,7 @@ using System.Windows.Input;
 using ArenaDesktop.Core;
 using Clipboard = System.Windows.Clipboard;
 using MessageBox = System.Windows.MessageBox;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace ArenaDesktop;
 
@@ -40,6 +41,9 @@ public partial class PromptPadWindow : Window
     /// <summary>Handlers wired in XAML fire during construction; nothing may touch half-built state before this is true.</summary>
     private bool _ready;
 
+    /// <summary>True once the prompt went to the clipboard: the draft it describes is gone, so Closing must not save it back.</summary>
+    private bool _copied;
+
     public PromptPadWindow(DiagnosticLog log, Action<ArenaMode, string> onCopied)
     {
         InitializeComponent();
@@ -50,10 +54,38 @@ public partial class PromptPadWindow : Window
         var target = PromptPad.TargetMode(_data);
         ModeCombo.SelectedItem = ArenaModes.All.FirstOrDefault(m => m.Id == target.Id) ?? ArenaModes.All[0];
         _ready = true;
+        // v0.10.0: whatever was in the box when the pad last closed comes
+        // back, so a half-written prompt is never lost to a stray Esc.
+        Editor.Text = PromptPad.Draft(_data);
+        Editor.CaretIndex = Editor.Text.Length;
         RefreshRecents();
         UpdateHint();
         UpdateCopyButton();
-        Loaded += (_, _) => Editor.Focus();
+        // Closing is the one moment the box's contents are known final:
+        // save then, not on every keystroke (prompt-pad.json is not a log).
+        Closing += (_, _) => SaveDraft();
+        Loaded += (_, _) =>
+        {
+            Editor.Focus();
+            Editor.CaretIndex = Editor.Text.Length;
+        };
+    }
+
+    /// <summary>
+    /// Keep the unsent text for next time (v0.10.0). A draft that did not
+    /// change writes nothing, and a copy clears it: the prompt it
+    /// described is now in the remembered list, and reopening the pad
+    /// with the same text twice would be a surprise, not a convenience.
+    /// </summary>
+    private void SaveDraft()
+    {
+        if (_copied)
+            return;
+        var text = (Editor.Text ?? "").Trim();
+        if (string.Equals(text, _data.Draft, StringComparison.Ordinal))
+            return;
+        PromptPad.SetDraft(_data, text);
+        Save();
     }
 
     private ArenaMode CurrentMode =>
@@ -172,6 +204,10 @@ public partial class PromptPadWindow : Window
         var mode = CurrentMode;
         PromptPad.Remember(_data, text, DateTimeOffset.UtcNow);
         PromptPad.WithMode(_data, mode.Id);
+        // The box is about to close with text still in it; that text is no
+        // longer a draft, it is a remembered prompt (v0.10.0).
+        PromptPad.SetDraft(_data, "");
+        _copied = true;
         Save();
         _log.Info($"Prompt pad: copied {text.Length} characters and opened {mode.Label}");
         _onCopied(mode, text);

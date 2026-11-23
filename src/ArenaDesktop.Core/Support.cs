@@ -309,6 +309,11 @@ public static class HelpCatalog
             "Why does the log viewer have level buttons?",
             "log viewer level buttons errors warnings info unparsed filter narrow chips find redaction copy redacted diagnostics",
             HelpAction.OpenDiagnostics, "Open Diagnostics", null),
+        // v0.10.0: the command palette — one list for every command.
+        new HelpPage("command-palette",
+            "How do I find a command without the menus?",
+            "command palette ctrl k search find command type launcher everything list menu shortcut keyboard run execute mode layout cycle zoom print",
+            HelpAction.None, null, null),
         // v0.9.0: the prompt pad — the scratchpad for one prompt at a time.
         new HelpPage("prompt-pad",
             "How do I use the prompt pad?",

@@ -270,6 +270,11 @@ public static class ShortcutCatalog
         // than a trip through the menu.
         new ShortcutAction("prompt-pad", "Open the prompt pad", ShortcutScope.InApp, Remappable: false,
             new[] { "Ctrl+Shift+P" }),
+        // v0.10.0: the command palette. Ctrl+K is free here — the
+        // browser key of that name belongs to an address bar this app
+        // does not have, and the page never sees it.
+        new ShortcutAction("command-palette", "Open the command palette", ShortcutScope.InApp, Remappable: false,
+            new[] { "Ctrl+K" }),
         new ShortcutAction("fullscreen", "Full screen", ShortcutScope.InApp, Remappable: false,
             new[] { "F11" }),
         new ShortcutAction("escape", "Close find / leave focus mode or full screen", ShortcutScope.InApp, Remappable: false,

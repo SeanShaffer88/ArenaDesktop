@@ -158,3 +158,11 @@ Enter adds a new line and Esc closes the window. If the prompt has [blanks], **F
 The pad remembers the last ten prompts in `prompt-pad.json` beside your settings, and never sends them anywhere. Double-click one (or select it and press Enter) to load it back into the box. **Forget** removes the selected prompt and **Forget all** empties the list — neither touches the text in the box or anything in Battle Lab. In portable mode the file travels with your other settings; your sign-in still does not.
 
 If Settings → Behavior has "Clear copied prompts from the clipboard after…" turned on, a pad copy is cleared on that schedule too, unless you copy something else in the meantime or the app is locked.
+
+## How do I find a command without the menus?
+
+Press **Ctrl+K** — or use ⋯ → **Tools** → *Command palette…*, the tray menu's **Command palette**, `--palette`, or an `arenadesktop://palette` link — and type the first few letters of what you want: a mode (`side`), a window (`settings`, `downloads`, `prompt pad`, `help`), a layout (`compact`, `rail`, `cycle`), or a verb (`zoom`, `print`, `find`). Each word you type must start a word in the command's name, group or keywords — the same rule Settings and Help search by, so one habit works in all three places.
+
+Move with **↑** and **↓**, run the highlighted command with **Enter**, and close the list with **Esc**. The keys printed beside a row are the keys that actually work, so a key you changed in Settings shows up here as the one to press, not the default. With an empty box the list shows every command, grouped — which is a reasonable way to find out what the app can do.
+
+The palette only runs commands the menus and keys already run. It takes no arguments (not an address, a profile name or a search string), it does not learn your habits or keep a history, and it will not open while ArenaDesktop is locked: unlock first. `--palette` and the link wait behind the lock like every other flag.

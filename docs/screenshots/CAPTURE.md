@@ -13,7 +13,9 @@ or borrowed images. Please capture, signed in to Arena:
 5. A generated image downloading, showing the status-bar progress % and ETA.
 6. The prompt pad (Ctrl+Shift+P) with a prompt in the box and two
    remembered prompts listed below it.
+7. The command palette (Ctrl+K) with a few letters typed — enough that
+   the list is narrowed and the keys beside a row are visible.
 
 Save as `main-window.png`, `arena-modes-menu.png`, `settings.png`,
-`tray-menu.png`, `download-progress.png`, `prompt-pad.png` in this
-folder.
+`tray-menu.png`, `download-progress.png`, `prompt-pad.png`,
+`command-palette.png` in this folder.

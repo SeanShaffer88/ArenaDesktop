@@ -314,6 +314,7 @@ public partial class App : System.Windows.Application
         if (coldIntent.Kind is LaunchIntentKind.GoHome or LaunchIntentKind.OpenDownloads
                 or LaunchIntentKind.OpenBattleLab
                 or LaunchIntentKind.OpenPromptPad
+                or LaunchIntentKind.OpenCommandPalette
                 or LaunchIntentKind.QuickDictate or LaunchIntentKind.ShowHelp
                 or LaunchIntentKind.GoArenaMode
             || (coldIntent.Kind == LaunchIntentKind.OpenSettings && !options.OpenSettings))

@@ -77,6 +77,10 @@ public class S6Tests
             "side-pane",
             // v0.9.0: the prompt pad opens on one fixed key.
             "prompt-pad",
+            // v0.10.0: the command palette, and the layout cycle it gave
+            // a home to (the cycle key is dispatched from the same
+            // handler, one Shift away from the palette).
+            "command-palette",
         };
         Assert.Equal(
             expected.OrderBy(x => x),
