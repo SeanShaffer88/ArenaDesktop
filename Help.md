@@ -163,6 +163,10 @@ If Settings → Behavior has "Clear copied prompts from the clipboard after…" 
 
 Press **Ctrl+K** — or use ⋯ → **Tools** → *Command palette…*, the tray menu's **Command palette**, `--palette`, or an `arenadesktop://palette` link — and type the first few letters of what you want: a mode (`side`), a window (`settings`, `downloads`, `prompt pad`, `help`), a layout (`compact`, `rail`, `cycle`), or a verb (`zoom`, `print`, `find`). Each word you type must start a word in the command's name, group or keywords — the same rule Settings and Help search by, so one habit works in all three places.
 
+It covers the whole ⋯ menu since v0.11.0 — including the log, the support bundle, Connection security, About, Save as PDF, opening a second window, the five named zoom levels, Quick ask and Lock ArenaDesktop — so anything the menus can do, this box can do too.
+
 Move with **↑** and **↓**, run the highlighted command with **Enter**, and close the list with **Esc**. The keys printed beside a row are the keys that actually work, so a key you changed in Settings shows up here as the one to press, not the default. With an empty box the list shows every command, grouped — which is a reasonable way to find out what the app can do.
+
+A command that cannot work is not offered: *Lock ArenaDesktop* appears only once a lock is set, and a zoom level appears only when the current range can hold it.
 
 The palette only runs commands the menus and keys already run. It takes no arguments (not an address, a profile name or a search string), it does not learn your habits or keep a history, and it will not open while ArenaDesktop is locked: unlock first. `--palette` and the link wait behind the lock like every other flag.

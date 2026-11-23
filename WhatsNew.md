@@ -2,6 +2,20 @@
 
 The release notes ArenaDesktop shows on the first launch of a new version. This file is generated from CHANGELOG.md's current-version section at release time (see RELEASE_CHECKLIST.md) — do not edit it by hand; a test pins it to the changelog so the two can't drift.
 
+## [0.11.0] — 2026-11-23
+
+v0.10.0 gave the app one list to type at. It did not quite cover the app: the ⋯ menu still held about a dozen commands the palette had never reached — the log, the support bundle, About, Save as PDF, a second window, five named zoom levels. This release closes that gap and pins it shut with a test.
+
+### Added
+
+- **The rest of the ⋯ menu is in the palette.** *View the log…*, *Open log folder*, *Export a support bundle…*, *Connection security…*, *About ArenaDesktop*, *Save as PDF…*, *Open in a new window*, *Quick ask* (which focuses the Arena page, ready to type — until now the tray and `--ask` were the only ways to it) and *Lock ArenaDesktop*. Every one of them calls the same handler its menu item calls.
+- **The five named zoom levels.** 50%, 75%, 100%, 150% and 200% come from Core's own preset list, so the View menu's Zoom submenu and the palette can never offer different ones. 100% carries Ctrl+0, because that key already did it, and its keywords include "reset" and "normal" — the plain "Reset zoom to 100%" row is gone rather than duplicated beside it.
+- **Commands that cannot work are hidden, not offered-and-refused.** The palette now asks the shell whether a command applies: *Lock ArenaDesktop* appears only when a lock is set, and a zoom level outside the active range (150% and 200% with the extended range off) is not listed at all. The count under the list follows what is available, so "12 of 50" never implies commands are missing.
+
+### Changed
+
+- **A test now forbids the drift coming back.** Every clickable item in the ⋯ menu must either be a palette command or carry a written exemption with a reason — the find bar's own buttons, the recovery prompts, the pinned-mode rows, the parameterised mode rows and the items that open a submenu are the documented exceptions. Adding a menu item without deciding which it is fails CI.
+
 ## [0.10.0] — 2026-11-23
 
 Around thirty commands, four menus to find them in, and one command — the window layout cycle — with no way to be reached at all. This release adds one list you can type at: **Ctrl+K**, a few letters, Enter.
