@@ -2,6 +2,20 @@
 
 All notable changes to ArenaDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.17.0] — 2026-11-23
+
+Settings no longer presents all nine sections in one long page. The new left navigation keeps the section list available while showing one page at a time. Search filters the section list and can still jump directly to matching controls.
+
+### Changed
+
+- **Settings has a persistent section pane.** Choose Behavior, Profiles, Privacy & security, or another section from the left; the selected page appears on the right. Only an unusually long selected section needs its own scrollbar. OK and Cancel remain pinned below the page.
+- **Search works with page navigation.** Matching sections stay in the left list, and control matches remain browsable with Down and Up; Enter moves focus to the selected control. Settings reopens on the last selected section.
+- **The default Settings window is wider** to accommodate the navigation pane and settings page. Existing saved widths too narrow for the new layout are sanitized to the new minimum.
+
+### Verification status
+
+The PR's Windows CI build, test suite and ARM64 checks passed. Real Windows visual and accessibility verification of the new Settings navigation remains **Unverified**; the release checklist calls for keyboard, theme, High Contrast and screenshot checks on a real Windows desktop.
+
 ## [0.16.0] — 2026-11-23
 
 Settings gets a more direct search, safer restore review, and clearer per-profile backup paths. This release also tightens accessibility declarations and records the real-Windows checks still owed; it does not claim a screen-reader or High Contrast run that has not happened.
