@@ -28,7 +28,7 @@ public class PromptPickTests
     [Fact]
     public void AnExactNameBeatsEveryOtherRank()
     {
-        var pick = PromptPick.Find(Sample(), "Cable triage");
+        var pick = PromptPicker.Find(Sample(), "Cable triage");
         Assert.Equal(PromptPickKind.One, pick.Kind);
         Assert.Equal("Cable triage", pick.Prompt!.Name);
         Assert.Contains("Copied “Cable triage”", pick.Status);
@@ -39,7 +39,7 @@ public class PromptPickTests
     {
         // "cables" appears in a body ("these cables") and in a name ("Cables in
         // the rack"). The name wins even though it sorts later.
-        var pick = PromptPick.Find(Sample(), "cables");
+        var pick = PromptPicker.Find(Sample(), "cables");
         Assert.Equal(PromptPickKind.One, pick.Kind);
         Assert.Equal("Cables in the rack", pick.Prompt!.Name);
     }
@@ -47,14 +47,14 @@ public class PromptPickTests
     [Fact]
     public void ANamePrefixBeatsAContains_AndATieIsAShortlist()
     {
-        var pick = PromptPick.Find(Sample(), "Cable tri");
+        var pick = PromptPicker.Find(Sample(), "Cable tri");
         Assert.Equal(PromptPickKind.Many, pick.Kind);      // both start with it
         Assert.Equal(2, pick.Matches.Count);
         Assert.Contains("2 saved prompts match", pick.Status);
         Assert.Contains("Battle Lab is filtered", pick.Status);
         Assert.Null(pick.Prompt);                           // nothing was chosen for you
 
-        var single = PromptPick.Find(Sample(), "Voice");
+        var single = PromptPicker.Find(Sample(), "Voice");
         Assert.Equal(PromptPickKind.One, single.Kind);
         Assert.Equal("Voice check", single.Prompt!.Name);
     }
@@ -62,7 +62,7 @@ public class PromptPickTests
     [Fact]
     public void ACategoryNameFindsItsPrompts()
     {
-        var pick = PromptPick.Find(Sample(), "Hardware");
+        var pick = PromptPicker.Find(Sample(), "Hardware");
         Assert.Equal(PromptPickKind.One, pick.Kind);
         Assert.Equal("Cables in the rack", pick.Prompt!.Name);
     }
@@ -70,7 +70,7 @@ public class PromptPickTests
     [Fact]
     public void TheBodyIsTheLastResort()
     {
-        var pick = PromptPick.Find(Sample(), "calmer");
+        var pick = PromptPicker.Find(Sample(), "calmer");
         Assert.Equal(PromptPickKind.One, pick.Kind);
         Assert.Equal("Voice check", pick.Prompt!.Name);
     }
@@ -78,20 +78,20 @@ public class PromptPickTests
     [Fact]
     public void MatchingIgnoresCase_AndSurroundingSpace()
     {
-        Assert.Equal(PromptPickKind.One, PromptPick.Find(Sample(), "  cAbLe TrIaGe  ").Kind);
+        Assert.Equal(PromptPickKind.One, PromptPicker.Find(Sample(), "  cAbLe TrIaGe  ").Kind);
     }
 
     [Fact]
     public void NothingIsSaidPlainly_WithNowhereToGoButBattleLab()
     {
-        var pick = PromptPick.Find(Sample(), "quantum flux");
+        var pick = PromptPicker.Find(Sample(), "quantum flux");
         Assert.Equal(PromptPickKind.None, pick.Kind);
         Assert.Null(pick.Prompt);
         Assert.Empty(pick.Matches);
         Assert.Contains("No saved prompt matches", pick.Status);
         Assert.Contains("Battle Lab", pick.Status);
 
-        var empty = PromptPick.Find(Sample(), "   ");
+        var empty = PromptPicker.Find(Sample(), "   ");
         Assert.Equal(PromptPickKind.None, empty.Kind);
         Assert.Contains("Type a few words", empty.Status);
     }
@@ -99,14 +99,14 @@ public class PromptPickTests
     [Fact]
     public void AnEmptyOrMissingLibraryIsNotACrash()
     {
-        Assert.Equal(PromptPickKind.None, PromptPick.Find(Library(), "anything").Kind);
-        Assert.Equal(PromptPickKind.None, PromptPick.Find(null, "anything").Kind);
+        Assert.Equal(PromptPickKind.None, PromptPicker.Find(Library(), "anything").Kind);
+        Assert.Equal(PromptPickKind.None, PromptPicker.Find(null, "anything").Kind);
     }
 
     [Fact]
     public void TheShortlistIsOrderedByName_SoTwoRunsAgree()
     {
-        var pick = PromptPick.Find(Sample(), "Cable");
+        var pick = PromptPicker.Find(Sample(), "Cable");
         Assert.Equal(PromptPickKind.Many, pick.Kind);
         var names = pick.Matches.Select(p => p.Name).ToList();
         Assert.Equal(names.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList(), names);
@@ -116,7 +116,7 @@ public class PromptPickTests
     public void TheStatusFitsTheStatusBar()
     {
         var longName = new string('a', 200);
-        var pick = PromptPick.Find(Library((longName, "Ops", "body")), "aaaa");
+        var pick = PromptPicker.Find(Library((longName, "Ops", "body")), "aaaa");
         Assert.True(pick.Status.Length <= 220, $"status was {pick.Status.Length} characters");
         Assert.DoesNotContain(longName, pick.Status);        // a 200-char name is not quoted whole
     }
@@ -151,7 +151,7 @@ public class PromptPickTests
         var main = Source("src/ArenaDesktop/MainWindow.xaml.cs");
         Assert.Contains("case PaletteArgumentKind.Prompt:", main);
         Assert.Contains("RunSavedPrompt(query.Argument);", main);
-        Assert.Contains("PromptPick.Find(library, argument)", main);
+        Assert.Contains("PromptPicker.Find(library, argument)", main);
         // Many: the pane is filtered rather than one prompt being chosen.
         Assert.Contains("OpenBattleLabPane();", main);
         Assert.Contains("_battleLab?.ShowSearch(argument);", main);

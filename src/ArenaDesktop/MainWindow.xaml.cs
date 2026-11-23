@@ -1277,7 +1277,7 @@ public partial class MainWindow : Window
     private void RunSavedPrompt(string argument)
     {
         var library = _battleLab?.Library ?? BattleLabLibrary.Open(AppPaths.BattleLabPath);
-        var pick = PromptPick.Find(library, argument);
+        var pick = PromptPicker.Find(library, argument);
         switch (pick.Kind)
         {
             case PromptPickKind.One:

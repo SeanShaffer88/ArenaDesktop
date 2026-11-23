@@ -1133,7 +1133,7 @@ public enum PromptPickKind
 }
 
 /// <summary>See <see cref="PromptPickKind"/>.</summary>
-public sealed record PromptPick(PromptPickKind Kind, BattlePrompt? Prompt,
+public sealed record PromptPickResult(PromptPickKind Kind, BattlePrompt? Prompt,
     IReadOnlyList<BattlePrompt> Matches, string Status);
 
 /// <summary>
@@ -1147,16 +1147,16 @@ public sealed record PromptPick(PromptPickKind Kind, BattlePrompt? Prompt,
 /// them. The first rank that finds anything wins; ties inside a rank are a
 /// shortlist rather than a guess.
 /// </summary>
-public static class PromptPick
+public static class PromptPicker
 {
     /// <summary>How many matches the shortlist names before it stops counting.</summary>
     public const int ShortlistCap = 5;
 
-    public static PromptPick Find(BattleLabLibrary? library, string? query)
+    public static PromptPickResult Find(BattleLabLibrary? library, string? query)
     {
         var text = (query ?? "").Trim();
         if (library is null || text.Length == 0)
-            return new PromptPick(PromptPickKind.None, null, Array.Empty<BattlePrompt>(), NoMatch(text));
+            return new PromptPickResult(PromptPickKind.None, null, Array.Empty<BattlePrompt>(), NoMatch(text));
 
         var prompts = library.SearchPrompts(null);   // whole library, library order
         var ranks = new Func<BattlePrompt, bool>[]
@@ -1176,12 +1176,12 @@ public static class PromptPick
             if (hits.Count == 0)
                 continue;
             if (hits.Count == 1)
-                return new PromptPick(PromptPickKind.One, hits[0], hits,
+                return new PromptPickResult(PromptPickKind.One, hits[0], hits,
                     $"Copied “{hits[0].Name}” — paste it into the Battle page.");
-            return new PromptPick(PromptPickKind.Many, null, hits,
+            return new PromptPickResult(PromptPickKind.Many, null, hits,
                 $"{hits.Count} saved {(hits.Count == 1 ? "prompt matches" : "prompts match")} “{Shorten(text)}” — Battle Lab is filtered to them.");
         }
-        return new PromptPick(PromptPickKind.None, null, Array.Empty<BattlePrompt>(), NoMatch(text));
+        return new PromptPickResult(PromptPickKind.None, null, Array.Empty<BattlePrompt>(), NoMatch(text));
     }
 
     private static string NoMatch(string text) => text.Length == 0
