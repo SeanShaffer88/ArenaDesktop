@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:ArenaDesktop"
-        Title="ArenaDesktop Settings"
+        Title="ArenaDesktop Settings" AutomationProperties.Name="ArenaDesktop Settings"
         Width="580" Height="660" MinWidth="440" MinHeight="420" MaxHeight="1000"
         ResizeMode="CanResize" WindowStartupLocation="CenterOwner"
         Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
@@ -109,17 +109,20 @@
         </Style>
     </Window.Resources>
 
-    <DockPanel>
+    <DockPanel KeyboardNavigation.TabNavigation="Continue" KeyboardNavigation.ControlTabNavigation="Continue">
         <!-- Settings search (S5 #41): section-level filter + highlight. -->
         <StackPanel DockPanel.Dock="Top" Margin="18,14,18,0">
             <TextBlock Text="Search settings:" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,5"/>
-            <TextBox x:Name="SettingsSearchText" TextChanged="OnSearchTextChanged"
-                     ToolTip="Type to jump to a setting — matching sections stay visible and are highlighted; the rest hide while you search"/>
-            <TextBlock x:Name="SearchSummary" Style="{StaticResource Note}"/>
+            <TextBox x:Name="SettingsSearchText" TextChanged="OnSearchTextChanged" PreviewKeyDown="OnSearchPreviewKeyDown"
+                     AutomationProperties.Name="Search Settings controls" AutomationProperties.HelpText="Type to filter sections and controls. Down and Up choose a matching control; Enter moves focus to it."
+                     ToolTip="Search for a setting or control — matching sections stay visible; Down/Up select matches and Enter jumps to one"/>
+            <TextBlock x:Name="SearchSummary" Style="{StaticResource Note}"
+                       AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Settings search results"/>
             <!-- v0.13.0: a panel that cannot be read says so here. Settings is
                  the window a user opens *because* something is wrong; it must
                  not be the window that refuses to open. -->
             <Border x:Name="LoadFailureBanner" Visibility="Collapsed" Margin="0,10,0,0"
+                    AutomationProperties.Name="Settings load warning" AutomationProperties.LiveSetting="Assertive"
                     Padding="12,10" Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6">
                 <StackPanel Orientation="Horizontal">
@@ -325,7 +328,24 @@
                             <Button x:Name="CreateShortcutButton" Content="Create desktop shortcut" Width="164" Margin="8,0,0,0" Click="OnCreateProfileShortcut"
                                     ToolTip="Puts a shortcut on the Desktop that opens ArenaDesktop with this profile"/>
                         </StackPanel>
-                        <TextBlock x:Name="ProfileNote" Style="{StaticResource Note}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button x:Name="ExportProfileSettingsButton" Content="Export profile settings…" Width="176"
+                                    Click="OnExportProfileSettings" AutomationProperties.Name="Export selected profile settings"
+                                    ToolTip="Export this profile's preferences only. Sign-in cookies and site data are not included."/>
+                            <Button x:Name="ImportProfileSettingsButton" Content="Restore profile settings…" Width="184" Margin="8,0,0,0"
+                                    Click="OnImportProfileSettings" AutomationProperties.Name="Restore settings into the selected profile"
+                                    ToolTip="Restore preferences into this profile without changing its sign-in or profile id. Site data is not included."/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource Note}" Margin="0,2,0,0"
+                                   Text="Profile exports include its name, start page, downloads folder, color, zoom and data cap. They do not contain cookies or sign-ins."/>
+                        <Button x:Name="OpenProfileDataFolderButton" Content="Open this profile’s site-data folder…" Width="250"
+                                HorizontalAlignment="Left" Margin="0,6,0,0" Click="OnOpenProfileDataFolder"
+                                AutomationProperties.Name="Open selected profile site-data folder"
+                                ToolTip="Open the selected profile's WebView2 folder. Exit ArenaDesktop fully before copying or restoring files there."/>
+                        <TextBlock Style="{StaticResource Note}" Margin="0,2,0,0"
+                                   Text="For sign-in cookies and site data, copy this folder only after ArenaDesktop is fully exited. Restore only while it is closed, under the same Windows user on the same PC; Windows usually cannot decrypt these cookies on another PC or account."/>
+                        <TextBlock x:Name="ProfileNote" Style="{StaticResource Note}"
+                                   AutomationProperties.Name="Profile operation status" AutomationProperties.LiveSetting="Polite"/>
                         <TextBlock Style="{StaticResource Note}" Margin="0,8,0,2"
                                    Text="New profile — optionally copy settings (start page, downloads folder, zoom, color) from an existing one. Sign-ins are never copied:"/>
                         <ComboBox x:Name="CopyFromCombo" SelectionChanged="OnCopyFromChanged"
@@ -455,7 +475,7 @@
                         <TextBlock Style="{StaticResource Note}" Margin="0,10,0,2"
                                    Text="Changeable shortcuts — click a key button, then press the new combination (it must include Ctrl or Alt). Reset puts one key back to its default:"/>
                         <StackPanel x:Name="ShortcutRows"/>
-                        <TextBlock x:Name="ShortcutStatus" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock x:Name="ShortcutStatus" Style="{StaticResource Note}" AutomationProperties.Name="Shortcut editor status" AutomationProperties.LiveSetting="Polite" Foreground="{StaticResource AccentBrush}"/>
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <Button Content="All shortcuts…" Width="130" Click="OnOpenShortcutsList"
                                     ToolTip="Open the searchable list of every shortcut (Ctrl+/)"/>
@@ -478,7 +498,7 @@
                             <Button Content="Reset" Width="80" Margin="8,0,0,0" Click="OnResetGlobalHotkey"
                                     ToolTip="Put the global hotkey back to the default, Ctrl+Alt+A"/>
                         </StackPanel>
-                        <TextBlock x:Name="GlobalHotkeyStatus" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock x:Name="GlobalHotkeyStatus" Style="{StaticResource Note}" AutomationProperties.Name="Global hotkey status" AutomationProperties.LiveSetting="Polite" Foreground="{StaticResource AccentBrush}"/>
                         <TextBlock Style="{StaticResource Note}"
                                    Text="The default is Ctrl+Alt+A. If another app already uses the combination, registration fails and the status line above says so — pick a different one. While the app is locked, the hotkey only ever shows the lock screen."/>
                     </StackPanel>
@@ -539,12 +559,12 @@
                             <Button Content="Import settings…" Width="130" Margin="8,0,0,0" Click="OnImportSettings"
                                     ToolTip="Replace these settings with ones from an exported file"/>
                         </StackPanel>
-                        <TextBlock x:Name="ImportNote" Style="{StaticResource Note}"
+                        <TextBlock x:Name="ImportNote" Style="{StaticResource Note}" AutomationProperties.Name="Settings import/export status" AutomationProperties.LiveSetting="Polite"
                                    Text="Export saves the settings shown here (including profiles and per-profile start pages) as a small JSON file. Sign-ins themselves are not exported — those stay in each profile's own data."/>
                         <Button Content="Reset all settings to defaults…" Width="230" HorizontalAlignment="Left"
                                 Margin="0,12,0,0" Click="OnResetSettings"
                                 ToolTip="Restores every preference to its default. Your current settings are exported to a backup file first; profiles, sign-ins, and downloads are not touched"/>
-                        <TextBlock x:Name="ResetNote" Style="{StaticResource Note}"
+                        <TextBlock x:Name="ResetNote" Style="{StaticResource Note}" AutomationProperties.Name="Settings reset status" AutomationProperties.LiveSetting="Polite"
                                    Text="Reset restores preferences only — profiles, sign-ins, last pages, and downloaded files stay exactly as they are. A backup of your current settings is saved first, so Import can undo it."/>
                         <Button Content="Reset ArenaDesktop…" Width="230" HorizontalAlignment="Left"
                                 Margin="0,12,0,0" Click="OnOpenResetWizard"
@@ -558,7 +578,7 @@
                                 Click="OnBackupNow"
                                 ToolTip="Write a fresh backup of settings and downloads history right now"/>
                         <StackPanel x:Name="BackupRows" Margin="0,6,0,0"/>
-                        <TextBlock x:Name="BackupNote" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock x:Name="BackupNote" Style="{StaticResource Note}" AutomationProperties.Name="Backup restore status" AutomationProperties.LiveSetting="Polite" Foreground="{StaticResource AccentBrush}"/>
                         <TextBlock x:Name="PortableNote" Style="{StaticResource Note}" Margin="0,10,0,0"/>
                     </StackPanel>
                 </Border>
@@ -586,10 +606,10 @@
                                     ToolTip="Clear the chosen data now (you'll be asked to confirm, with exactly what it does)"/>
                         </StackPanel>
                         <TextBlock x:Name="ClearPlanNote" Style="{StaticResource Note}"/>
-                        <TextBlock x:Name="ClearResultNote" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock x:Name="ClearResultNote" Style="{StaticResource Note}" AutomationProperties.Name="Clear data result" AutomationProperties.LiveSetting="Polite" Foreground="{StaticResource AccentBrush}"/>
 
                         <TextBlock Text="Permissions (profile ArenaDesktop is currently running):" Style="{StaticResource SubHeader}"/>
-                        <TextBlock x:Name="PermissionsNote" Style="{StaticResource Note}" Margin="0,0,0,0"
+                        <TextBlock x:Name="PermissionsNote" Style="{StaticResource Note}" AutomationProperties.Name="Saved permissions status" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,0"
                                    Text="Reading the saved permission choices…"/>
                         <StackPanel x:Name="PermissionRows" Margin="0,4,0,0"/>
                         <Button Content="Refresh permissions" Width="150" HorizontalAlignment="Left" Margin="0,6,0,0"

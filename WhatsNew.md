@@ -2,6 +2,21 @@
 
 The release notes ArenaDesktop shows on the first launch of a new version. This file is generated from CHANGELOG.md's current-version section at release time (see RELEASE_CHECKLIST.md) — do not edit it by hand; a test pins it to the changelog so the two can't drift.
 
+## [0.16.0] — 2026-11-23
+
+Settings gets a more direct search, safer restore review, and clearer per-profile backup paths. This release also tightens accessibility declarations and records the real-Windows checks still owed; it does not claim a screen-reader or High Contrast run that has not happened.
+
+### Added
+
+- **Search can jump to a setting control.** Search still filters whole sections, but now it also searches enabled controls' labels, accessible names, help text and combo-box choices. Down and Up browse matching controls; Enter scrolls to and focuses the selected result. Search results are announced politely to assistive technology.
+- **Profile settings can travel separately.** Export or restore the selected profile's name, start page, downloads folder, color, zoom and data cap without replacing the target profile id or sign-in. Export offers password encryption; a plain JSON choice warns that the profile name, custom start page and local folder choices are readable. Neither form contains cookies or site data. A new button opens that profile's exact WebView2 data folder for manual backup or restore; close ArenaDesktop completely before copying files. Windows-protected sign-in cookies usually work only for the same Windows account on the same PC.
+- **Settings backup restore previews the change.** Before a settings backup is loaded into the Settings draft, the confirmation names the areas that differ and the profiles in the backup. Cancel leaves the draft untouched; choosing Yes still does not save the settings until OK is chosen in the Settings window.
+- **Accessibility wiring is more explicit.** Settings search and its result summary have accessible names and a polite live region; load failures use an assertive live region. The shortcuts window now has a named root and announces search-result changes. Keyboard tab navigation is explicitly continuous. Drift guards pin these declarations and the search navigation keys.
+
+### Verification status
+
+The full build and Core suite run in CI. The v0.16.0 on-machine checklist now calls for Narrator, keyboard-only navigation, 150% text scaling, Dark/Light/High Contrast checks, profile backup/restore handling, and real Settings screenshots in each theme. Those observations remain **Unverified** until performed on a real Windows desktop; no mock or generated screenshots are substituted.
+
 ## [0.15.0] — 2026-11-23
 
 The Settings window had grown by accretion: nine sections in one long column, red titles, plain fields and buttons, and OK/Cancel at the very bottom of the scroll — reachable only after scrolling past the last section. This release restyles the window; every control and handler is unchanged, only how the window looks.

@@ -173,7 +173,9 @@ Since v0.13.0 the box says **what** failed and **where** in the app it was throw
 
 If it happens **every time you open Settings**, look at the top of the Settings window: since v0.13.0 a panel that cannot be read is named in a banner ("Some settings could not be shown") and the rest of the window still works. The name in that banner is the part worth reporting.
 
-Settings is searchable: type a word to keep matching sections visible and highlight them; the other sections hide until you clear the search. Since v0.15.0, each section is grouped in a card and OK/Cancel stay at the bottom while you scroll. The search and the load-failure banner work the same as before.
+Settings is searchable: type a word to keep matching sections and controls visible. Down and Up browse matching controls; Enter scrolls to and focuses the selected one. Since v0.15.0, each section is grouped in a card and OK/Cancel stay at the bottom while you scroll.
+
+Since v0.16.0, Account profiles can export and restore one profile's preferences (name, start page, downloads folder, color, zoom and data cap). The export can be password-encrypted; a plain JSON export warns that local profile details are readable. Neither form contains cookies or sign-in state. The **Open this profile’s site-data folder…** button opens the selected WebView2 folder for manual copying; exit ArenaDesktop fully before copying or restoring files. Windows protects sign-in cookies for the same Windows user on the same PC, so a copied folder may not keep a sign-in on a different PC or account.
 
 If it happens **at launch**, the app says the main window could not be created and offers the same report; `--safe-mode` starts clean at the home page with the customisations bypassed, which is the way back in.
 

@@ -41,6 +41,8 @@ public partial class SettingsWindow : Window
     private readonly Action<AppSettings, string> _switchProfile;
     private readonly Func<string>? _notificationTest;
     private readonly Func<string>? _globalHotkeyStatus;
+    private readonly List<System.Windows.FrameworkElement> _searchControlMatches = new();
+    private int _searchControlMatchIndex;
 
     public SettingsWindow(AppSettings working, DiagnosticLog log, WebPrivacyGateway? privacy,
         Action<AppSettings, string> switchProfile, Func<string>? notificationTest = null,
@@ -548,6 +550,9 @@ public partial class SettingsWindow : Window
                                          && selected.Id != _working.ActiveProfileId
                                          && _working.Profiles.Count > 1;
         CreateShortcutButton.IsEnabled = selected is not null;
+        ExportProfileSettingsButton.IsEnabled = selected is not null;
+        ImportProfileSettingsButton.IsEnabled = selected is not null;
+        OpenProfileDataFolderButton.IsEnabled = selected is not null;
         // S5 #47: the 3-way start-page choice (replaces the old
         // StartAtHome checkbox; EnsureValid keeps the bool in sync).
         _syncingStartPage = true;
@@ -761,6 +766,143 @@ public partial class SettingsWindow : Window
 
     private void OnProfileSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) =>
         UpdateProfileButtons();
+
+    private void OnExportProfileSettings(object sender, RoutedEventArgs e)
+    {
+        HarvestControls();
+        if (SelectedProfile is not { } selected)
+            return;
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            FileName = $"arenadesktop-profile-{selected.Id}.json",
+            Filter = "Profile settings (*.json)|*.json|All files (*.*)|*.*",
+            Title = "Export profile settings",
+        };
+        var invoker = FocusReturn.Capture();
+        var chosen = dialog.ShowDialog(this) == true;
+        FocusReturn.Restore(invoker);
+        if (!chosen)
+            return;
+        invoker = FocusReturn.Capture();
+        var encrypt = System.Windows.MessageBox.Show(this,
+            "Encrypt this profile export with a password?\n\n" +
+            "Yes — encrypted; you'll choose a password next.\n" +
+            "No — plain JSON, readable by anyone who opens it. It contains the profile name, custom start page and local folder choices, but not sign-in cookies or site data.",
+            "Export profile settings", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+        FocusReturn.Restore(invoker);
+        if (encrypt == MessageBoxResult.Cancel)
+            return;
+        string contents = ProfileSettingsTransfer.Export(selected);
+        if (encrypt == MessageBoxResult.Yes)
+        {
+            var prompt = new PasswordPromptWindow(
+                "Choose a password for this encrypted profile export. You'll need it to restore the file; it can't be recovered.",
+                confirm: true) { Owner = this };
+            if (FocusReturn.ShowDialog(prompt) != true)
+                return;
+            contents = EncryptedExport.Encrypt(contents, prompt.Password);
+        }
+        try
+        {
+            File.WriteAllText(dialog.FileName, contents);
+            ProfileNote.Text = encrypt == MessageBoxResult.Yes
+                ? $"Encrypted profile preferences exported to {dialog.FileName}. Sign-in cookies and site data are not included."
+                : $"Profile preferences exported to {dialog.FileName} as plain JSON. It contains the profile name, custom start page and local folder choices, but no sign-in cookies or site data.";
+            _log.Info(encrypt == MessageBoxResult.Yes
+                ? "Profile settings exported (encrypted) from Settings window"
+                : "Profile settings exported (plain) from Settings window");
+        }
+        catch (Exception ex)
+        {
+            ProfileNote.Text = $"Couldn't export profile settings ({ex.Message}).";
+            _log.Warn($"Profile settings export failed: {ex.Message}");
+        }
+    }
+
+    private void OnOpenProfileDataFolder(object sender, RoutedEventArgs e)
+    {
+        if (SelectedProfile is not { } selected)
+            return;
+        var path = AppPaths.ProfileDir(selected.Id);
+        var invoker = FocusReturn.Capture();
+        var confirm = System.Windows.MessageBox.Show(this,
+            $"Open this profile's WebView2 site-data folder?\n\n{path}\n\n" +
+            "It contains sign-in cookies and private site data. Do not copy or replace its files while ArenaDesktop is running. " +
+            "Exit ArenaDesktop fully before backing it up or restoring it. A copy usually works only for the same Windows user on the same PC.",
+            "Profile site data", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+        FocusReturn.Restore(invoker);
+        if (confirm != MessageBoxResult.OK)
+            return;
+        try
+        {
+            Directory.CreateDirectory(path);
+            var start = new ProcessStartInfo { FileName = "explorer.exe", UseShellExecute = true };
+            start.ArgumentList.Add(path);
+            Process.Start(start);
+            ProfileNote.Text = $"Opened {path}. Exit ArenaDesktop before copying or restoring files in this folder.";
+        }
+        catch (Exception ex)
+        {
+            ProfileNote.Text = $"Couldn't open the profile data folder ({ex.Message}).";
+        }
+    }
+
+    private void OnImportProfileSettings(object sender, RoutedEventArgs e)
+    {
+        HarvestControls();
+        if (SelectedProfile is not { } selected)
+            return;
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "Profile settings (*.json)|*.json|All files (*.*)|*.*",
+            Title = "Restore profile settings",
+        };
+        var invoker = FocusReturn.Capture();
+        var chosen = dialog.ShowDialog(this) == true;
+        FocusReturn.Restore(invoker);
+        if (!chosen)
+            return;
+        string json;
+        try { json = File.ReadAllText(dialog.FileName); }
+        catch (Exception ex)
+        {
+            ProfileNote.Text = $"Couldn't read profile settings ({ex.Message}).";
+            return;
+        }
+        if (EncryptedExport.IsEncrypted(json))
+        {
+            var prompt = new PasswordPromptWindow(
+                "This profile settings export is encrypted. Type its password to restore it:",
+                confirm: false) { Owner = this };
+            if (FocusReturn.ShowDialog(prompt) != true)
+                return;
+            if (!EncryptedExport.TryDecrypt(json, prompt.Password, out var plain, out _, out var decryptMessage)
+                || plain is null)
+            {
+                ProfileNote.Text = decryptMessage ?? "That encrypted profile file couldn't be opened.";
+                return;
+            }
+            json = plain;
+        }
+        if (!ProfileSettingsTransfer.TryImport(json, out var snapshot, out var error) || snapshot is null)
+        {
+            ProfileNote.Text = error ?? "That profile settings file couldn't be used.";
+            return;
+        }
+        invoker = FocusReturn.Capture();
+        var confirm = System.Windows.MessageBox.Show(this,
+            $"Restore the preferences from profile \"{snapshot.Name}\" into \"{selected.Name}\"?\n\n" +
+            "This replaces the selected profile's name, start page, downloads folder, color, zoom and data cap. " +
+            "Its sign-in, cookies, site data, profile id and session history are not changed. Review the result, then choose OK to save.",
+            "Restore profile settings", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        FocusReturn.Restore(invoker);
+        if (confirm != MessageBoxResult.Yes)
+            return;
+        ProfileSettingsTransfer.Apply(snapshot, selected);
+        RefreshProfileCombo(selected.Id);
+        ProfileNote.Text = $"Preferences restored into {selected.Name}. Sign-in and site data were left untouched; choose OK to save.";
+        _log.Info("Profile settings restored in Settings window");
+    }
 
     private void OnAddProfile(object sender, RoutedEventArgs e)
     {
@@ -1787,14 +1929,39 @@ public partial class SettingsWindow : Window
         catch { /* layout not ready — the previous value stands */ }
     }
 
-    // ── #41 search: section-level filter + highlight ──
+    // ── #41 search: section + control filter, highlight, and keyboard navigation ──
 
     private void OnSearchTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) =>
         ApplySearch();
 
+    private void OnSearchPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (_searchControlMatches.Count == 0)
+            return;
+        if (e.Key is System.Windows.Input.Key.Down or System.Windows.Input.Key.Up)
+        {
+            var direction = e.Key == System.Windows.Input.Key.Down ? 1 : -1;
+            _searchControlMatchIndex = (_searchControlMatchIndex + direction + _searchControlMatches.Count)
+                                       % _searchControlMatches.Count;
+            var selected = _searchControlMatches[_searchControlMatchIndex];
+            selected.BringIntoView();
+            UpdateSearchSummary();
+            e.Handled = true;
+        }
+        else if (e.Key == System.Windows.Input.Key.Enter)
+        {
+            var selected = _searchControlMatches[_searchControlMatchIndex];
+            selected.BringIntoView();
+            selected.Focus();
+            e.Handled = true;
+        }
+    }
+
     private void ApplySearch()
     {
         var query = SettingsSearchText.Text;
+        _searchControlMatches.Clear();
+        _searchControlMatchIndex = 0;
         if (string.IsNullOrWhiteSpace(query))
         {
             foreach (var (_, container, header) in _sections)
@@ -1805,22 +1972,130 @@ public partial class SettingsWindow : Window
             SearchSummary.Text = "";
             return;
         }
-        var matches = SettingsSearch.Search(query);
-        var matchIds = new HashSet<string>(matches.Select(m => m.Id));
-        System.Windows.FrameworkElement? firstMatch = null;
+
+        var matchingSections = new HashSet<string>(SettingsSearch.Search(query).Select(section => section.Id));
+        foreach (var (id, container, _) in _sections)
+        {
+            var hits = EnumerateSearchControls(container)
+                .Where(control => SearchControlMatches(control, query))
+                .ToList();
+            _searchControlMatches.AddRange(hits);
+            if (hits.Count > 0)
+                matchingSections.Add(id);
+        }
+
+        System.Windows.FrameworkElement? firstMatch = _searchControlMatches.FirstOrDefault();
         foreach (var (id, container, header) in _sections)
         {
-            var hit = matchIds.Contains(id);
+            var hit = matchingSections.Contains(id);
             container.Visibility = hit ? Visibility.Visible : Visibility.Collapsed;
             header.Background = hit ? SearchHighlightBrush() : null;
             if (hit && firstMatch is null)
                 firstMatch = container;
         }
-        SearchSummary.Text = matches.Count == 0
-            ? "No section matches that search — clear the search box to see everything again."
-            : $"{matches.Count} of {_sections.Length} sections match — the others are hidden while you search.";
+        UpdateSearchSummary(matchingSections.Count);
         if (firstMatch is not null)
             Dispatcher.BeginInvoke(new Action(() => firstMatch.BringIntoView()));
+    }
+
+    private void UpdateSearchSummary(int? matchingSectionCount = null)
+    {
+        if (_searchControlMatches.Count == 0)
+        {
+            SearchSummary.Text = matchingSectionCount is > 0
+                ? $"{matchingSectionCount} sections match. No individual control matched; clear or refine the search."
+                : "No setting matches that search — clear the search box to see everything again.";
+            return;
+        }
+        var selected = _searchControlMatches[_searchControlMatchIndex];
+        var label = SearchControlLabel(selected);
+        SearchSummary.Text = $"{_searchControlMatches.Count} control{(_searchControlMatches.Count == 1 ? "" : "s")} match — " +
+                             $"{_searchControlMatchIndex + 1} of {_searchControlMatches.Count}: {label}. " +
+                             "Use Down/Up to browse; Enter to move focus.";
+    }
+
+    private static IEnumerable<System.Windows.FrameworkElement> EnumerateSearchControls(System.Windows.DependencyObject root)
+    {
+        foreach (var child in System.Windows.LogicalTreeHelper.GetChildren(root).OfType<System.Windows.DependencyObject>())
+        {
+            if (child is System.Windows.Controls.Control control
+                && control.IsEnabled
+                && control.Visibility == Visibility.Visible
+                && control.Focusable
+                && (control is System.Windows.Controls.TextBox
+                    or System.Windows.Controls.ComboBox
+                    or System.Windows.Controls.Button
+                    or System.Windows.Controls.CheckBox
+                    or System.Windows.Controls.RadioButton))
+                yield return control;
+            foreach (var descendant in EnumerateSearchControls(child))
+                yield return descendant;
+        }
+    }
+
+    private static bool SearchControlMatches(System.Windows.FrameworkElement control, string query) =>
+        SettingsControlSearch.Matches(query, SearchControlDescription(control) + " " + SearchControlOptions(control));
+
+    private static string SearchControlLabel(System.Windows.FrameworkElement element)
+    {
+        var automation = System.Windows.Automation.AutomationProperties.GetName(element);
+        if (!string.IsNullOrWhiteSpace(automation)) return automation;
+        if (element is System.Windows.Controls.ContentControl content && content.Content is string text && !string.IsNullOrWhiteSpace(text))
+            return text;
+        if (element is System.Windows.Controls.TextBox textBox && !string.IsNullOrWhiteSpace(textBox.Text))
+            return textBox.Text.Length > 48 ? textBox.Text[..45] + "…" : textBox.Text;
+        if (element.Parent is System.Windows.Controls.Panel panel)
+        {
+            var index = panel.Children.IndexOf(element);
+            for (var i = index - 1; i >= 0 && i >= index - 2; i--)
+                if (panel.Children[i] is System.Windows.Controls.TextBlock label && !string.IsNullOrWhiteSpace(label.Text))
+                    return label.Text;
+        }
+        if (!string.IsNullOrWhiteSpace(element.Name)) return HumanizeSearchName(element.Name);
+        if (element.ToolTip is string tip) return tip.Length > 48 ? tip[..45] + "…" : tip;
+        return element.GetType().Name;
+    }
+
+    private static string SearchControlDescription(System.Windows.FrameworkElement element)
+    {
+        var parts = new List<string>();
+        var automation = System.Windows.Automation.AutomationProperties.GetName(element);
+        if (!string.IsNullOrWhiteSpace(automation)) parts.Add(automation);
+        if (element.ToolTip is string tip) parts.Add(tip);
+        if (element is System.Windows.Controls.ContentControl content && content.Content is string text) parts.Add(text);
+        if (element is System.Windows.Controls.TextBox textBox) parts.Add(textBox.Text);
+        if (!string.IsNullOrWhiteSpace(element.Name)) parts.Add(HumanizeSearchName(element.Name));
+        if (element.Parent is System.Windows.Controls.Panel panel)
+        {
+            var index = panel.Children.IndexOf(element);
+            for (var i = index - 1; i >= 0 && i >= index - 2; i--)
+                if (panel.Children[i] is System.Windows.Controls.TextBlock label && !string.IsNullOrWhiteSpace(label.Text))
+                    parts.Add(label.Text);
+        }
+        return string.Join(" ", parts);
+    }
+
+    private static string SearchControlOptions(System.Windows.FrameworkElement element)
+    {
+        if (element is not System.Windows.Controls.ComboBox combo)
+            return "";
+        return string.Join(" ", combo.Items.Cast<object>().Select(item => item switch
+        {
+            string text => text,
+            System.Windows.Controls.ContentControl content when content.Content is string text => text,
+            _ => "",
+        }));
+    }
+
+    private static string HumanizeSearchName(string name)
+    {
+        var result = new StringBuilder();
+        for (var i = 0; i < name.Length; i++)
+        {
+            if (i > 0 && char.IsUpper(name[i]) && char.IsLower(name[i - 1])) result.Append(' ');
+            result.Append(name[i]);
+        }
+        return result.ToString();
     }
 
     /// <summary>A translucent wash of the current accent behind a matched section's header.</summary>
@@ -2023,14 +2298,6 @@ public partial class SettingsWindow : Window
         var invoker = FocusReturn.Capture();
         if (backup.Kind == "settings")
         {
-            var confirm = System.Windows.MessageBox.Show(this,
-                $"Restore settings from the {backup.Stamp.LocalDateTime:yyyy-MM-dd HH:mm} backup?\n\n" +
-                "The settings in this window are replaced by the backup's — choose OK here to apply them, Cancel to discard. " +
-                "Sign-ins and profile data folders are not part of a settings backup.",
-                "Restore settings backup", MessageBoxButton.YesNo, MessageBoxImage.Question);
-            FocusReturn.Restore(invoker);
-            if (confirm != MessageBoxResult.Yes)
-                return;
             string json;
             try { json = File.ReadAllText(path); }
             catch (Exception ex)
@@ -2043,6 +2310,22 @@ public partial class SettingsWindow : Window
                 BackupNote.Text = $"That backup isn't a settings file ArenaDesktop can use ({error}).";
                 return;
             }
+
+            HarvestControls();
+            var preview = SettingsRestorePreview.Compare(_working, imported);
+            var profileNames = preview.ProfileNames.Count == 0
+                ? "(none)"
+                : string.Join(", ", preview.ProfileNames);
+            var confirm = System.Windows.MessageBox.Show(this,
+                $"Restore settings from the {backup.Stamp.LocalDateTime:yyyy-MM-dd HH:mm} backup?\n\n" +
+                preview.Summary + "\n\n" +
+                $"Profiles in this backup: {profileNames}.\n\n" +
+                "This only replaces the settings in this window. Choose OK here to apply them, or Cancel to discard. " +
+                "Sign-ins, cookies and profile data folders are not part of a settings backup.",
+                "Preview settings restore", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            FocusReturn.Restore(invoker);
+            if (confirm != MessageBoxResult.Yes)
+                return;
             CopySettingsInto(imported, _working);
             LoadControls();
             BackupNote.Text = $"Settings restored from the {backup.Stamp.LocalDateTime:yyyy-MM-dd HH:mm} backup — review them, then OK to apply.";
