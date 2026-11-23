@@ -210,6 +210,7 @@ public partial class SettingsWindow : Window
     /// <summary>(Re)fill every control from the working settings — at open and after an import.</summary>
     private void LoadControls()
     {
+        _loadFailures.Clear();
         StartWithWindowsCheck.IsChecked = _working.StartWithWindows;
         StartMinimizedCheck.IsChecked = _working.StartMinimizedToTray;
         CloseToTrayCheck.IsChecked = _working.CloseToTray;
@@ -228,7 +229,7 @@ public partial class SettingsWindow : Window
         var channelIndex = Array.FindIndex(UpdateChannelChoices, c => c.Value == _working.UpdateChannel);
         UpdateChannelCombo.SelectedIndex = channelIndex >= 0 ? channelIndex : 0;
         ShowWhatsNewCheck.IsChecked = _working.ShowWhatsNew;
-        RefreshUpdateSnoozeNote();
+        Guard("the update snooze line", RefreshUpdateSnoozeNote);
         // Modes pack (v0.3.0): the startup-mode shape picks the combo;
         // the specific combo follows the stored mode id; each
         // favorite combo shows its stored pick (or "None").
@@ -255,8 +256,8 @@ public partial class SettingsWindow : Window
         HistoryCapCombo.SelectedItem = DownloadHistoryStore.SanitizeCap(_working.DownloadHistoryCap).ToString();
         DownloadsFolderText.Text = _working.DownloadsFolder ?? "";
         // Enhancement pack: the folder health check and the pinned-mode row.
-        RefreshDownloadsFolderHealth();
-        RefreshPinnedModeRow();
+        Guard("the downloads-folder check", RefreshDownloadsFolderHealth);
+        Guard("the pinned-mode row", RefreshPinnedModeRow);
         // (Behavior also owns the pinned-mode row; its note above the
         // row points at ⋯ → Pin this mode for setting it.)
 
@@ -271,7 +272,9 @@ public partial class SettingsWindow : Window
         // the LIVE registration, which the main window owns) and the
         // arenadesktop:// links toggle (#99 — its status line reads the
         // actual registration, not the clone).
-        RefreshGlobalHotkeyControls();
+        // A lambda, not a method group: RefreshGlobalHotkeyControls takes an
+        // optional override, and an optional parameter does not convert to Action.
+        Guard("the global hotkey row", () => RefreshGlobalHotkeyControls());
         ProtocolLinksCheck.IsChecked = _working.RegisterProtocolLinks;
         ProtocolStatus.Text = ProtocolRegistration.StatusText(_working);
 
@@ -292,7 +295,9 @@ public partial class SettingsWindow : Window
             ? $"Portable mode is ON: settings, download history, and logs live in {AppPaths.RootDir} — a data folder beside the app. Sign-in data still lives in your user profile (see README, “Where things live”)."
             : $"Settings, download history, and logs live in {AppPaths.RootDir}. For portable use, put an empty file named portable.txt beside ArenaDesktop.exe and restart: settings then live in a data folder beside the app and start fresh there — nothing is moved automatically.";
 
-        RefreshProfileCombo(_working.ActiveProfileId);
+        // Reading a profile's folder size touches the disk, which is the one
+        // part of this that can fail on a machine that is not ours.
+        Guard("the profile list", () => RefreshProfileCombo(_working.ActiveProfileId));
 
         // S7: privacy section state — the autofill toggles (#68), the
         // clear-data plan note (#61), the app lock (#64), the privacy
@@ -300,17 +305,60 @@ public partial class SettingsWindow : Window
         // forget: they fill their rows when WebView2 answers).
         PasswordAutosaveCheck.IsChecked = _working.PasswordAutosaveEnabled;
         GeneralAutofillCheck.IsChecked = _working.GeneralAutofillEnabled;
-        UpdateClearPlanNote();
-        RefreshLockUi();
-        RefreshPrivacyReport();
-        _ = RefreshPermissionsAsync();
-        _ = RefreshSiteDataAsync();
-        RefreshBackupRows(); // S8 #79: the rotating-backup list
+        Guard("the clear-data note", UpdateClearPlanNote);
+        Guard("the app-lock row", RefreshLockUi);
+        Guard("the privacy report", RefreshPrivacyReport);
+        // Both of these are fire-and-forget reads that fill their rows when
+        // WebView2 answers; guarding them keeps an immediate failure from
+        // escaping the load.
+        Guard("the permissions row", () => _ = RefreshPermissionsAsync());
+        Guard("the site-data row", () => _ = RefreshSiteDataAsync());
+        Guard("the backup list", RefreshBackupRows); // S8 #79: the rotating-backup list
 
         // S5 #46: the Settings window's own text follows the scale
         // (re-applied after every LoadControls — the design sizes are
         // remembered, so this never compounds).
-        ShellTextScaling.Apply(this, _working.ShellFontScale);
+        Guard("text scaling", () => ShellTextScaling.Apply(this, _working.ShellFontScale));
+
+        ShowLoadFailures();
+    }
+
+    /// <summary>Load-time steps that threw (v0.13.0), named in the banner and the log.</summary>
+    private readonly List<string> _loadFailures = new();
+
+    /// <summary>
+    /// Run one load step. A failure is logged with the step's name and listed
+    /// in the banner; the rest of the window still loads and still works.
+    /// Before this, any single throw here meant Settings never appeared and the
+    /// user got a message box pointing at a log file (the v0.12.0 report).
+    /// </summary>
+    private void Guard(string step, Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            _loadFailures.Add(step);
+            _log.Error($"Settings: {step} failed: {ex}");
+        }
+    }
+
+    /// <summary>Show what did not load, or hide the banner when everything did.</summary>
+    private void ShowLoadFailures()
+    {
+        if (LoadFailureBanner is null)
+            return;
+        if (_loadFailures.Count == 0)
+        {
+            LoadFailureBanner.Visibility = Visibility.Collapsed;
+            return;
+        }
+        LoadFailureDetail.Text =
+            $"{string.Join("; ", _loadFailures)}. The rest of this window works, and the log has the details " +
+            "— ⋯ → Help → View log.";
+        LoadFailureBanner.Visibility = Visibility.Visible;
     }
 
     /// <summary>The snooze line + its cancel button (S9 #83): visible only while a snooze is actually in force.</summary>

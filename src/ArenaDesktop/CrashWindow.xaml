@@ -1,0 +1,62 @@
+<Window x:Class="ArenaDesktop.CrashWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ArenaDesktop — something went wrong"
+        Width="560" Height="440" MinWidth="460" MinHeight="320"
+        ResizeMode="CanResize" WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+    <Window.Resources>
+        <!-- Window-local, like Settings': this dialog must not depend on
+             anything it could be shown in order to explain. -->
+        <Style x:Key="Note" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+    </Window.Resources>
+    <!-- v0.13.0: the dialog that used to say "see the log" now says what
+         broke and can hand over the details in one click. It is deliberately
+         plain and self-contained: it may be shown while the rest of the app
+         is in an unknown state. -->
+    <DockPanel Margin="18,14,18,14">
+        <TextBlock DockPanel.Dock="Top" x:Name="HeadlineText" Text="ArenaDesktop hit an unexpected error."
+                   FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" TextWrapping="Wrap"/>
+        <TextBlock DockPanel.Dock="Top" x:Name="ReassuranceText" Margin="0,6,0,0" TextWrapping="Wrap"
+                   Text="Your session is safe — nothing was closed and nothing was sent anywhere."/>
+
+        <StackPanel DockPanel.Dock="Top" Margin="0,12,0,0">
+            <TextBlock Text="What happened" FontWeight="SemiBold"/>
+            <TextBox x:Name="SummaryText" IsReadOnly="True" BorderThickness="0" Background="Transparent"
+                     Foreground="{StaticResource TextBrush}" TextWrapping="Wrap" Margin="0,2,0,0"
+                     Style="{x:Null}" Padding="0"
+                     AutomationProperties.Name="What happened: the exception and the code that threw it"
+                     ToolTip="The exception, and the part of ArenaDesktop that was running when it was thrown"/>
+            <TextBlock x:Name="WhereText" Style="{StaticResource Note}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <StackPanel DockPanel.Dock="Top" Margin="0,10,0,0">
+            <TextBlock Text="Log" FontWeight="SemiBold"/>
+            <TextBlock x:Name="LogPathText" Style="{StaticResource Note}" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <TextBlock x:Name="CopiedNote" VerticalAlignment="Center" Margin="0,0,10,0"
+                       Foreground="{StaticResource MutedBrush}" Text=""/>
+            <Button x:Name="CopyButton" Content="Copy details" Height="30" Padding="12,0" Margin="0,0,8,0"
+                    Click="OnCopy" IsDefault="True"
+                    ToolTip="Copy this report — the exception, where it was thrown, and the last 25 log lines"/>
+            <Button x:Name="OpenLogButton" Content="Open log folder" Height="30" Padding="12,0" Margin="0,0,8,0"
+                    Click="OnOpenLog"/>
+            <Button Content="Close" Height="30" Padding="14,0" Click="OnClose" IsCancel="True"/>
+        </StackPanel>
+
+        <TextBlock DockPanel.Dock="Top" Margin="0,12,0,4" FontWeight="SemiBold"
+                   Text="Details (also on the clipboard after Copy details)"/>
+        <TextBox x:Name="DetailsBox" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
+                 FontFamily="Consolas" FontSize="11" VerticalScrollBarVisibility="Auto"
+                 HorizontalScrollBarVisibility="Auto" Background="{StaticResource SurfaceBrush}"
+                 Foreground="{StaticResource MutedBrush}" BorderBrush="{StaticResource HairlineBrush}"
+                 AutomationProperties.Name="Crash report details (what Copy details puts on the clipboard)"
+                 ToolTip="The same text Copy details copies — read it before you paste it anywhere"/>
+    </DockPanel>
+</Window>

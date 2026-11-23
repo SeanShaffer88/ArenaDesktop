@@ -2,6 +2,17 @@
 
 The release notes ArenaDesktop shows on the first launch of a new version. This file is generated from CHANGELOG.md's current-version section at release time (see RELEASE_CHECKLIST.md) — do not edit it by hand; a test pins it to the changelog so the two can't drift.
 
+## [0.13.0] — 2026-11-23
+
+A bug report arrived as a screenshot of an error box: "ArenaDesktop hit an unexpected error but kept your session safe. Details were written to the log: C:\Users\…\arenadesktop.log". Settings would not open. The box named no exception, the frame that threw, or what to do — so this release fixes the two halves of that: **the app says what broke**, and **Settings cannot be taken down by one panel**.
+
+### Added
+
+- **An error report instead of a pointer to a file.** The unexpected-error box now shows the exception type and message, the app frame that threw it, and the path to the log — with **Copy details** (a bounded report: the exception, the throwing frame and the last 25 log lines, capped at about 4 KB) and **Open log folder** beside it. Esc closes it. The log tail goes through the same redaction pass the support bundle uses, so a query string, an email address or a token inside a log line is stripped before it can be pasted anywhere.
+- **Settings opens even when a panel fails.** Every load-time step that touches the disk, the registry or the page is now run under a guard: a failure is logged with the step's name (`Settings: the profile list failed: …`) and listed in a banner at the top of the window — "Some settings could not be shown: the profile list…" — while the rest of Settings loads and works. Before this, any one of those throws meant the window never appeared at all.
+- **The failure names the window, and the reason.** A Settings window that cannot even be constructed now says so ("Settings could not open." + the exception summary) instead of surfacing as an anonymous "unexpected error", and a main window that cannot be created reports the same way before the app exits.
+- **A Help page for the box itself** — *"ArenaDesktop showed me an error — what now?"* — offline, with what the buttons do, why the report is safe to paste, and what to do if it happens at launch.
+
 ## [0.12.0] — 2026-11-23
 
 The prompt pad has always been the place for a prompt you only want once — which is exactly why "actually, keep this one" was the thought it could not act on. Now it can.
