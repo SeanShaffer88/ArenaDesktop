@@ -1099,6 +1099,48 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Run an argumented palette query (v0.14.0). Every branch goes through the
+    /// same door the equivalent menu item uses — the zoom goes through the web
+    /// view's zoom, the profile through the existing switch-and-restart, the
+    /// mode through the mode registry — so the palette is still only a second
+    /// way to do things the app already does. The argument is never logged:
+    /// "find cables" is the user's text, not the app's business.
+    /// </summary>
+    private void RunPaletteArgument(PaletteQuery query)
+    {
+        switch (query.Kind)
+        {
+            case PaletteArgumentKind.Zoom:
+                if (!_webReady)
+                {
+                    SetStatus("The page isn't ready yet — zoom applies once it has loaded.");
+                    return;
+                }
+                if (!int.TryParse(query.Argument, System.Globalization.NumberStyles.Integer,
+                        System.Globalization.CultureInfo.InvariantCulture, out var percent))
+                    return;
+                Browser.ZoomFactor = Math.Clamp(
+                    percent / 100.0,
+                    ZoomMath.MinFor(_settings.ExtendedZoomRange),
+                    ZoomMath.MaxFor(_settings.ExtendedZoomRange));
+                SetStatus(ZoomMath.Report(Browser.ZoomFactor, atLimit: false, _settings.ExtendedZoomRange));
+                break;
+            case PaletteArgumentKind.Find:
+                ShowFindBar();
+                FindTextBox.Text = query.Argument;
+                FindTextBox.SelectAll();
+                break;
+            case PaletteArgumentKind.Profile:
+                SwitchToProfile(clone: _settings.Clone(), targetProfileId: query.Argument);
+                break;
+            case PaletteArgumentKind.Mode:
+                NavigateArenaMode(query.Argument);
+                break;
+        }
+        _log.Info($"Palette argument: {query.Kind}");
+    }
+
+    /// <summary>
     /// Which palette commands apply right now (v0.11.0). Two do not always:
     /// a named zoom level that the active range cannot hold, and "Lock
     /// ArenaDesktop" before there is a lock to open. Hiding them is better
@@ -1128,6 +1170,13 @@ public partial class MainWindow : Window
         if (_isLocked)
         {
             PresentLockWindow();
+            return;
+        }
+        // v0.14.0: an argumented palette row ("zoom 125", "find cables",
+        // "profile Work", "mode side") — the palette reports an id, this runs it.
+        if (PaletteArguments.FromId(id) is { } argumented)
+        {
+            RunPaletteArgument(argumented);
             return;
         }
         if (id.StartsWith(CommandPalette.ModePrefix, StringComparison.Ordinal))

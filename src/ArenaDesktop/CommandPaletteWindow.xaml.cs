@@ -66,11 +66,27 @@ public partial class CommandPaletteWindow : Window
         var rows = CommandPalette.Search(query, _isAvailable)
             .Select(c => new PaletteRow { Command = c, Keys = HintFor(c) })
             .ToList();
+        // v0.14.0: an argumented query ("zoom 125", "find cables", "profile
+        // Work", "mode side") goes first, because it is the specific thing
+        // that was typed. Anything else in the box is still a plain search.
+        if (PaletteArguments.Parse(query, _settings.Profiles) is { IsArgumented: true } argumented)
+        {
+            rows.Insert(0, new PaletteRow
+            {
+                Command = new PaletteCommand(PaletteArguments.ToId(argumented), argumented.Title, "Argument", argumented.Detail),
+                Keys = "Enter",
+            });
+        }
         Results.ItemsSource = rows;
         // The total counts what is available, not what exists: "12 of 49"
         // must not imply eleven commands are missing.
         SummaryText.Text = CommandPalette.SummaryText(
             rows.Count, CommandPalette.Available(_isAvailable).Count, query);
+        // The verbs are worth knowing about; the summary line is where the
+        // palette already explains itself.
+        if (rows.Count == 0 && !string.IsNullOrWhiteSpace(query))
+            SummaryText.Text = CommandPalette.SummaryText(0, CommandPalette.Available(_isAvailable).Count, query)
+                               + "  ·  " + PaletteArguments.HelpText();
         RunButton.IsEnabled = rows.Count > 0;
         if (rows.Count > 0)
             Results.SelectedIndex = 0;

@@ -197,13 +197,50 @@ public static class PromptBlanks
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (Match match in BlankPattern.Matches(body))
         {
-            var name = match.Groups["name"].Value.Trim();
+            var name = NamePart(match.Groups["name"].Value);
             if (name.Length == 0)
                 continue;
             if (seen.Add(name))
                 found.Add(name);
         }
         return found;
+    }
+
+    /// <summary>
+    /// The defaults a prompt carries (v0.14.0): <c>[tone=neutral]</c> names a
+    /// blank "tone" whose default is "neutral". First spelling wins, like
+    /// <see cref="Extract"/>.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> Defaults(string? body)
+    {
+        var defaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrEmpty(body))
+            return defaults;
+        foreach (Match match in BlankPattern.Matches(body))
+        {
+            var name = NamePart(match.Groups["name"].Value);
+            var fallback = DefaultPart(match.Groups["name"].Value);
+            if (name.Length == 0 || fallback.Length == 0)
+                continue;
+            defaults.TryAdd(name, fallback);
+        }
+        return defaults;
+    }
+
+    /// <summary>The blank's name: everything before the first <c>=</c>, trimmed.</summary>
+    private static string NamePart(string raw)
+    {
+        var text = (raw ?? "").Trim();
+        var separator = text.IndexOf('=');
+        return (separator < 0 ? text : text[..separator]).Trim();
+    }
+
+    /// <summary>The default after the first <c>=</c>, trimmed, or empty when there is none.</summary>
+    private static string DefaultPart(string raw)
+    {
+        var text = raw ?? "";
+        var separator = text.IndexOf('=');
+        return separator < 0 ? "" : text[(separator + 1)..].Trim();
     }
 
     /// <summary>
@@ -226,7 +263,12 @@ public static class PromptBlanks
                 .Where(pair => !string.IsNullOrWhiteSpace(pair.Value))
                 .Select(pair => pair.Key.Trim()),
             StringComparer.OrdinalIgnoreCase);
-        return blanks.Where(b => !filled.Contains(b)).ToList();
+        // v0.14.0: a blank with a default is filled by its own default when the
+        // user supplies nothing, so it is not reported as left behind.
+        var defaulted = Defaults(body);
+        return blanks
+            .Where(b => !filled.Contains(b) && !defaulted.ContainsKey(b))
+            .ToList();
     }
 
     /// <summary>
@@ -259,9 +301,16 @@ public static class PromptBlanks
         }
         return BlankPattern.Replace(body, match =>
         {
-            var name = match.Groups["name"].Value.Trim();
-            return name.Length > 0 && lookup.TryGetValue(name, out var value)
-                ? value
+            var name = NamePart(match.Groups["name"].Value);
+            if (name.Length == 0)
+                return match.Value;
+            if (lookup.TryGetValue(name, out var value))
+                return value;
+            // v0.14.0: [tone=neutral] is a blank with a default — an answer the
+            // prompt's author already gave. The user's own value still wins;
+            // the default only speaks when nobody else did.
+            return DefaultPart(match.Groups["name"].Value) is { Length: > 0 } fallback
+                ? fallback
                 : match.Value;
         });
     }
