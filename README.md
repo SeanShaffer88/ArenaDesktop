@@ -6,7 +6,7 @@ A native Windows desktop client for [Arena](https://arena.ai) — the AI model b
 
 ## TL;DR
 
-Arena has no Windows app, so this is one: a small native program that opens arena.ai in its own window, keeps you signed in, and lives in the system tray. Think of it like giving a website its own house key instead of visiting through the browser every time. It adds the desktop touches a tab can't — one-jump navigation to every part of Arena (Battle, Direct Chat, Side by Side, the Leaderboard, Agent, Image, Code, Video, Web Search), downloads with progress, multiple sign-in profiles, a settings window, and update notices. Free, open source (MIT), no telemetry. You need Windows 10/11 on x64 and the WebView2 Runtime (usually already installed). Download the installer from Releases and run it.
+Arena has no Windows app, so this is one: a small native program that opens arena.ai in its own window, keeps you signed in, and lives in the system tray. Think of it like giving a website its own house key instead of visiting through the browser every time. It adds the desktop touches a tab can't — one-jump navigation to every part of Arena (Battle, Direct Chat, Side by Side, the Leaderboard, Agent, Image, Code, Video, Web Search), a command palette on **Ctrl+K** that reaches everything the menus do, downloads with progress, multiple sign-in profiles, Battle Lab and the prompt pad for the prompts you keep and the ones you don't, a settings window, and in-app updates. Free, open source (MIT), no telemetry, and nothing is ever injected into or read from the Arena page. You need Windows 10/11 on x64 and the WebView2 Runtime (usually already installed). Download the installer from [Releases](../../releases/latest) and run it.
 
 ## What you get
 
@@ -17,7 +17,7 @@ Arena has no Windows app, so this is one: a small native program that opens aren
 - **Stay signed in** — a dedicated WebView2 profile on your PC keeps your Arena session between launches, and the app reopens the last page you were on.
 - **Tray support** — the tray menu runs the whole app while it's hidden: Open, Arena modes, Quick ask, New window, Reload, Downloads, Settings, Switch profile, a web-view status line, and Exit. Closing the window minimizes to the tray by default; after a while hidden the web view can suspend to free memory (never during downloads or after the microphone has been used). A global hotkey (Ctrl+Alt+A, changeable) shows or hides the app from anywhere.
 - **Battle Lab** — a side pane beside the Arena page for running Battle prompts in an organised way (⋯ menu → Tools → Battle Lab, the tray menu, `--battle-lab`, `arenadesktop://battle-lab`, or Ctrl+Shift+B), so a prompt can be read while you write the battle it belongs to. The pane reflows to fit — three columns in a wide window, two with the journal underneath in a normal one, one tabbed column when it is narrow: a searchable prompt library grouped by category, saved as you edit, with square-bracket blanks like [topic] that you fill in at copy time; "Copy prompt & open Battle" puts the finished text on the clipboard and brings the main window forward on the Battle page, ready to paste. A run queue lines prompts up in order, and a results journal keeps the winners you record by hand (A won / B won / Tie, with a note) — nothing is read from the Arena page. Four sample prompts are there on first run; edit or delete them freely.
-- **Prompt pad** — a small scratchpad for the prompt you only want once (⋯ menu → Tools → Prompt pad…, the tray, `--prompt-pad`, `arenadesktop://prompt-pad`, or Ctrl+Shift+P). Write or paste the prompt, pick the Arena page beside the button, and **Copy & open** (it names the page) puts the text on the clipboard while that page comes forward with the keyboard in it, ready for your own Ctrl+V — nothing is typed into Arena and nothing is read from it. It remembers the last ten prompts on this PC (double-click one to reuse it, Forget to drop it), fills `[blank]` placeholders with Battle Lab's own dialog, asks before copying a prompt past 6,000 characters, and honours the opt-in clipboard clear.
+- **Prompt pad** — a small scratchpad for the prompt you only want once (⋯ menu → Tools → Prompt pad…, the tray, `--prompt-pad`, `arenadesktop://prompt-pad`, or Ctrl+Shift+P). Write or paste the prompt, pick the Arena page beside the button, and **Copy & open** (it names the page) puts the text on the clipboard while that page comes forward with the keyboard in it, ready for your own Ctrl+V — nothing is typed into Arena and nothing is read from it. It remembers the last ten prompts on this PC (double-click one to reuse it, Forget to drop it), fills `[blank]` placeholders with Battle Lab's own dialog, asks before copying a prompt past 6,000 characters, and honours the opt-in clipboard clear. **Save to Battle Lab** (Ctrl+S) hands the prompt to the library instead — filed under a `Prompt pad` category, named after its first line, never added twice, and refused politely at the library's 200-prompt limit.
 - **Command palette** — one searchable list of every command, on **Ctrl+K**: the nine modes, every window, the three layouts and their cycle, focus mode, the five named zoom levels, the page actions, the log and support bundle, About, the app lock. Since v0.11.0 it covers the ⋯ menu line for line — a test fails if a menu item has neither a command nor a written reason not to have one — and a command that cannot work right now is hidden rather than refused. Type a few letters (the same prefix rule Settings and Help use), move with ↑ ↓, run with Enter. Each row shows the key that actually works, including any you remapped; it opens from ⋯ → Tools → Command palette…, the tray, `--palette` or `arenadesktop://palette`, and never while the app is locked. It is a second door onto commands the menus already run — nothing new touches the Arena page.
 - **Field pass** — nine guided checks that prove the app on your PC (⋯ menu → Field pass…, Diagnostics, `--field-pass`, or `arenadesktop://field-pass`): layouts, Battle Lab, Arena mode jumps, a battle and its journal entry, downloads, the tray and hotkey, the app lock, profile switching, and the update check. Each check says what to do and what working looks like, with a button that opens the feature; you mark Pass, Problem, or Skip, add notes if you like, and everything is saved on this PC as you go. "Copy summary" puts the finished pass on the clipboard as plain text for a bug report.
 - **Downloads with progress and control** — generated images, files and exports download in parallel with live progress %, estimated time remaining, and speed in the status bar; the taskbar button mirrors overall progress. The Downloads window is a small manager: pause/resume/cancel and retry per download, plus a searchable history with Open / Show in folder / Copy path / Open with… / Delete file and **Delete N selected…** for a multi-selection (the confirmation names the count and the total size) — sorted newest, oldest, largest, smallest or by name, filtered by size, and totalled for whatever the current filter shows. Settings checks the downloads folder can be written to and has room, and a finished download's tray balloon names the file, its size and where it landed. Folder, ask-where-to-save, name-collision behaviour and history size are all in Settings.
@@ -33,7 +33,7 @@ Arena has no Windows app, so this is one: a small native program that opens aren
 
 ## Screenshots
 
-Captures come from real runs on Windows. More captures are listed in [docs/screenshots/CAPTURE.md](docs/screenshots/CAPTURE.md) and will be added as they are taken.
+Captures come from real runs on Windows — no mock-ups, no borrowed images. One is here so far (the main window); the rest of the list in [docs/screenshots/CAPTURE.md](docs/screenshots/CAPTURE.md) is owed and will be added as it is taken.
 
 ![The ArenaDesktop main window at Battle](docs/screenshots/main-window.png)
 
@@ -45,9 +45,9 @@ Captures come from real runs on Windows. More captures are listed in [docs/scree
 
 ## Install
 
-**Installer (recommended):** download `ArenaDesktop-Setup-v0.1.0-x64.exe` from the [Releases](../../releases) page and run it. On a Windows-on-ARM PC this runs under emulation. It's a per-user install (no admin needed), with a Start Menu shortcut and an entry in Apps & Features for uninstalling. Uninstalling keeps your settings and sign-in data unless you choose to delete them when asked.
+**Installer (recommended):** download `ArenaDesktop-Setup-v0.12.0-x64.exe` from the [Releases](../../releases/latest) page and run it — each release ships its own version in the name, and the newest one is always the top of that page. On a Windows-on-ARM PC this runs under emulation. It's a per-user install (no admin needed), with a Start Menu shortcut and an entry in Apps & Features for uninstalling. Uninstalling keeps your settings and sign-in data unless you choose to delete them when asked.
 
-**Portable zip:** download `ArenaDesktop-v0.1.0-windows-x64.zip`, unzip anywhere, and run `ArenaDesktop.exe`.
+**Portable zip:** download `ArenaDesktop-v0.12.0-windows-x64.zip`, unzip anywhere, and run `ArenaDesktop.exe`. Every release also ships `SHA256SUMS.txt`, so you can check what you downloaded: `certutil -hashfile <file> SHA256` and compare.
 
 Either way: the app is not code-signed, so Windows SmartScreen may warn on first run — choose **More info → Run anyway**.
 
@@ -66,11 +66,13 @@ Either way: the app is not code-signed, so Windows SmartScreen may warn on first
 | Settings | `%APPDATA%\ArenaDesktop\settings.json` |
 | Download history | `%APPDATA%\ArenaDesktop\downloads.json` (names, sizes, dates, paths, and completed/failed state — never source URLs) |
 | Diagnostic log | `%APPDATA%\ArenaDesktop\logs\arenadesktop.log` (URLs are logged host-and-path only, never with query strings) |
-| Remembered prompts (prompt pad) | `%APPDATA%\ArenaDesktop\prompt-pad.json` (the last ten prompts and the page the pad opens; portable mode keeps it in `data`) |
+| Remembered prompts (prompt pad) | `%APPDATA%\ArenaDesktop\prompt-pad.json` (the last ten prompts, the unsent draft, and the page the pad opens; portable mode keeps it in `data`) |
+| Battle Lab library, run queue and journal | `%APPDATA%\ArenaDesktop\battle-lab.json` (prompts with their categories, the queue order, and the results you recorded by hand) |
+| Field pass | `%APPDATA%\ArenaDesktop\field-pass.json` (your Pass / Problem / Skip verdicts and notes) |
 | Web profile (login session) | `%LOCALAPPDATA%\ArenaDesktop\WebView2` for the default profile; extra profiles get sibling folders (`WebView2-<id>`) |
 | Downloads | Your Downloads folder, or the folder chosen in Settings |
 
-In **portable mode**, Settings, Download history, and the Diagnostic log live under a `data` folder beside the exe instead of `%APPDATA%\ArenaDesktop`. The Web profile stays in `%LOCALAPPDATA%` in this version — a portable copy does not carry your sign-in.
+In **portable mode**, Settings, Download history, and the Diagnostic log live under a `data` folder beside the exe instead of `%APPDATA%\ArenaDesktop` — and so do `battle-lab.json`, `prompt-pad.json` and `field-pass.json`. The Web profile stays in `%LOCALAPPDATA%` in this version — a portable copy does not carry your sign-in.
 
 ## Keyboard shortcuts
 
@@ -133,7 +135,7 @@ Architecture: `ArenaDesktop.Core` holds all testable logic (URL policy, Arena mo
 
 ## Tests
 
-The gate before any change is published: `dotnet build ArenaDesktop.sln -c Release` with zero errors and zero warnings, and the **full** Core test suite passing (never a filtered subset).
+The gate before any change is published: `dotnet build ArenaDesktop.sln -c Release` with zero errors and zero warnings, and the **full** Core test suite passing (never a filtered subset). CI runs the build and the whole suite on a Windows runner for every pull request, publishes the x64 build, and starts the published exe once (`--smoke-test`) to prove the window constructs and WebView2 initialises; tagging `v<version>` runs the same gate again before anything is published. The suite is the app's own rules pinned as tests — URL policy, settings and profiles, the update checks, the layouts, Battle Lab, the prompt pad, the palette — plus guards that fail on documentation drift.
 
 ## Troubleshooting
 
@@ -149,6 +151,16 @@ ArenaDesktop talks to the network only to display arena.ai (and its sign-in prov
 ## Limitations and known issues
 
 See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md). In short: Windows runtime behaviour is Unverified until the release checklist has been run on a real Windows machine; Direct Chat and Side by Side are selected in Arena's own page; portable mode does not carry sign-ins; the app is unsigned; x86 (32-bit) builds are not shipped in this version.
+
+## How complete is it?
+
+Three documents are kept for this question rather than one paragraph here:
+
+- **[QUALITY.md](QUALITY.md)** — the current scorecard, scored from evidence, with each row naming what would raise it. v0.12.0: 31/40. The short version: the build, the full test suite and the released binary's start-up are verified on a Windows runner; interactive behaviour is not, because no on-machine pass has been recorded yet.
+- **[KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)** — what the app deliberately does not do, and why, in plain language.
+- **[RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)** — the on-machine pass that would turn "Unverified" into a recording, item by item.
+
+Release notes for each published version are in [docs/release-notes](docs/release-notes) (and in the app's What's New on first launch); every change is in [CHANGELOG.md](CHANGELOG.md); every decision worth arguing about is in [DECISIONS.md](DECISIONS.md).
 
 ## Contributing
 

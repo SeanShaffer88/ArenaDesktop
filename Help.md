@@ -147,6 +147,8 @@ The level is read from the `[LEVEL]` marker the app writes at the start of each 
 
 Two things always work on the **whole** file, not the filtered view: *Copy redacted log* and the redaction check. A report missing the lines you filtered out would be worse than no report.
 
+Prompts kept from the prompt pad (its **Save to Battle Lab** button, Ctrl+S) arrive here too, in a `Prompt pad` category, named after their first line — so the pad and the library are one thought apart rather than two.
+
 ## How do I use the prompt pad?
 
 The prompt pad is a small window for one prompt at a time — the place for a prompt you want to try once, without adding it to Battle Lab's library. Open it with **Ctrl+Shift+P**, from ⋯ → **Tools** → *Prompt pad…*, from the tray menu, with `--prompt-pad`, or with an `arenadesktop://prompt-pad` link.
@@ -156,6 +158,8 @@ Write or paste the prompt, pick the Arena page beside the copy button, then choo
 Enter adds a new line and Esc closes the window. If the prompt has [blanks], **Fill blanks…** appears and opens the same fill-in dialog Battle Lab uses; the filled text goes back into the box, so what you see is what will be pasted. A prompt longer than 6,000 characters asks before it is copied, with its exact size.
 
 The pad remembers the last ten prompts in `prompt-pad.json` beside your settings, and never sends them anywhere. Double-click one (or select it and press Enter) to load it back into the box. **Forget** removes the selected prompt and **Forget all** empties the list — neither touches the text in the box or anything in Battle Lab. In portable mode the file travels with your other settings; your sign-in still does not.
+
+The pad is not a library, but it can fill one: **Save to Battle Lab** (or Ctrl+S) files the prompt in Battle Lab under a `Prompt pad` category, named after its first line, and tells you so in the line under the box. Exactly the same text is never added twice — the pad says where it already is — and at Battle Lab's 200-prompt limit it says the library is full instead of adding. The box keeps its text, so you can still copy and open the same prompt.
 
 If Settings → Behavior has "Clear copied prompts from the clipboard after…" turned on, a pad copy is cleared on that schedule too, unless you copy something else in the meantime or the app is locked.
 

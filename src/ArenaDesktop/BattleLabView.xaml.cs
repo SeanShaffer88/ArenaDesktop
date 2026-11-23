@@ -178,6 +178,19 @@ public partial class BattleLabView : UserControl
 
     // ─────────────────────────── library ───────────────────────────
 
+    /// <summary>
+    /// The live library (v0.12.0). The prompt pad hands a prompt to Battle
+    /// Lab through this rather than opening its own copy of
+    /// battle-lab.json — one in-memory library, one writer.
+    /// </summary>
+    public BattleLabLibrary Library => _library;
+
+    /// <summary>
+    /// Re-read the prompt list after another surface added something
+    /// (v0.12.0). The current selection survives when it still exists.
+    /// </summary>
+    public void RefreshFromLibrary() => RefreshLibrary();
+
     private void RefreshLibrary()
     {
         var selectedId = _selectedPromptId;

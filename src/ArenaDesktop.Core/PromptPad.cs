@@ -281,3 +281,105 @@ public static class PromptPadStore
     public static void Save(string path, PromptPadData data) =>
         AtomicFile.WriteAllText(path, JsonSerializer.Serialize(PromptPad.Sanitized(data), Options));
 }
+
+// ─────────────────── keeping a pad prompt in Battle Lab (v0.12.0) ───────────────────
+
+/// <summary>What happened when the prompt pad handed a prompt to Battle Lab's library (v0.12.0).</summary>
+public enum PadKeepOutcome
+{
+    /// <summary>It is in the library now.</summary>
+    Kept,
+
+    /// <summary>The same text was already there, so nothing was added.</summary>
+    AlreadyThere,
+
+    /// <summary>The box held nothing worth keeping.</summary>
+    Empty,
+
+    /// <summary>The library is at <see cref="BattleLabLibrary.MaxPrompts"/> and nothing was added.</summary>
+    LibraryFull,
+}
+
+/// <summary>
+/// The result of one handoff (v0.12.0): what happened, the prompt concerned
+/// (the new one, or the existing copy), and the line the pad shows. The
+/// wording lives here so it is testable and so the pad and any future
+/// surface say the same thing.
+/// </summary>
+public sealed record PadKeepResult(PadKeepOutcome Outcome, BattlePrompt? Prompt, string Status);
+
+/// <summary>
+/// Handing a prompt from the pad to Battle Lab's library (v0.12.0).
+///
+/// The pad is deliberately not a library — that is the whole reason it
+/// exists — but "actually, keep this one" is a thought you have while
+/// writing, and before now it meant copy, open the Lab, New prompt, paste.
+/// This is that sequence as one call.
+///
+/// The rules are the library's, not the pad's: an exact duplicate (the same
+/// text, surrounding whitespace ignored) is refused rather than added twice,
+/// the library's size cap is respected, and the prompt lands in its own
+/// category so a handoff is findable later without polluting "General".
+/// </summary>
+public static class PadHandoff
+{
+    /// <summary>The category every handed-off prompt lands in.</summary>
+    public const string Category = "Prompt pad";
+
+    /// <summary>How long a derived name may be before it is cut short.</summary>
+    public const int MaxNameLength = 60;
+
+    /// <summary>The name a handed-off prompt gets: its first line, trimmed, cut to <see cref="MaxNameLength"/>.</summary>
+    public static string NameFor(string? text)
+    {
+        var firstLine = (text ?? "")
+            .Split('\n')
+            .Select(line => line.Trim())
+            .FirstOrDefault(line => line.Length > 0);
+        if (firstLine is null)
+            return "Prompt from the pad";
+        return firstLine.Length <= MaxNameLength
+            ? firstLine
+            : firstLine[..(MaxNameLength - 1)].TrimEnd() + "…";
+    }
+
+    /// <summary>Hand <paramref name="text"/> to <paramref name="library"/>. Idempotent: keeping the same prompt twice adds it once.</summary>
+    public static PadKeepResult Keep(BattleLabLibrary library, string? text)
+    {
+        ArgumentNullException.ThrowIfNull(library);
+        if (!PromptPad.IsCopyable(text))
+            return new PadKeepResult(PadKeepOutcome.Empty, null,
+                "Nothing to keep — the box is empty.");
+
+        var body = text!.Trim();
+        var existing = library.Prompts.FirstOrDefault(p =>
+            string.Equals((p.Body ?? "").Trim(), body, StringComparison.Ordinal));
+        if (existing is not null)
+            return new PadKeepResult(PadKeepOutcome.AlreadyThere, existing,
+                $"Already in Battle Lab · {existing.Name}");
+
+        if (library.Prompts.Count >= BattleLabLibrary.MaxPrompts)
+            return new PadKeepResult(PadKeepOutcome.LibraryFull, null,
+                $"Battle Lab is full ({BattleLabLibrary.MaxPrompts} prompts) — delete one before keeping this.");
+
+        var name = UniqueName(library, NameFor(body));
+        var prompt = library.AddPrompt(name, Category, body);
+        return new PadKeepResult(PadKeepOutcome.Kept, prompt, $"Saved to Battle Lab · {name}");
+    }
+
+    /// <summary>"X", or "X 2", "X 3", … — the first name no prompt in the library already has (case-insensitive).</summary>
+    public static string UniqueName(BattleLabLibrary library, string name)
+    {
+        var taken = library.Prompts
+            .Select(p => (p.Name ?? "").Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (!taken.Contains(name))
+            return name;
+        for (var n = 2; ; n++)
+        {
+            var candidate = $"{name} {n}";
+            if (!taken.Contains(candidate))
+                return candidate;
+        }
+    }
+}
