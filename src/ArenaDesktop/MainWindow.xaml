@@ -202,6 +202,8 @@
                                     <MenuItem Header="Prompt pad…" Click="OnPromptPad"
                                               InputGestureText="Ctrl+Shift+P"
                                               ToolTip="Write one prompt in a scratchpad, copy it, and open the Arena page you pick — pasting is your Ctrl+V"/>
+                                    <MenuItem x:Name="BattleNextQueuedItem" Header="Copy the next queued prompt" Click="OnBattleNextQueued"
+                                              ToolTip="Paste-ready copy of the head of the run queue, with the Battle page opened for it — the same as Battle Lab's Use next, without opening the pane"/>
                                     <MenuItem Header="Field pass…" Click="OnFieldPass"/>
                                     <Separator/>
                                     <MenuItem Header="Keyboard shortcuts…" Click="OnShortcuts" InputGestureText="Ctrl+/"

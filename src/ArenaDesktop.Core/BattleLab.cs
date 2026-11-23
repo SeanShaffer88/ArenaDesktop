@@ -594,7 +594,46 @@ public sealed class BattleLabLibrary
         return candidate;
     }
 
-    // ─────────────────────────── run queue ───────────────────────────
+    /// <summary>
+/// Running the queue from outside the pane (v0.14.0): "copy the next queued
+/// prompt" without opening Battle Lab. The rule is in Core so the status line,
+/// the copy and the blanks refusal are testable; the shell supplies the
+/// clipboard and the page.
+/// </summary>
+public sealed record QueueRun(BattlePrompt Prompt, string Text, bool Ready, string Status);
+
+/// <summary>See <see cref="QueueRun"/>.</summary>
+public static class BattleQueueRunner
+{
+    /// <summary>
+    /// The next prompt to run, or null when the queue is empty. <c>Ready</c>
+    /// is false when the prompt still has blanks with no default — those are
+    /// the one thing the app will not guess at, and the status line names them
+    /// so the answer is "open Battle Lab and fill them", not "nothing happened".
+    /// </summary>
+    public static QueueRun? Next(BattleLabLibrary library)
+    {
+        if (library is null || library.NextUp is not { } prompt)
+            return null;
+        var noValues = new Dictionary<string, string>();
+        var text = PromptBlanks.Fill(prompt.Body, noValues);
+        var left = PromptBlanks.Unfilled(prompt.Body, noValues);
+        if (left.Count > 0)
+        {
+            var names = string.Join(", ", left.Select(b => $"[{b}]"));
+            return new QueueRun(prompt, text, Ready: false,
+                $"“{prompt.Name}” has blanks to fill first ({names}) — open Battle Lab to run it.");
+        }
+        var position = library.QueuePrompts
+            .Select((p, i) => (p, i))
+            .FirstOrDefault(pair => string.Equals(pair.p.Id, prompt.Id, StringComparison.OrdinalIgnoreCase));
+        var count = library.QueuePrompts.Count;
+        return new QueueRun(prompt, text, Ready: true,
+            $"Copied “{prompt.Name}” ({position.i + 1} of {count}) — paste it into the Battle page; logging its result in Battle Lab takes it off the queue.");
+    }
+}
+
+// ─────────────────────────── run queue ───────────────────────────
 
     /// <summary>The queue resolved to prompts, in run order. Ids naming a deleted prompt are already gone (the store sanitizes them away).</summary>
     public IReadOnlyList<BattlePrompt> QueuePrompts =>
