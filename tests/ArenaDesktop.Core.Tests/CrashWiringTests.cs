@@ -15,7 +15,9 @@ public class CrashWiringTests
     public void TheDispatcherHandler_ShowsTheReport_NotABareMessageBox()
     {
         var app = Source("src/ArenaDesktop/App.xaml.cs");
-        Assert.Contains("CrashPresenter.Show(_window, Log, args.Exception);", app);
+        // v0.14.0 grew the call: the crash ledger decides whether the dialog
+        // offers safe mode, so the handler passes that answer through.
+        Assert.Contains("CrashPresenter.Show(_window, Log, args.Exception, offerSafeMode: loop);", app);
         // The old wording is gone; a report that cannot name the exception is
         // the thing this slice replaced.
         Assert.DoesNotContain("hit an unexpected error but kept your session safe", app);

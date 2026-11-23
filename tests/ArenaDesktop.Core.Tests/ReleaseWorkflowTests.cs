@@ -280,27 +280,34 @@ public class ReleaseWorkflowTests
     }
 
     [Fact]
-    public void NoWorkflowBuildsArm64()
+    public void OnlyCiBuildsArm64_AndNoWorkflowShipsIt()
     {
-        // v0.7.0 dropped ARM64 support (DECISIONS.md, 2026-11-11). This
-        // guard exists because the removal touched five files in three
-        // languages and a leftover `-r win-arm64` publish, arm64 matrix
-        // entry or installer define would silently start shipping a build
-        // nobody tests. Every workflow is checked, not just the release
-        // one.
+        // v0.7.0 dropped ARM64 *shipping* (DECISIONS.md, 2026-11-11); v0.14.0
+        // builds it in CI so that publish — and its native assets, WebView2's
+        // arm64 loader included — cannot rot between releases. The contract
+        // this guard keeps is "built, never shipped": the release and signing
+        // workflows may not mention it at all, and CI's arm64 job may not
+        // produce a release asset or an installer.
         var root = RepoRoot();
         var workflows = Path.Combine(root, ".github", "workflows");
         foreach (var file in Directory.GetFiles(workflows, "*.yml"))
         {
             var text = File.ReadAllText(file);
             var name = Path.GetFileName(file);
-            Assert.DoesNotContain("win-arm64", text);
-            Assert.DoesNotContain("build-arm64", text);
+            if (name == "ci.yml")
+            {
+                Assert.Contains("-r win-arm64", text);
+            }
+            else
+            {
+                Assert.DoesNotContain("win-arm64", text);
+                Assert.DoesNotContain("build-arm64", text);
+            }
+            // No workflow ships one, in either case.
             Assert.DoesNotContain("windows-arm64.zip", text);
             Assert.DoesNotContain("Setup-v$version-arm64", text);
-            // Comments are allowed to explain the removal, as the release
-            // workflow's ARM64 note does, so nothing asserts on the bare
-            // word "arm64" here.
+            // Comments may explain the history, so nothing asserts on the bare
+            // word "arm64".
         }
     }
 

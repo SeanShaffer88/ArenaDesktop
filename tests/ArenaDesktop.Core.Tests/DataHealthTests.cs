@@ -261,7 +261,10 @@ public class CrashHistoryTests
             var data = CrashHistoryStore.Load(path);
             Assert.Empty(data.Crashes);
             Assert.Null(data.LastCrash);
-            Assert.False(CrashHistoryStore.Save(Path.Combine(dir, "missing-dir", "x.json"), data));
+            // Saving never throws, even into a folder that does not exist yet
+            // (AtomicFile creates it) — a ledger write must not be the reason a
+            // crash handler fails.
+            Assert.True(CrashHistoryStore.Save(Path.Combine(dir, "nested-dir", "x.json"), data));
         }
         finally { Directory.Delete(dir, true); }
     }

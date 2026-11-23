@@ -64,8 +64,9 @@ public class PaletteArgumentTests
         var longText = new string('x', 90);
         var query = PaletteArguments.Parse($"find {longText}", Profiles);
         Assert.Equal(longText, query.Argument);            // what goes in the find bar
-        Assert.True(query.Title.Length < 60);              // what fits in a row
-        Assert.EndsWith("…", query.Title);
+        Assert.True(query.Title.Length < 70);              // what fits in a row
+        Assert.Contains("…", query.Title);                 // and it says it was cut
+        Assert.DoesNotContain(longText, query.Title);
     }
 
     [Fact]

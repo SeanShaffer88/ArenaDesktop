@@ -99,11 +99,14 @@ public class DataExportTests
         };
         var standings = BattleJournalMarkdown.RankByPrompt(entries);
         Assert.Equal(2, standings.Count);
-        Assert.Equal("Beta", standings[0].PromptName);       // 2 decided wins beats Alpha's 1 + 1
-        Assert.Equal(2, standings[0].AWins);
-        Assert.Equal("Alpha", standings[1].PromptName);
-        Assert.Equal(3, standings[1].Total);
-        Assert.Equal(1, standings[1].Ties);
+        // Both have two decided battles, so the tie-break is how much history
+        // there is: Alpha's 3 recorded battles outrank Beta's 2, and the table
+        // says so rather than leaving the order to chance.
+        Assert.Equal("Alpha", standings[0].PromptName);
+        Assert.Equal(3, standings[0].Total);
+        Assert.Equal(1, standings[0].Ties);
+        Assert.Equal("Beta", standings[1].PromptName);
+        Assert.Equal(2, standings[1].AWins);
     }
 
     [Fact]
