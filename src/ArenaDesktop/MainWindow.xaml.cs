@@ -1201,6 +1201,7 @@ public partial class MainWindow : Window
                     OpenBattleLabPane();
                 break;
             case "prompt-pad": OpenPromptPadWindow(); break;
+            case "battle-next-queue": RunNextQueuedPrompt(); break;
             case "field-pass": OpenFieldPassWindow(); break;
             case "shortcuts": OnShortcuts(this, new RoutedEventArgs()); break;
             case "diagnostics": OnDiagnostics(this, new RoutedEventArgs()); break;
@@ -1239,6 +1240,46 @@ public partial class MainWindow : Window
                 _log.Warn($"Palette command '{id}' has no handler — ignoring it");
                 break;
         }
+    }
+
+    /// <summary>
+    /// The menu item (v0.14.0): the head of the run queue, copied and the
+    /// Battle page brought forward — Battle Lab's "Use next" without the pane.
+    /// The rule lives in Core (<see cref="BattleQueueRunner"/>), so the blanks
+    /// refusal and the wording are testable; this supplies the clipboard, the
+    /// page and the log line, which never names the prompt.
+    /// </summary>
+    private void OnBattleNextQueued(object sender, RoutedEventArgs e) => RunNextQueuedPrompt();
+
+    private void RunNextQueuedPrompt()
+    {
+        var library = _battleLab?.Library ?? BattleLabLibrary.Open(AppPaths.BattleLabPath);
+        var run = BattleQueueRunner.Next(library);
+        if (run is null)
+        {
+            SetStatus("The run queue is empty — add prompts in Battle Lab (⋯ → Tools → Show Battle Lab pane).");
+            _log.Info("Queue run: nothing queued");
+            return;
+        }
+        if (!run.Ready)
+        {
+            SetStatus(run.Status);
+            _log.Info("Queue run: blanks to fill first");
+            return;
+        }
+        try
+        {
+            System.Windows.Clipboard.SetText(run.Text);
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Couldn't copy the prompt — the clipboard is busy. Try again.");
+            _log.Warn($"Queue run: clipboard refused ({ex.GetType().Name})");
+            return;
+        }
+        NavigateArenaMode(ArenaModes.BattleId);
+        SetStatus(run.Status);
+        _log.Info("Queue run: copied the next prompt, Battle opened");
     }
 
     /// <summary>

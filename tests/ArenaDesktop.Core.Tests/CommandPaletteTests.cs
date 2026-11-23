@@ -362,6 +362,8 @@ public class CommandPaletteTests
         ["OnBattleLab"] = "battle-lab-pane",
         ["OnPromptPad"] = "prompt-pad",
         ["OnFieldPass"] = "field-pass",
+        // v0.14.0: the queue's head without opening the pane.
+        ["OnBattleNextQueued"] = "battle-next-queue",
         ["OnShortcuts"] = "shortcuts",
         ["OnDiagnostics"] = "diagnostics",
         ["OnSessionWindow"] = "session",

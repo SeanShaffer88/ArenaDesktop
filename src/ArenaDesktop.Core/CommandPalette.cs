@@ -80,6 +80,8 @@ public static class CommandPalette
             new PaletteCommand("prompt-pad", "Open the prompt pad", "Open",
                 "prompt pad scratchpad draft jot write copy paste one prompt",
                 "prompt-pad"),
+            new PaletteCommand("battle-next-queue", "Copy the next queued prompt", "Open",
+                "battle lab queue next run prompt copy automate one by one"),
             new PaletteCommand("field-pass", "Open the field pass", "Open",
                 "field pass checks verify prove tour guided problem skip verdicts"),
             new PaletteCommand("shortcuts", "Keyboard shortcuts", "Open",
