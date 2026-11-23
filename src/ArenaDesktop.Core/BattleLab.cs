@@ -1177,7 +1177,7 @@ public static class PromptPicker
                 continue;
             if (hits.Count == 1)
                 return new PromptPickResult(PromptPickKind.One, hits[0], hits,
-                    $"Copied “{hits[0].Name}” — paste it into the Battle page.");
+                    $"Copied “{Shorten(hits[0].Name)}” — paste it into the Battle page.");
             return new PromptPickResult(PromptPickKind.Many, null, hits,
                 $"{hits.Count} saved {(hits.Count == 1 ? "prompt matches" : "prompts match")} “{Shorten(text)}” — Battle Lab is filtered to them.");
         }
