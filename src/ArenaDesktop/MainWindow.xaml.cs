@@ -1137,6 +1137,9 @@ public partial class MainWindow : Window
             case PaletteArgumentKind.Mode:
                 NavigateArenaMode(query.Argument);
                 break;
+            case PaletteArgumentKind.Prompt:
+                RunSavedPrompt(query.Argument);
+                break;
         }
         _log.Info($"Palette argument: {query.Kind}");
     }
@@ -1261,10 +1264,49 @@ public partial class MainWindow : Window
             _log.Info("Queue run: nothing queued");
             return;
         }
+        CopyThenOpen(run, "Queue run", "Queue run: copied the next prompt, Battle opened");
+    }
+
+    /// <summary>
+    /// The palette's <c>prompt &lt;text&gt;</c> (v0.15.0): one match is copied and
+    /// Battle opened; several are shown in the filtered pane rather than
+    /// guessed between; none says where the library is. The status line comes
+    /// from Core, so the wording is tested; the log records the outcome and
+    /// never the words that were typed.
+    /// </summary>
+    private void RunSavedPrompt(string argument)
+    {
+        var library = _battleLab?.Library ?? BattleLabLibrary.Open(AppPaths.BattleLabPath);
+        var pick = PromptPick.Find(library, argument);
+        switch (pick.Kind)
+        {
+            case PromptPickKind.One:
+                CopyThenOpen(BattleQueueRunner.For(pick.Prompt!, " — paste it into the Battle page."),
+                    "Saved prompt", "Saved prompt: copied, Battle opened");
+                break;
+            case PromptPickKind.Many:
+                OpenBattleLabPane();
+                _battleLab?.ShowSearch(argument);
+                SetStatus(pick.Status);
+                _log.Info($"Saved prompt: {pick.Matches.Count} matches, Battle Lab filtered");
+                break;
+            default:
+                SetStatus(pick.Status);
+                _log.Info("Saved prompt: no match");
+                break;
+        }
+    }
+
+    /// <summary>
+    /// The shared tail of "run a saved prompt": clipboard, Battle page, status.
+    /// A prompt that still has blanks is refused by name and nothing is copied.
+    /// </summary>
+    private void CopyThenOpen(QueueRun run, string logContext, string copiedLine)
+    {
         if (!run.Ready)
         {
             SetStatus(run.Status);
-            _log.Info("Queue run: blanks to fill first");
+            _log.Info($"{logContext}: blanks to fill first");
             return;
         }
         try
@@ -1274,12 +1316,12 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             SetStatus("Couldn't copy the prompt — the clipboard is busy. Try again.");
-            _log.Warn($"Queue run: clipboard refused ({ex.GetType().Name})");
+            _log.Warn($"{logContext}: clipboard refused ({ex.GetType().Name})");
             return;
         }
         NavigateArenaMode(ArenaModes.BattleId);
         SetStatus(run.Status);
-        _log.Info("Queue run: copied the next prompt, Battle opened");
+        _log.Info(copiedLine);
     }
 
     /// <summary>

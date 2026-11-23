@@ -1,3 +1,23 @@
+## 2026-11-23 — The palette's fifth verb is `saved`, not `prompt` (v0.15.0)
+
+A verb that takes an argument also takes words away from the search. "prompt
+pad" is a documented way to reach the pad (Help.md lists it beside `settings`
+and `downloads`), and a `prompt <text>` verb would have turned that pair into a
+question about a saved prompt called "pad" — a regression dressed as a feature.
+
+So the verb is **`saved`**: `saved cables` copies that Battle Lab prompt. No
+command title starts with the word, "saved" alone is still a search, and a test
+pins the pair that forced the choice (`prompt pad` parses as a search and still
+finds `prompt-pad`).
+
+Two rules came with it. **Ranking is stated**: exact name → name prefix → name
+contains → category → body, first rank that finds anything wins. A search that
+silently prefers one prompt over another is how you copy the wrong thing.
+**A tie is a shortlist**: several matches open Battle Lab filtered to them and
+say how many, rather than one being chosen for you. It is the same refusal the
+queue command makes about blanks — the app does the mechanical part and leaves
+the judgement to the person.
+
 # Decisions
 
 A living log of significant architecture, UX, security, and dependency decisions.

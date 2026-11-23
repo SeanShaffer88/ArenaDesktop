@@ -191,6 +191,21 @@ public partial class BattleLabView : UserControl
     /// </summary>
     public void RefreshFromLibrary() => RefreshLibrary();
 
+    /// <summary>
+    /// The palette's <c>prompt &lt;text&gt;</c> found several prompts (v0.15.0).
+    /// The pane is shown with its own search box holding the words, so the
+    /// shortlist the status bar names is the list on screen — the app filters
+    /// the library rather than picking for you.
+    /// </summary>
+    public void ShowSearch(string? text)
+    {
+        if (SearchText is null)
+            return;
+        SearchText.Text = text ?? "";
+        SearchText.CaretIndex = SearchText.Text.Length;
+        RefreshLibrary();
+    }
+
     private void RefreshLibrary()
     {
         var selectedId = _selectedPromptId;
