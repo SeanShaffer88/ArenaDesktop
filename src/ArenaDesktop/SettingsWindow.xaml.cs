@@ -42,6 +42,7 @@ public partial class SettingsWindow : Window
     private readonly Func<string>? _notificationTest;
     private readonly Func<string>? _globalHotkeyStatus;
     private readonly List<System.Windows.FrameworkElement> _searchControlMatches = new();
+    private readonly List<string> _searchControlSectionIds = new();
     private int _searchControlMatchIndex;
 
     public SettingsWindow(AppSettings working, DiagnosticLog log, WebPrivacyGateway? privacy,
@@ -56,16 +57,16 @@ public partial class SettingsWindow : Window
         _globalHotkeyStatus = globalHotkeyStatus;
         InitializeComponent();
 
-        // S5 #48: reopen at the remembered size; the last section is
-        // restored on Loaded (once layout exists to scroll).
+        // Restore the remembered size and section after the left navigation
+        // and its page viewport have been created.
         Width = _working.SettingsWindowWidth;
         if (_working.SettingsWindowHeight > 0)
             Height = _working.SettingsWindowHeight;
         SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
         Loaded += OnSettingsLoaded;
 
-        // The section registry (S5 #41/#48): id ↔ container ↔ header,
-        // in layout order — shared by search and the scroll tracker.
+        // The section registry (S5 #41/#48): id ↔ page container ↔ header,
+        // in layout order — shared by navigation, search and memory.
         _sections = new (string, System.Windows.FrameworkElement, System.Windows.Controls.TextBlock)[]
         {
             (SettingsSearch.BehaviorId, SectionBehavior, HeaderBehavior),
@@ -78,6 +79,7 @@ public partial class SettingsWindow : Window
             (SettingsSearch.DataId, SectionData, HeaderData),
             (SettingsSearch.PrivacyId, SectionPrivacy, HeaderPrivacy),
         };
+        SectionNavigation.ItemsSource = SettingsSearch.Sections;
 
         // S6 #57: the zoom lists come from the step table for the
         // working extended-range choice; the toggle rebuilds them.
@@ -1888,45 +1890,47 @@ public partial class SettingsWindow : Window
     /// <summary>Accent keys parallel to AccentCombo's items (S5 #44).</summary>
     private readonly List<string> _accentKeys = new();
 
-    /// <summary>The section currently at the top of the viewport (S5 #48), tracked by the scroll handler.</summary>
+    /// <summary>The section currently selected in the left navigation (S5 #48).</summary>
     private string? _currentSectionId;
 
     private void OnSettingsLoaded(object sender, RoutedEventArgs e)
     {
-        // S5 #48: scroll back to the section Settings was left on.
-        if (_working.SettingsLastSection is { } last)
-        {
-            foreach (var (id, container, _) in _sections)
-            {
-                if (id == last)
-                {
-                    _currentSectionId = last;
-                    Dispatcher.BeginInvoke(new Action(() => container.BringIntoView()));
-                    break;
-                }
-            }
-        }
+        var remembered = SettingsSearch.Sections.FirstOrDefault(section => section.Id == _working.SettingsLastSection)
+                         ?? SettingsSearch.Sections[0];
+        SectionNavigation.SelectedItem = remembered;
+        UpdateSectionNavigationVisibility(null);
+        ShowSection(remembered.Id, scrollToTop: true);
     }
 
-    private void OnSettingsScrolled(object sender, System.Windows.Controls.ScrollChangedEventArgs e)
+    private void OnSectionNavigationChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        // The current section is the last visible one whose top has
-        // reached the viewport top (within a small slack) — the same
-        // "where am I" a reader would report.
-        try
+        if (SectionNavigation.SelectedItem is SettingsSectionInfo section)
+            ShowSection(section.Id, scrollToTop: true);
+        else
+            ShowSection(null, scrollToTop: false);
+    }
+
+    private void ShowSection(string? sectionId, bool scrollToTop)
+    {
+        foreach (var (id, container, _) in _sections)
+            container.Visibility = id == sectionId ? Visibility.Visible : Visibility.Collapsed;
+        _currentSectionId = SettingsSearch.IsKnownSection(sectionId) ? sectionId : null;
+        if (_currentSectionId is not null)
+            _working.SettingsLastSection = _currentSectionId;
+        if (scrollToTop)
+            SettingsScroller.ScrollToTop();
+    }
+
+    private void UpdateSectionNavigationVisibility(ISet<string>? matchingIds)
+    {
+        foreach (var section in SettingsSearch.Sections)
         {
-            string? current = null;
-            foreach (var (id, container, _) in _sections)
-            {
-                if (container.Visibility != Visibility.Visible)
-                    continue;
-                if (container.TranslatePoint(new System.Windows.Point(0, 0), SettingsScroller).Y <= 24)
-                    current = id;
-            }
-            if (current is not null)
-                _currentSectionId = current;
+            if (SectionNavigation.ItemContainerGenerator.ContainerFromItem(section)
+                is System.Windows.Controls.ListBoxItem item)
+                item.Visibility = matchingIds is null || matchingIds.Contains(section.Id)
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
         }
-        catch { /* layout not ready — the previous value stands */ }
     }
 
     // ── #41 search: section + control filter, highlight, and keyboard navigation ──
@@ -1943,59 +1947,76 @@ public partial class SettingsWindow : Window
             var direction = e.Key == System.Windows.Input.Key.Down ? 1 : -1;
             _searchControlMatchIndex = (_searchControlMatchIndex + direction + _searchControlMatches.Count)
                                        % _searchControlMatches.Count;
-            var selected = _searchControlMatches[_searchControlMatchIndex];
-            selected.BringIntoView();
+            ShowSearchControl(_searchControlMatchIndex, focus: false);
             UpdateSearchSummary();
             e.Handled = true;
         }
         else if (e.Key == System.Windows.Input.Key.Enter)
         {
-            var selected = _searchControlMatches[_searchControlMatchIndex];
-            selected.BringIntoView();
-            selected.Focus();
+            ShowSearchControl(_searchControlMatchIndex, focus: true);
             e.Handled = true;
         }
+    }
+
+    private void ShowSearchControl(int index, bool focus)
+    {
+        var selected = _searchControlMatches[index];
+        var sectionId = _searchControlSectionIds[index];
+        var navigationItem = SettingsSearch.Sections.FirstOrDefault(section => section.Id == sectionId);
+        if (navigationItem is not null)
+            SectionNavigation.SelectedItem = navigationItem;
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            selected.BringIntoView();
+            if (focus)
+                selected.Focus();
+        }));
     }
 
     private void ApplySearch()
     {
         var query = SettingsSearchText.Text;
         _searchControlMatches.Clear();
+        _searchControlSectionIds.Clear();
         _searchControlMatchIndex = 0;
         if (string.IsNullOrWhiteSpace(query))
         {
-            foreach (var (_, container, header) in _sections)
-            {
-                container.Visibility = Visibility.Visible;
+            foreach (var (_, _, header) in _sections)
                 header.Background = null;
-            }
+            UpdateSectionNavigationVisibility(null);
+            if (SectionNavigation.SelectedItem is not SettingsSectionInfo current)
+                SectionNavigation.SelectedItem = SettingsSearch.Sections.FirstOrDefault(section => section.Id == _currentSectionId)
+                                                ?? SettingsSearch.Sections.FirstOrDefault(section => section.Id == _working.SettingsLastSection)
+                                                ?? SettingsSearch.Sections[0];
             SearchSummary.Text = "";
             return;
         }
 
         var matchingSections = new HashSet<string>(SettingsSearch.Search(query).Select(section => section.Id));
-        foreach (var (id, container, _) in _sections)
+        foreach (var (id, container, header) in _sections)
         {
             var hits = EnumerateSearchControls(container)
                 .Where(control => SearchControlMatches(control, query))
                 .ToList();
             _searchControlMatches.AddRange(hits);
+            _searchControlSectionIds.AddRange(Enumerable.Repeat(id, hits.Count));
             if (hits.Count > 0)
                 matchingSections.Add(id);
+            header.Background = matchingSections.Contains(id) ? SearchHighlightBrush() : null;
         }
 
-        System.Windows.FrameworkElement? firstMatch = _searchControlMatches.FirstOrDefault();
-        foreach (var (id, container, header) in _sections)
-        {
-            var hit = matchingSections.Contains(id);
-            container.Visibility = hit ? Visibility.Visible : Visibility.Collapsed;
-            header.Background = hit ? SearchHighlightBrush() : null;
-            if (hit && firstMatch is null)
-                firstMatch = container;
-        }
+        UpdateSectionNavigationVisibility(matchingSections);
+        string? firstMatchSection = _searchControlSectionIds.FirstOrDefault();
+        firstMatchSection ??= _sections.Where(section => matchingSections.Contains(section.Id))
+            .Select(section => section.Id).FirstOrDefault();
+        if (firstMatchSection is null)
+            SectionNavigation.SelectedIndex = -1;
+        else
+            SectionNavigation.SelectedItem = SettingsSearch.Sections.FirstOrDefault(section => section.Id == firstMatchSection);
+
         UpdateSearchSummary(matchingSections.Count);
-        if (firstMatch is not null)
-            Dispatcher.BeginInvoke(new Action(() => firstMatch.BringIntoView()));
+        if (_searchControlMatches.Count > 0)
+            Dispatcher.BeginInvoke(new Action(() => _searchControlMatches[0].BringIntoView()));
     }
 
     private void UpdateSearchSummary(int? matchingSectionCount = null)

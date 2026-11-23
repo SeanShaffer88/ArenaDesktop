@@ -383,15 +383,15 @@ public class S5Tests
         };
         settings.Sanitized();
         Assert.Null(settings.SettingsLastSection);
-        Assert.Equal(580, settings.SettingsWindowWidth);
+        Assert.Equal(860, settings.SettingsWindowWidth);
         Assert.Equal(0, settings.SettingsWindowHeight);
 
         settings.SettingsLastSection = SettingsSearch.DownloadsId;
-        settings.SettingsWindowWidth = 640;
+        settings.SettingsWindowWidth = 800;
         settings.SettingsWindowHeight = 700;
         settings.Sanitized();
         Assert.Equal(SettingsSearch.DownloadsId, settings.SettingsLastSection);
-        Assert.Equal(640, settings.SettingsWindowWidth);
+        Assert.Equal(800, settings.SettingsWindowWidth);
         Assert.Equal(700, settings.SettingsWindowHeight);
     }
 
@@ -450,7 +450,7 @@ public class S5Tests
             AccentColor = "Purple",
             ShellFontScale = 1.25,
             SettingsLastSection = SettingsSearch.AppearanceId,
-            SettingsWindowWidth = 620,
+            SettingsWindowWidth = 820,
             SettingsWindowHeight = 700,
             FirstRunCompleted = true,
         };

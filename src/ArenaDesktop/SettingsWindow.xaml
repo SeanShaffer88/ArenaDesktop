@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:ArenaDesktop"
         Title="ArenaDesktop Settings" AutomationProperties.Name="ArenaDesktop Settings"
-        Width="580" Height="660" MinWidth="440" MinHeight="420" MaxHeight="1000"
+        Width="860" Height="820" MinWidth="800" MinHeight="600" MaxHeight="1000"
         ResizeMode="CanResize" WindowStartupLocation="CenterOwner"
         Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
     <Window.Resources>
@@ -97,6 +97,45 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style TargetType="ListBox">
+            <Setter Property="Background" Value="{StaticResource RaisedBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="4"/>
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ShellFocusVisual}"/>
+        </Style>
+        <Style TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Margin" Value="2,2,2,0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ShellFocusVisual}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="ItemBorder" Background="{TemplateBinding Background}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource AccentFillBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource AccentTextBrush}"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{StaticResource FaintBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style TargetType="CheckBox">
             <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
             <Setter Property="Margin" Value="0,5,0,0"/>
@@ -110,12 +149,12 @@
     </Window.Resources>
 
     <DockPanel KeyboardNavigation.TabNavigation="Continue" KeyboardNavigation.ControlTabNavigation="Continue">
-        <!-- Settings search (S5 #41): section-level filter + highlight. -->
+        <!-- Settings search filters the left navigation and highlights matched pages. -->
         <StackPanel DockPanel.Dock="Top" Margin="18,14,18,0">
             <TextBlock Text="Search settings:" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,5"/>
             <TextBox x:Name="SettingsSearchText" TextChanged="OnSearchTextChanged" PreviewKeyDown="OnSearchPreviewKeyDown"
-                     AutomationProperties.Name="Search Settings controls" AutomationProperties.HelpText="Type to filter sections and controls. Down and Up choose a matching control; Enter moves focus to it."
-                     ToolTip="Search for a setting or control — matching sections stay visible; Down/Up select matches and Enter jumps to one"/>
+                     AutomationProperties.Name="Search Settings controls" AutomationProperties.HelpText="Type to filter the section list and controls. Down and Up browse matching controls; Enter moves focus to one."
+                     ToolTip="Search for a setting or control — matching sections stay in the left list; Down/Up browse controls and Enter jumps to one"/>
             <TextBlock x:Name="SearchSummary" Style="{StaticResource Note}"
                        AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Settings search results"/>
             <!-- v0.13.0: a panel that cannot be read says so here. Settings is
@@ -135,8 +174,8 @@
             </Border>
         </StackPanel>
 
-        <!-- OK / Cancel stay pinned at the bottom, below the scroll
-             area, so they are always reachable. -->
+        <!-- OK / Cancel stay pinned at the bottom, below navigation and
+             the selected settings page, so they are always reachable. -->
         <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource HairlineBrush}"
                 BorderThickness="0,1,0,0" Padding="18,10">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
@@ -146,9 +185,26 @@
             </StackPanel>
         </Border>
 
-        <ScrollViewer x:Name="SettingsScroller" VerticalScrollBarVisibility="Auto"
-                      ScrollChanged="OnSettingsScrolled">
-            <StackPanel x:Name="SectionsPanel" Margin="18,10,18,16">
+        <Grid Margin="16,10,16,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="190"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
+                    CornerRadius="8" Padding="8" Margin="0,0,12,0">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="SECTIONS" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource MutedBrush}" Margin="8,4,0,8"/>
+                    <ListBox x:Name="SectionNavigation" SelectionChanged="OnSectionNavigationChanged"
+                             DisplayMemberPath="Title" BorderThickness="0"
+                             AutomationProperties.Name="Settings sections"
+                             KeyboardNavigation.TabNavigation="Continue"/>
+                </DockPanel>
+            </Border>
+            <ScrollViewer x:Name="SettingsScroller" Grid.Column="1"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="SectionsPanel" Margin="0,0,10,0">
                 <Border x:Name="SectionBehavior" Style="{StaticResource SectionCard}">
                     <StackPanel>
                         <TextBlock x:Name="HeaderBehavior" Text="Behavior" Style="{StaticResource SectionHeader}"/>
@@ -676,7 +732,8 @@
                     </StackPanel>
                 </Border>
 
-            </StackPanel>
-        </ScrollViewer>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
     </DockPanel>
 </Window>
