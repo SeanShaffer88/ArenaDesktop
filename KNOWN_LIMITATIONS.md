@@ -4,7 +4,7 @@ Honest list of what ArenaDesktop does not do or has not proven yet. Kept current
 
 ## Verification status
 
-- **Windows runtime: Unverified.** v0.1.0 is built and fully gated on a Linux VM (build 0 errors / 0 warnings + the full Core test suite). Nothing about real Windows behaviour — sign-in persistence, tray, downloads, voice, updates — is claimed until the RELEASE_CHECKLIST.md pass runs on a real Windows machine.
+- **Windows runtime: Unverified.** v0.1.0 is built and fully gated on a Linux VM (build 0 errors / 0 warnings + the full Core test suite). Nothing about real Windows behaviour — sign-in persistence, tray, downloads, voice, updates — is claimed until the RELEASE_CHECKLIST.md pass runs on a real Windows machine. In particular, v0.15.0's Settings restyle has not yet been observed on Windows, in the Light theme, or with Windows High Contrast.
 - Arena's live routes (Battle home, `/leaderboard`) were set from the site's public structure on 2026-10-27; a live in-app confirmation is part of the same field pass.
 
 ## Product limits

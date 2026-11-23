@@ -64,7 +64,7 @@ public partial class SettingsWindow : Window
 
         // The section registry (S5 #41/#48): id ↔ container ↔ header,
         // in layout order — shared by search and the scroll tracker.
-        _sections = new (string, System.Windows.Controls.StackPanel, System.Windows.Controls.TextBlock)[]
+        _sections = new (string, System.Windows.FrameworkElement, System.Windows.Controls.TextBlock)[]
         {
             (SettingsSearch.BehaviorId, SectionBehavior, HeaderBehavior),
             (SettingsSearch.TrayId, SectionTray, HeaderTray),
@@ -1741,7 +1741,7 @@ public partial class SettingsWindow : Window
     // ───────────────────────── S5: search, memory, appearance, reset, wizard ─────────────────────────
 
     /// <summary>Section registry (S5 #41/#48), built in the constructor: (Core section id, container, header) in layout order.</summary>
-    private readonly (string Id, System.Windows.Controls.StackPanel Container, System.Windows.Controls.TextBlock Header)[] _sections = null!;
+    private readonly (string Id, System.Windows.FrameworkElement Container, System.Windows.Controls.TextBlock Header)[] _sections = null!;
 
     /// <summary>Accent keys parallel to AccentCombo's items (S5 #44).</summary>
     private readonly List<string> _accentKeys = new();
