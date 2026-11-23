@@ -5,7 +5,8 @@
         Width="560" Height="600" MinWidth="440" MinHeight="420"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
-        AutomationProperties.Name="Prompt pad">
+        AutomationProperties.Name="Prompt pad"
+        PreviewKeyDown="OnWindowPreviewKeyDown">
     <Window.Resources>
         <Style x:Key="PadNote" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
@@ -65,6 +66,12 @@
         </Grid>
 
         <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <!-- v0.12.0: the one thought that used to end in copy → open
+                 the Lab → New prompt → paste. -->
+            <Button x:Name="KeepButton" Content="Save to Battle Lab" Height="32" Padding="12,0,12,0"
+                    Margin="0,0,8,0" Click="OnKeep"
+                    AutomationProperties.Name="Save the prompt to Battle Lab"
+                    ToolTip="Keep this prompt in Battle Lab's library (Ctrl+S), in a &quot;Prompt pad&quot; category"/>
             <Button x:Name="CopyButton" Content="Copy &amp; open Battle" Height="32" Padding="14,0,14,0"
                     IsDefault="True" Click="OnCopy"
                     AutomationProperties.Name="Copy the prompt and open the page"

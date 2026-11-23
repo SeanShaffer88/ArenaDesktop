@@ -2,6 +2,16 @@
 
 The release notes ArenaDesktop shows on the first launch of a new version. This file is generated from CHANGELOG.md's current-version section at release time (see RELEASE_CHECKLIST.md) — do not edit it by hand; a test pins it to the changelog so the two can't drift.
 
+## [0.12.0] — 2026-11-23
+
+The prompt pad has always been the place for a prompt you only want once — which is exactly why "actually, keep this one" was the thought it could not act on. Now it can.
+
+### Added
+
+- **Save to Battle Lab, from the pad.** A **Save to Battle Lab** button, or **Ctrl+S**, hands the box's text to Battle Lab's library. The prompt lands in a `Prompt pad` category, named after its first line, and the pad says where it went — no more copy, open the Lab, New prompt, paste. The box keeps its text afterwards, because keeping a prompt and copying it are two different intentions and you may still want both.
+- **The library refuses what it already holds.** An exact duplicate — the same text with surrounding whitespace ignored, wherever it was saved from — is not added twice: the pad says *Already in Battle Lab · (its name)*. At the library's 200-prompt cap it says the library is full instead of growing the file, and two prompts that open with the same line are named "… 2", "… 3" rather than looking identical in the list.
+- **One writer for a file two surfaces can see.** If the Battle Lab pane has been opened, its live library is the copy on disk, so the prompt goes through it and the pane's list refreshes; if it has never been opened there is no second copy, so the store is opened, written and left. The prompt's text is never written to the log — only what happened.
+
 ## [0.11.0] — 2026-11-23
 
 v0.10.0 gave the app one list to type at. It did not quite cover the app: the ⋯ menu still held about a dozen commands the palette had never reached — the log, the support bundle, About, Save as PDF, a second window, five named zoom levels. This release closes that gap and pins it shut with a test.

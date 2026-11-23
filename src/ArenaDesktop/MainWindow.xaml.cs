@@ -1040,7 +1040,7 @@ public partial class MainWindow : Window
             _promptPadWindow.Activate();
             return;
         }
-        var window = new PromptPadWindow(_log, OnPromptPadCopied) { Owner = this };
+        var window = new PromptPadWindow(_log, OnPromptPadCopied, PadKeepPrompt) { Owner = this };
         window.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(window);
         ShellTextScaling.Apply(window, _settings.ShellFontScale);
         window.Closed += (_, _) =>
@@ -1172,6 +1172,32 @@ public partial class MainWindow : Window
                 _log.Warn($"Palette command '{id}' has no handler — ignoring it");
                 break;
         }
+    }
+
+    /// <summary>
+    /// The pad asked to keep a prompt in Battle Lab (v0.12.0). The library
+    /// has exactly one writer: if the pane has ever been built, its
+    /// in-memory library is the copy on disk, so the prompt goes through it
+    /// (and the list is refreshed); if it has never been built there is no
+    /// second copy to fight with, so the store is opened, written and left.
+    /// The prompt text is never logged — only what happened.
+    /// </summary>
+    private PadKeepResult PadKeepPrompt(string text)
+    {
+        PadKeepResult result;
+        if (_battleLab is { } lab)
+        {
+            result = PadHandoff.Keep(lab.Library, text);
+            if (result.Outcome == PadKeepOutcome.Kept)
+                lab.RefreshFromLibrary();
+        }
+        else
+        {
+            result = PadHandoff.Keep(BattleLabLibrary.Open(AppPaths.BattleLabPath), text);
+        }
+        _log.Info($"Prompt pad: keep in Battle Lab → {result.Outcome}");
+        SetStatus(result.Status);
+        return result;
     }
 
     /// <summary>

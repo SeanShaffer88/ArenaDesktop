@@ -44,11 +44,21 @@ public partial class PromptPadWindow : Window
     /// <summary>True once the prompt went to the clipboard: the draft it describes is gone, so Closing must not save it back.</summary>
     private bool _copied;
 
-    public PromptPadWindow(DiagnosticLog log, Action<ArenaMode, string> onCopied)
+    /// <summary>
+    /// Hand the box's text to Battle Lab (v0.12.0). The pad does not touch
+    /// the library itself — the main window owns it, and may be holding the
+    /// live copy the Lab pane is showing — so it asks, and shows whatever
+    /// line comes back.
+    /// </summary>
+    private readonly Func<string, PadKeepResult> _onKeep;
+
+    public PromptPadWindow(
+        DiagnosticLog log, Action<ArenaMode, string> onCopied, Func<string, PadKeepResult> onKeep)
     {
         InitializeComponent();
         _log = log;
         _onCopied = onCopied;
+        _onKeep = onKeep;
         _data = PromptPadStore.Load(AppPaths.PromptPadPath);
         ModeCombo.ItemsSource = ArenaModes.All;
         var target = PromptPad.TargetMode(_data);
@@ -212,6 +222,31 @@ public partial class PromptPadWindow : Window
         _log.Info($"Prompt pad: copied {text.Length} characters and opened {mode.Label}");
         _onCopied(mode, text);
         Close();
+    }
+
+    private void OnKeep(object sender, RoutedEventArgs e) => KeepInLab();
+
+    private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        // Ctrl+S is "save" everywhere, and inside the pad the only thing
+        // worth saving is the prompt.
+        if (e.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            KeepInLab();
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// Keep the prompt in Battle Lab's library (v0.12.0). The box keeps its
+    /// text: keeping is not copying, and the same prompt may still be copied
+    /// and opened — so the draft rule is unchanged.
+    /// </summary>
+    private void KeepInLab()
+    {
+        var result = _onKeep(Editor.Text ?? "");
+        SetHint(result.Status);
+        _log.Info($"Prompt pad: keep in Battle Lab → {result.Outcome}");
     }
 
     // ─────────────────────────── remembered prompts ───────────────────────────
