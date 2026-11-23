@@ -1,12 +1,14 @@
 ## 2026-11-23 — Settings sections are cards that are the sections themselves (v0.15.0)
 
 The v0.15.0 restyle turns each Settings section into a rounded card. The
-obvious way to do that — wrap each section's StackPanel in a Border — would
-have broken the search filter: it toggles the section StackPanel's
-Visibility, so a wrapper would have left an empty card on screen whenever a
-section was hidden. The card is therefore a *style on the StackPanel
-itself* (background, hairline border, corner radius, padding), and a test
-fails if a Border ever wraps a section again.
+card is a style on the section's own container — the named Border the
+search filter toggles — not a Border wrapped around the section: a wrapper
+would have left an empty card on screen whenever a section was hidden. The
+section's StackPanel sits inside the named Border, and the code-behind's
+section registry now points at the Border (its type widened from StackPanel
+to FrameworkElement; it only ever used Visibility, TranslatePoint and
+BringIntoView). A test fails if anything ever appears between SectionsPanel
+and a section again.
 
 Two rules came with it. **Titles are white, the red is a rule**: the family
 black/red identity survives as a short red bar under each title rather than

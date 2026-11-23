@@ -19,23 +19,23 @@ public class SettingsStyleTests
     };
 
     [Fact]
-    public void EverySectionIsACard_AndTheCardIsTheSectionItself()
+    public void EverySectionIsACard_AndTheCardIsTheNamedContainer()
     {
         var xaml = Source("src/ArenaDesktop/SettingsWindow.xaml");
         // The card style exists and paints from the shared tokens.
-        Assert.Contains("<Style x:Key=\"SectionCard\" TargetType=\"StackPanel\">", xaml);
+        Assert.Contains("<Style x:Key=\"SectionCard\" TargetType=\"Border\">", xaml);
         Assert.Contains("Value=\"{StaticResource SurfaceBrush}\"", xaml);
         Assert.Contains("Value=\"{StaticResource HairlineBrush}\"", xaml);
         // Every section carries it…
         foreach (var section in SectionNames)
-            Assert.Contains($"<StackPanel x:Name=\"{section}\" Style=\"{{StaticResource SectionCard}}\">", xaml);
-        // …and no section is wrapped in a Border: the search filter toggles
-        // the section StackPanel's Visibility, so a wrapper would leave an
-        // empty card behind when a section is hidden.
-        var panel = xaml.IndexOf("x:Name=\"SectionsPanel\"", StringComparison.Ordinal);
-        var first = xaml.IndexOf("x:Name=\"SectionBehavior\"", StringComparison.Ordinal);
-        Assert.True(panel >= 0 && first > panel, "SectionsPanel must precede the sections");
-        Assert.DoesNotContain("<Border", xaml[panel..first]);
+            Assert.Contains($"<Border x:Name=\"{section}\" Style=\"{{StaticResource SectionCard}}\">", xaml);
+        // …and the named container is a direct child of SectionsPanel: the
+        // search filter toggles its Visibility, so a wrapper around it
+        // would leave an empty card behind when a section is hidden.
+        var panelTagEnd = xaml.IndexOf('>', xaml.IndexOf("x:Name=\"SectionsPanel\"", StringComparison.Ordinal));
+        var first = xaml.IndexOf("<Border x:Name=\"SectionBehavior\"", StringComparison.Ordinal);
+        Assert.True(panelTagEnd >= 0 && first > panelTagEnd, "SectionsPanel must precede the sections");
+        Assert.Equal("", xaml[(panelTagEnd + 1)..first].Trim());
     }
 
     [Fact]
