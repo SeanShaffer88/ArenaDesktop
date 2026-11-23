@@ -255,7 +255,7 @@ public class CommandPaletteTests
     [Fact]
     public void Shell_DispatchesEveryCatalogIdItClaimsTo()
     {
-        var shell = File.ReadAllText(Path.Combine(RepoRoot(), "src", "ArenaDesktop", "MainWindow.xaml.cs"));
+        var shell = Source("src/ArenaDesktop/MainWindow.xaml.cs");
         // Every non-mode id in the catalogue has a case in the shell's
         // dispatch switch: a command that lists but does nothing is worse
         // than a command that is not listed.
@@ -271,31 +271,31 @@ public class CommandPaletteTests
     [Fact]
     public void Shell_OpensThePaletteFromEveryDoor()
     {
-        var shell = File.ReadAllText(Path.Combine(RepoRoot(), "src", "ArenaDesktop", "MainWindow.xaml.cs"));
+        var shell = Source("src/ArenaDesktop/MainWindow.xaml.cs");
         Assert.Contains("public void OpenCommandPaletteWindow()", shell);
         Assert.Contains("openCommandPalette: OpenCommandPaletteWindow", shell);
         Assert.Contains("LaunchIntentKind.OpenCommandPalette", shell);
         // Ctrl+K with no shift opens it; the lock rule comes first.
         Assert.Contains("e.Key == Key.K && Keyboard.Modifiers == ModifierKeys.Control", shell);
-        var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "src", "ArenaDesktop", "MainWindow.xaml"));
+        var xaml = Source("src/ArenaDesktop/MainWindow.xaml");
         Assert.Contains("Click=\"OnCommandPalette\"", xaml);
         Assert.Contains("InputGestureText=\"Ctrl+K\"", xaml);
-        var tray = File.ReadAllText(Path.Combine(RepoRoot(), "src", "ArenaDesktop", "TrayController.cs"));
+        var tray = Source("src/ArenaDesktop/TrayController.cs");
         Assert.Contains("Command palette", tray);
         // A lock hides the palette behind the lock screen, so the tray
         // item must not stay clickable while locked.
         Assert.Contains("_commandPaletteItem.Enabled = !locked", tray);
-        var app = File.ReadAllText(Path.Combine(RepoRoot(), "src", "ArenaDesktop", "App.xaml.cs"));
+        var app = Source("src/ArenaDesktop/App.xaml.cs");
         Assert.Contains("LaunchIntentKind.OpenCommandPalette", app);
     }
 
     [Fact]
     public void Shell_GivesTheLayoutCycleAKey_AndAMenuItem()
     {
-        var shell = File.ReadAllText(Path.Combine(RepoRoot(), "src", "ArenaDesktop", "MainWindow.xaml.cs"));
+        var shell = Source("src/ArenaDesktop/MainWindow.xaml.cs");
         Assert.Contains("ShellLayoutCycle.Next(_settings.ShellLayout)", shell);
         Assert.Contains("Key.K\n            && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift)", shell);
-        var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "src", "ArenaDesktop", "MainWindow.xaml"));
+        var xaml = Source("src/ArenaDesktop/MainWindow.xaml");
         Assert.Contains("Header=\"Cycle layout\"", xaml);
         Assert.Contains("InputGestureText=\"Ctrl+Shift+K\"", xaml);
     }
@@ -352,6 +352,15 @@ public class CommandPaletteTests
         Assert.Null(parsed.Intent);
         Assert.NotNull(parsed.Refusal);
     }
+
+    /// <summary>
+    /// A repo file's text with line endings normalised to LF. The CI
+    /// checkout is CRLF on Windows, and an assertion that spans two
+    /// source lines must not depend on which one it got — the first
+    /// version of this file failed on exactly that.
+    /// </summary>
+    private static string Source(string relativePath) =>
+        File.ReadAllText(Path.Combine(RepoRoot(), relativePath)).Replace("\r\n", "\n");
 
     private static string RepoRoot()
     {

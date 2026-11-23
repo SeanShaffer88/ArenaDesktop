@@ -465,8 +465,10 @@ public class PromptPadTests
     [Fact]
     public void Window_SavesTheDraftOnClose_AndClearsItOnCopy()
     {
+        // Normalised for the same reason: the CI checkout is CRLF.
         var window = File.ReadAllText(
-            Path.Combine(RepoRoot(), "src", "ArenaDesktop", "PromptPadWindow.xaml.cs"));
+            Path.Combine(RepoRoot(), "src", "ArenaDesktop", "PromptPadWindow.xaml.cs"))
+            .Replace("\r\n", "\n");
         Assert.Contains("Editor.Text = PromptPad.Draft(_data);", window);
         Assert.Contains("Closing += (_, _) => SaveDraft();", window);
         // A copy clears the draft, so reopening the pad does not hand
