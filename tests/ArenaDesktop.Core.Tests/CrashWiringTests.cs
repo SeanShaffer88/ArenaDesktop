@@ -56,7 +56,7 @@ public class CrashWiringTests
         Assert.Contains("CrashReport.Package(", code);
         Assert.Contains("CrashReport.TailFromFile(log.Path)", code);
         Assert.Contains("MessageBox.Show(", code);
-        Assert.Contains("CrashDialog failed", code);
+        Assert.Contains("Crash dialog failed: ", code);   // logged before the fallback box
         Assert.Contains("ShowText(", code);
     }
 
