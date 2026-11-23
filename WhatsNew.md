@@ -2,6 +2,17 @@
 
 The release notes ArenaDesktop shows on the first launch of a new version. This file is generated from CHANGELOG.md's current-version section at release time (see RELEASE_CHECKLIST.md) — do not edit it by hand; a test pins it to the changelog so the two can't drift.
 
+## [0.15.0] — 2026-11-23
+
+The Settings window had grown by accretion: nine sections in one long column, red titles, plain fields and buttons, and OK/Cancel at the very bottom of the scroll — reachable only after scrolling past the last section. This release restyles the window; every control and handler is unchanged, only how the window looks.
+
+### Changed
+
+- **Settings is now a set of cards.** Each of the nine sections (Behavior, Tray & notifications, Account profiles, Appearance & toolbar, Zoom, Keyboard & accessibility, Downloads, Data, Privacy & security) sits in its own rounded card, with a white title and a short red rule under it — the family black/red identity, without painting whole titles red. The card *is* the section, so searching still hides a non-matching section whole, card and all.
+- **Fields and buttons share one treatment.** Text boxes, combo boxes and buttons now paint from the same shared colours as the rest of the shell — raised surface, hairline border, rounded corners, a visible caret and selection — so every field in the window is styled the same way in both shell themes. Nothing is hardcoded: the light theme and High Contrast recolour them exactly as before, and a test fails if a literal colour creeps back in.
+- **OK and Cancel are pinned at the bottom.** They no longer scroll away with the last section; the button bar stays put under a hairline, so the window can be closed from anywhere in it.
+- **The window is a little wider by default** (580px), so the widest row — the three favorite-mode pickers — fits inside its card without a horizontal scrollbar. A window you have already sized keeps the size it was last closed at.
+
 ## [0.14.0] — 2026-11-23
 
 Everything in this release came from one sentence in a bug report — "error message when accessing Settings" — and from the list of things that sentence made obvious: the app could not name its own broken file, could not remember its own crashes, and asked the user to do by hand four things it could take as an argument.

@@ -383,7 +383,7 @@ public class S5Tests
         };
         settings.Sanitized();
         Assert.Null(settings.SettingsLastSection);
-        Assert.Equal(480, settings.SettingsWindowWidth);
+        Assert.Equal(580, settings.SettingsWindowWidth);
         Assert.Equal(0, settings.SettingsWindowHeight);
 
         settings.SettingsLastSection = SettingsSearch.DownloadsId;

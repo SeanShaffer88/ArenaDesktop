@@ -3,28 +3,103 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:ArenaDesktop"
         Title="ArenaDesktop Settings"
-        Width="480" Height="660" MinWidth="440" MinHeight="420" MaxHeight="1000"
+        Width="580" Height="660" MinWidth="440" MinHeight="420" MaxHeight="1000"
         ResizeMode="CanResize" WindowStartupLocation="CenterOwner"
         Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
     <Window.Resources>
         <local:ProfileColorBrushConverter x:Key="ProfileColorBrush"/>
+        <!-- Section titles are white; the red lives in the short rule
+             under each one (added beside the header in the markup).
+             The search highlight still washes the header's own
+             Background, so the header keeps its Padding. -->
         <Style x:Key="SectionHeader" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontSize" Value="15"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
-            <Setter Property="Margin" Value="0,14,0,4"/>
-            <Setter Property="Padding" Value="2,1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,2"/>
+            <Setter Property="Padding" Value="6,2"/>
         </Style>
         <Style x:Key="Note" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="LineHeight" Value="15"/>
             <Setter Property="Margin" Value="0,2,0,0"/>
+        </Style>
+        <!-- Group labels inside a section ("Clear browsing data:" …). -->
+        <Style x:Key="SubHeader" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="Margin" Value="0,14,0,4"/>
+        </Style>
+        <!-- Each section is a card. The card IS the section StackPanel
+             (not a Border wrapped around it) so the search filter's
+             Visibility toggle still hides the whole card. -->
+        <Style x:Key="SectionCard" TargetType="StackPanel">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16,14"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+        <!-- Fields and buttons paint from the shared tokens only, so
+             the light theme and High Contrast keep working. S6 #51:
+             window-local styles must not lose the focus visual. -->
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource RaisedBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="CaretBrush" Value="{StaticResource TextBrush}"/>
+            <Setter Property="SelectionBrush" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ShellFocusVisual}"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="{StaticResource RaisedBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ShellFocusVisual}"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource RaisedBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ShellFocusVisual}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{StaticResource FaintBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style TargetType="CheckBox">
             <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
             <Setter Property="Margin" Value="0,5,0,0"/>
-            <!-- S6 #51: window-local styles must not lose the focus visual. -->
             <Setter Property="FocusVisualStyle" Value="{StaticResource ShellFocusVisual}"/>
         </Style>
         <Style TargetType="RadioButton">
@@ -36,29 +111,45 @@
 
     <DockPanel>
         <!-- Settings search (S5 #41): section-level filter + highlight. -->
-        <StackPanel DockPanel.Dock="Top" Margin="18,12,18,0">
-            <TextBlock Text="Search settings:" Margin="0,0,0,4"/>
+        <StackPanel DockPanel.Dock="Top" Margin="18,14,18,0">
+            <TextBlock Text="Search settings:" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,5"/>
             <TextBox x:Name="SettingsSearchText" TextChanged="OnSearchTextChanged"
                      ToolTip="Type to jump to a setting — matching sections stay visible and are highlighted; the rest hide while you search"/>
             <TextBlock x:Name="SearchSummary" Style="{StaticResource Note}"/>
             <!-- v0.13.0: a panel that cannot be read says so here. Settings is
                  the window a user opens *because* something is wrong; it must
                  not be the window that refuses to open. -->
-            <Border x:Name="LoadFailureBanner" Visibility="Collapsed" Margin="0,8,0,0"
-                    Padding="8,6" Background="{StaticResource SurfaceBrush}"
-                    BorderBrush="{StaticResource AccentBrush}" BorderThickness="3,0,0,0">
-                <StackPanel>
-                    <TextBlock Text="Some settings could not be shown." FontWeight="SemiBold"/>
-                    <TextBlock x:Name="LoadFailureDetail" Style="{StaticResource Note}"/>
+            <Border x:Name="LoadFailureBanner" Visibility="Collapsed" Margin="0,10,0,0"
+                    Padding="12,10" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6">
+                <StackPanel Orientation="Horizontal">
+                    <Border Width="3" CornerRadius="1.5" Background="{StaticResource AccentBrush}" Margin="0,0,10,0"/>
+                    <StackPanel>
+                        <TextBlock Text="Some settings could not be shown." FontWeight="SemiBold"/>
+                        <TextBlock x:Name="LoadFailureDetail" Style="{StaticResource Note}"/>
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </StackPanel>
 
+        <!-- OK / Cancel stay pinned at the bottom, below the scroll
+             area, so they are always reachable. -->
+        <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource HairlineBrush}"
+                BorderThickness="0,1,0,0" Padding="18,10">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="OK" Width="86" Height="30" IsDefault="True" Click="OnOk"
+                        Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"/>
+                <Button Content="Cancel" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True"/>
+            </StackPanel>
+        </Border>
+
         <ScrollViewer x:Name="SettingsScroller" VerticalScrollBarVisibility="Auto"
                       ScrollChanged="OnSettingsScrolled">
-            <StackPanel x:Name="SectionsPanel" Margin="18,6,18,16">
-                <StackPanel x:Name="SectionBehavior">
+            <StackPanel x:Name="SectionsPanel" Margin="18,10,18,16">
+                <StackPanel x:Name="SectionBehavior" Style="{StaticResource SectionCard}">
                     <TextBlock x:Name="HeaderBehavior" Text="Behavior" Style="{StaticResource SectionHeader}"/>
+                    <Border Height="2" Width="44" CornerRadius="1" Background="{StaticResource AccentBrush}"
+                            HorizontalAlignment="Left" Margin="6,0,0,10"/>
                     <CheckBox x:Name="StartWithWindowsCheck" Content="Start with Windows"
                               ToolTip="Launch ArenaDesktop when you sign in to Windows (the usual per-user Run entry)"/>
                     <CheckBox x:Name="StartMinimizedCheck" Content="When starting with Windows, open in the tray (not on screen)"
@@ -134,8 +225,10 @@
                                Text="Changes apply when you choose OK. Start-with-Windows writes the usual per-user Run entry; nothing here phones home beyond the update check you control."/>
                 </StackPanel>
 
-                <StackPanel x:Name="SectionTray">
+                <StackPanel x:Name="SectionTray" Style="{StaticResource SectionCard}">
                     <TextBlock x:Name="HeaderTray" Text="Tray &amp; notifications" Style="{StaticResource SectionHeader}"/>
+                    <Border Height="2" Width="44" CornerRadius="1" Background="{StaticResource AccentBrush}"
+                            HorizontalAlignment="Left" Margin="6,0,0,10"/>
                     <CheckBox x:Name="TraySingleClickCheck" Content="Single-click the tray icon to reopen (instead of double-click)"
                               ToolTip="On: one click on the tray icon brings the window back. Off: double-click, as always"/>
                     <CheckBox x:Name="FlashOnAttentionCheck" Content="Flash the taskbar button when Arena needs attention while I'm away"
@@ -154,8 +247,10 @@
                                Text="Arena's own in-page notifications are governed by Windows and Arena, not by these settings. The tray icon also shows your active profile's accent color as a small dot, and an unread-count badge when Arena's title provides one."/>
                 </StackPanel>
 
-                <StackPanel x:Name="SectionProfiles">
+                <StackPanel x:Name="SectionProfiles" Style="{StaticResource SectionCard}">
                     <TextBlock x:Name="HeaderProfiles" Text="Account profiles" Style="{StaticResource SectionHeader}"/>
+                    <Border Height="2" Width="44" CornerRadius="1" Background="{StaticResource AccentBrush}"
+                            HorizontalAlignment="Left" Margin="6,0,0,10"/>
                     <ComboBox x:Name="ProfileCombo" SelectionChanged="OnProfileSelectionChanged"
                               ToolTip="Sign-in profiles — each keeps its own Arena session">
                         <ComboBox.ItemTemplate>
@@ -239,8 +334,10 @@
                                Text="Each profile is a separate Arena sign-in (its own cookies and data on this PC). Switching restarts the app immediately, discarding other unsaved changes in this window. You can't remove the profile you're currently using."/>
                 </StackPanel>
 
-                <StackPanel x:Name="SectionAppearance">
+                <StackPanel x:Name="SectionAppearance" Style="{StaticResource SectionCard}">
                     <TextBlock x:Name="HeaderAppearance" Text="Appearance &amp; toolbar" Style="{StaticResource SectionHeader}"/>
+                    <Border Height="2" Width="44" CornerRadius="1" Background="{StaticResource AccentBrush}"
+                            HorizontalAlignment="Left" Margin="6,0,0,10"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="Shell theme:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="ThemeCombo" Width="170"
@@ -310,8 +407,10 @@
                                Text="Download and update events are announced either way. This only widens that to everyday status-bar outcomes; progress lines stay silent so they never talk over the page."/>
                 </StackPanel>
 
-                <StackPanel x:Name="SectionZoom">
+                <StackPanel x:Name="SectionZoom" Style="{StaticResource SectionCard}">
                     <TextBlock x:Name="HeaderZoom" Text="Zoom" Style="{StaticResource SectionHeader}"/>
+                    <Border Height="2" Width="44" CornerRadius="1" Background="{StaticResource AccentBrush}"
+                            HorizontalAlignment="Left" Margin="6,0,0,10"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="Default zoom:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="ZoomCombo" Width="90"
@@ -327,8 +426,10 @@
                 </StackPanel>
 
                 <!-- Keyboard & accessibility (v0.10.0, S6) -->
-                <StackPanel x:Name="SectionAccessibility">
+                <StackPanel x:Name="SectionAccessibility" Style="{StaticResource SectionCard}">
                     <TextBlock x:Name="HeaderAccessibility" Text="Keyboard &amp; accessibility" Style="{StaticResource SectionHeader}"/>
+                    <Border Height="2" Width="44" CornerRadius="1" Background="{StaticResource AccentBrush}"
+                            HorizontalAlignment="Left" Margin="6,0,0,10"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="Reduce motion:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="ReduceMotionCombo" Width="190"
@@ -371,8 +472,10 @@
                                Text="The default is Ctrl+Alt+A. If another app already uses the combination, registration fails and the status line above says so — pick a different one. While the app is locked, the hotkey only ever shows the lock screen."/>
                 </StackPanel>
 
-                <StackPanel x:Name="SectionDownloads">
+                <StackPanel x:Name="SectionDownloads" Style="{StaticResource SectionCard}">
                     <TextBlock x:Name="HeaderDownloads" Text="Downloads" Style="{StaticResource SectionHeader}"/>
+                    <Border Height="2" Width="44" CornerRadius="1" Background="{StaticResource AccentBrush}"
+                            HorizontalAlignment="Left" Margin="6,0,0,10"/>
                     <DockPanel LastChildFill="True">
                         <Button x:Name="BrowseFolderButton" DockPanel.Dock="Right" Content="Browse…" Width="76" Margin="8,0,0,0"
                                 Click="OnBrowseDownloadsFolder"/>
@@ -403,8 +506,10 @@
                                Text="History keeps names, sizes, dates, and paths only — never the addresses files came from. Failed downloads are listed too."/>
                 </StackPanel>
 
-                <StackPanel x:Name="SectionData">
+                <StackPanel x:Name="SectionData" Style="{StaticResource SectionCard}">
                     <TextBlock x:Name="HeaderData" Text="Data" Style="{StaticResource SectionHeader}"/>
+                    <Border Height="2" Width="44" CornerRadius="1" Background="{StaticResource AccentBrush}"
+                            HorizontalAlignment="Left" Margin="6,0,0,10"/>
                     <TextBlock Style="{StaticResource Note}" Margin="0,0,0,0"
                                Text="Clearing browsing data (cookies, cache, site data) moved to Privacy &amp; security below, where you can choose exactly what to clear and for which profiles."/>
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
@@ -431,7 +536,7 @@
                             ToolTip="The guided reset: backup first, then choose — reset settings, clear site data for all profiles, or both — each step explained"/>
                     <TextBlock Style="{StaticResource Note}"
                                Text="Won't start, or won't sign in? The guided reset walks through the fix step by step — a backup of your current settings is written before anything changes."/>
-                    <TextBlock Text="Automatic backups:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <TextBlock Text="Automatic backups:" Style="{StaticResource SubHeader}"/>
                     <TextBlock Style="{StaticResource Note}" Margin="0,0,0,0"
                                Text="ArenaDesktop keeps the five most recent backups of your settings and your downloads history — at most one new automatic backup per day, plus whenever you choose Back up now. Restoring settings goes through the same checks as Import."/>
                     <Button Content="Back up now" Width="130" HorizontalAlignment="Left" Margin="0,6,0,0"
@@ -442,8 +547,10 @@
                     <TextBlock x:Name="PortableNote" Style="{StaticResource Note}" Margin="0,10,0,0"/>
                 </StackPanel>
 
-                <StackPanel x:Name="SectionPrivacy">
+                <StackPanel x:Name="SectionPrivacy" Style="{StaticResource SectionCard}">
                     <TextBlock x:Name="HeaderPrivacy" Text="Privacy &amp; security" Style="{StaticResource SectionHeader}"/>
+                    <Border Height="2" Width="44" CornerRadius="1" Background="{StaticResource AccentBrush}"
+                            HorizontalAlignment="Left" Margin="6,0,0,10"/>
 
                     <CheckBox x:Name="PasswordAutosaveCheck" Content="Let Arena save passwords in the web view"
                               ToolTip="WebView2's own password save, on by default. Turning this off stops NEW passwords being saved; ones already saved still fill until you clear site data"/>
@@ -452,7 +559,7 @@
                     <TextBlock Style="{StaticResource Note}"
                                Text="These are the web engine's features, shared by every window in the profile. They apply to the profile ArenaDesktop is currently running and take effect as soon as you choose OK."/>
 
-                    <TextBlock Text="Clear browsing data:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <TextBlock Text="Clear browsing data:" Style="{StaticResource SubHeader}"/>
                     <StackPanel Orientation="Horizontal">
                         <ComboBox x:Name="ClearChoiceCombo" Width="140" SelectionChanged="OnClearChoiceChanged"
                                   ToolTip="What to clear: cookies only, cache only, or all site data"/>
@@ -464,7 +571,7 @@
                     <TextBlock x:Name="ClearPlanNote" Style="{StaticResource Note}"/>
                     <TextBlock x:Name="ClearResultNote" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
 
-                    <TextBlock Text="Permissions (profile ArenaDesktop is currently running):" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <TextBlock Text="Permissions (profile ArenaDesktop is currently running):" Style="{StaticResource SubHeader}"/>
                     <TextBlock x:Name="PermissionsNote" Style="{StaticResource Note}" Margin="0,0,0,0"
                                Text="Reading the saved permission choices…"/>
                     <StackPanel x:Name="PermissionRows" Margin="0,4,0,0"/>
@@ -473,7 +580,7 @@
                             ToolTip="Read the running profile's saved permission choices again"/>
                     <TextBlock x:Name="PermissionDenialsText" Style="{StaticResource Note}"/>
 
-                    <TextBlock Text="Microphone &amp; notification tests:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <TextBlock Text="Microphone &amp; notification tests:" Style="{StaticResource SubHeader}"/>
                     <StackPanel Orientation="Horizontal">
                         <Button Content="Test microphone…" Width="140" Click="OnTestMicrophone"
                                 ToolTip="Ask for the microphone the way a page does, then listen for a few seconds — the result says whether permission was granted AND whether sound actually arrived"/>
@@ -484,7 +591,7 @@
                     <TextBlock Style="{StaticResource Note}"
                                Text="The microphone test runs in this profile and checks the whole path Arena's voice input uses — Windows' microphone permission included. The notification test fires ArenaDesktop's own tray balloon; Arena's in-page alerts are Arena's side of the fence."/>
 
-                    <TextBlock Text="Site data per profile:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <TextBlock Text="Site data per profile:" Style="{StaticResource SubHeader}"/>
                     <StackPanel x:Name="SiteDataRows"/>
                     <Button Content="Refresh site data" Width="150" HorizontalAlignment="Left" Margin="0,6,0,0"
                             Click="OnRefreshSiteData"
@@ -492,7 +599,7 @@
                     <TextBlock Style="{StaticResource Note}"
                                Text="Cookie counts only — cookie values are never shown anywhere in ArenaDesktop."/>
 
-                    <TextBlock Text="App lock:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <TextBlock Text="App lock:" Style="{StaticResource SubHeader}"/>
                     <TextBlock x:Name="AppLockStatusText" Style="{StaticResource Note}" Margin="0,0,0,0"/>
                     <CheckBox x:Name="AppLockEnabledCheck" Content="Require my app password or PIN"
                               Margin="0,6,0,0"
@@ -519,7 +626,7 @@
                     <TextBlock Style="{StaticResource Note}"
                                Text="The lock stops casual access to the open app on this PC. It does NOT encrypt your Arena sign-ins on disk. Only a salted one-way hash of the password is stored — the password itself never is. If you forget it: quit ArenaDesktop, open the data folder (Data section above) and delete settings.json, then start the app — the lock is gone and settings return to defaults; your default profile stays signed in, because sign-ins live in the separate profile folders, not in settings.json."/>
 
-                    <TextBlock Text="Privacy report:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <TextBlock Text="Privacy report:" Style="{StaticResource SubHeader}"/>
                     <TextBlock x:Name="PrivacyReportText" Style="{StaticResource Note}" Margin="0,0,0,0"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                         <Button Content="Reset counters" Width="120" Click="OnResetPrivacyStats"
@@ -531,11 +638,6 @@
                                Text="The report counts only — what kind of thing was blocked, how many times, and which site. No page addresses, no content, and nothing leaves this PC."/>
                 </StackPanel>
 
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-                    <Button Content="OK" Width="86" Height="30" IsDefault="True" Click="OnOk"
-                            Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"/>
-                    <Button Content="Cancel" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True"/>
-                </StackPanel>
             </StackPanel>
         </ScrollViewer>
     </DockPanel>
