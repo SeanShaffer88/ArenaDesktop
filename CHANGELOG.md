@@ -2,6 +2,25 @@
 
 All notable changes to ArenaDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.14.0] — 2026-11-23
+
+Everything in this release came from one sentence in a bug report — "error message when accessing Settings" — and from the list of things that sentence made obvious: the app could not name its own broken file, could not remember its own crashes, and asked the user to do by hand four things it could take as an argument.
+
+### Added
+
+- **The app inspects its own files.** Diagnostics now carries a *Data files* section — every store the app owns (`settings.json`, `downloads.json`, `battle-lab.json`, `prompt-pad.json`, `field-pass.json`, `privacy-stats.json`, `crash-history.json`) with its size and either *ok* or what is wrong with it, in words: "unreadable: the file is empty", "…: the file holds a json array, not an object". Beside it, **Repair data files…** copies each unreadable file beside itself (the `.corrupt-` name the app already uses) **before** deleting it, so the worst outcome of pressing it is nothing happening.
+- **A crash ledger.** Crashes are recorded — the UI thread, a background thread (`AppDomain.UnhandledException`), and a task nobody awaited — in `crash-history.json`. A clean exit clears the marker, so the next launch can say **the last run ended in an error** in the status bar, with the detail in Diagnostics. Three crashes inside ten minutes is treated as a loop, and the crash dialog then offers **Restart in safe mode**.
+- **Arguments for the command palette.** Ctrl+K now understands `zoom 125`, `find cables`, `profile Work` and `mode side` — the specific row goes to the top and Enter runs it, through the same code paths the menus use. Anything malformed (`zoom 900`, an unknown profile) stays a search, and the argument is never written to the log.
+- **Blanks with defaults.** `[tone=neutral]` is a blank named *tone* whose default is *neutral*: the user's own answer wins, the default fills in when nobody supplies one, and a defaulted blank is no longer reported as "left as it was". Plain `[topic]` behaves exactly as before.
+- **The field pass exports itself.** **Export report…** writes the pass as Markdown or JSON (the file dialog decides), with a `schemaVersion` and the same rule as before: verdicts and notes only, nothing from the Arena page.
+- **Which prompts win.** The Battle Lab journal gains a cross-prompt leaderboard — battles, A wins, B wins and ties per prompt, ranked by decided battles — and "Copy journal" includes it once more than one prompt is recorded.
+- **An ARM64 build in CI.** A separate job publishes `win-arm64` self-contained and checks the WebView2 arm64 loader is in the payload, so the publish cannot rot. Nothing ships ARM64 yet; a guard test keeps it that way.
+- **`scripts/verify-windows.ps1`.** Runs the start-up smoke test, scans the log for errors, asks for a verdict on each release-checklist item, and writes `docs/verification/verify-<stamp>.md` — the file the "Unverified" rows in QUALITY.md are waiting for.
+
+### Changed
+
+- The High Contrast support that shipped in v0.9.0 is now *audited*: a test fails if a brush the shell paints with has no High Contrast override, or if the override stops being re-applied when Windows' preference changes.
+
 ## [0.13.0] — 2026-11-23
 
 A bug report arrived as a screenshot of an error box: "ArenaDesktop hit an unexpected error but kept your session safe. Details were written to the log: C:\Users\…\arenadesktop.log". Settings would not open. The box named no exception, the frame that threw, or what to do — so this release fixes the two halves of that: **the app says what broke**, and **Settings cannot be taken down by one panel**.

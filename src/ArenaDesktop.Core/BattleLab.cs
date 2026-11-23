@@ -171,6 +171,9 @@ public sealed class BattleLabData
     public List<BattleJournalEntry> Journal { get; set; } = new();
 }
 
+/// <summary>One prompt's record across the whole journal (v0.14.0) — see <see cref="BattleJournalMarkdown.RankByPrompt"/>.</summary>
+public sealed record BattlePromptStanding(string PromptName, int Total, int AWins, int BWins, int Ties);
+
 /// <summary>
 /// The <c>[blank]</c> placeholders in a prompt body (ArenaDesktop
 /// v0.2.0, Battle Lab). A blank is square brackets around a short
@@ -194,13 +197,50 @@ public static class PromptBlanks
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (Match match in BlankPattern.Matches(body))
         {
-            var name = match.Groups["name"].Value.Trim();
+            var name = NamePart(match.Groups["name"].Value);
             if (name.Length == 0)
                 continue;
             if (seen.Add(name))
                 found.Add(name);
         }
         return found;
+    }
+
+    /// <summary>
+    /// The defaults a prompt carries (v0.14.0): <c>[tone=neutral]</c> names a
+    /// blank "tone" whose default is "neutral". First spelling wins, like
+    /// <see cref="Extract"/>.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> Defaults(string? body)
+    {
+        var defaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrEmpty(body))
+            return defaults;
+        foreach (Match match in BlankPattern.Matches(body))
+        {
+            var name = NamePart(match.Groups["name"].Value);
+            var fallback = DefaultPart(match.Groups["name"].Value);
+            if (name.Length == 0 || fallback.Length == 0)
+                continue;
+            defaults.TryAdd(name, fallback);
+        }
+        return defaults;
+    }
+
+    /// <summary>The blank's name: everything before the first <c>=</c>, trimmed.</summary>
+    private static string NamePart(string raw)
+    {
+        var text = (raw ?? "").Trim();
+        var separator = text.IndexOf('=');
+        return (separator < 0 ? text : text[..separator]).Trim();
+    }
+
+    /// <summary>The default after the first <c>=</c>, trimmed, or empty when there is none.</summary>
+    private static string DefaultPart(string raw)
+    {
+        var text = raw ?? "";
+        var separator = text.IndexOf('=');
+        return separator < 0 ? "" : text[(separator + 1)..].Trim();
     }
 
     /// <summary>
@@ -223,7 +263,12 @@ public static class PromptBlanks
                 .Where(pair => !string.IsNullOrWhiteSpace(pair.Value))
                 .Select(pair => pair.Key.Trim()),
             StringComparer.OrdinalIgnoreCase);
-        return blanks.Where(b => !filled.Contains(b)).ToList();
+        // v0.14.0: a blank with a default is filled by its own default when the
+        // user supplies nothing, so it is not reported as left behind.
+        var defaulted = Defaults(body);
+        return blanks
+            .Where(b => !filled.Contains(b) && !defaulted.ContainsKey(b))
+            .ToList();
     }
 
     /// <summary>
@@ -256,9 +301,16 @@ public static class PromptBlanks
         }
         return BlankPattern.Replace(body, match =>
         {
-            var name = match.Groups["name"].Value.Trim();
-            return name.Length > 0 && lookup.TryGetValue(name, out var value)
-                ? value
+            var name = NamePart(match.Groups["name"].Value);
+            if (name.Length == 0)
+                return match.Value;
+            if (lookup.TryGetValue(name, out var value))
+                return value;
+            // v0.14.0: [tone=neutral] is a blank with a default — an answer the
+            // prompt's author already gave. The user's own value still wins;
+            // the default only speaks when nobody else did.
+            return DefaultPart(match.Groups["name"].Value) is { Length: > 0 } fallback
+                ? fallback
                 : match.Value;
         });
     }
@@ -952,8 +1004,59 @@ public static class BattleJournalMarkdown
                 var date = entry.RecordedUtc.ToLocalTime().ToString("yyyy-MM-dd");
                 lines.Add($"| {date} | {Cell(entry.PromptName)} | {BattleOutcomeText.Label(entry.Outcome)} | {Cell(entry.Note)} |");
             }
+            // v0.14.0: the cross-prompt view, only once there is more than one
+            // prompt to compare — on a single-prompt journal the tally above
+            // already says everything this table would.
+            if (RankByPrompt(list).Count > 1)
+            {
+                lines.Add("");
+                lines.Add(RenderLeaderboard(list));
+            }
         }
         return string.Join("\n", lines).TrimEnd() + "\n";
+    }
+
+    /// <summary>
+    /// The cross-prompt leaderboard (v0.14.0): which prompts have actually been
+    /// winning, rather than one prompt's tally. Ranks by wins, then by record,
+    /// then by name so the order is stable; a prompt with no decided battles is
+    /// listed last with "no wins recorded" instead of a fake percentage.
+    /// </summary>
+    public static IReadOnlyList<BattlePromptStanding> RankByPrompt(IEnumerable<BattleJournalEntry> entries)
+    {
+        var standings = entries
+            .GroupBy(e => (e.PromptName ?? "").Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Key.Length > 0)
+            .Select(g =>
+            {
+                var tally = BattleJournalTally.Of(g);
+                return new BattlePromptStanding(g.Key, tally.Total, tally.AWins, tally.BWins, tally.Ties);
+            })
+            .OrderByDescending(s => s.AWins + s.BWins)
+            .ThenByDescending(s => s.Total)
+            .ThenBy(s => s.PromptName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return standings;
+    }
+
+    /// <summary>The leaderboard as a markdown table, for "Copy journal" (v0.14.0). Empty when nothing is recorded.</summary>
+    public static string RenderLeaderboard(IEnumerable<BattleJournalEntry> entries)
+    {
+        var standings = RankByPrompt(entries);
+        if (standings.Count == 0)
+            return "";
+        var lines = new List<string>
+        {
+            "## Which prompts win",
+            "",
+            "| Prompt | Battles | A won | B won | Ties |",
+            "| --- | --- | --- | --- | --- |",
+        };
+        foreach (var s in standings)
+            lines.Add($"| {Cell(s.PromptName)} | {s.Total} | {s.AWins} | {s.BWins} | {s.Ties} |");
+        lines.Add("");
+        lines.Add("A and B are the two sides of each recorded battle; the app never reads the Arena page, so these results are the ones you entered by hand.");
+        return string.Join("\n", lines);
     }
 
     private static string Cell(string? text) =>

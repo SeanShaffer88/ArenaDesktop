@@ -55,6 +55,9 @@ public static class AppPaths
     /// <summary>Privacy report counters + recent permission denials (v0.11.0, S7 #62/#67) — counts and host names only, beside the settings.</summary>
     public static string PrivacyStatsPath => Path.Combine(RootDir, "privacy-stats.json");
 
+    /// <summary>The crash ledger (v0.14.0): recent crashes, and whether the last run ended in one.</summary>
+    public static string CrashHistoryPath => Path.Combine(RootDir, "crash-history.json");
+
     /// <summary>Automatic rotating backups of settings + download history (v0.12.0, S8 #79).</summary>
     public static string BackupsDir => Path.Combine(RootDir, "backups");
 

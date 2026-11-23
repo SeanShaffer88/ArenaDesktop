@@ -72,6 +72,12 @@
                                 Click="OnCopySummary"
                                 ToolTip="Copy the whole pass — verdicts and notes — as plain text for a bug report"
                                 AutomationProperties.Name="Copy summary"/>
+                        <!-- v0.14.0: the pass as a file, so a recording can be
+                             attached to a bug report or kept next to a build. -->
+                        <Button x:Name="ExportSummaryButton" Content="Export report…" Height="28" Margin="0,6,0,0"
+                                Click="OnExportSummary"
+                                ToolTip="Save the pass as Markdown (.md) or JSON (.json) — verdicts and notes only, nothing from the Arena page"
+                                AutomationProperties.Name="Export the field pass report"/>
                         <Button Content="Start over" Height="28" Margin="0,6,0,0" Click="OnReset"
                                 ToolTip="Clear every verdict and note and begin the pass again (asks first)"
                                 AutomationProperties.Name="Start the field pass over"/>

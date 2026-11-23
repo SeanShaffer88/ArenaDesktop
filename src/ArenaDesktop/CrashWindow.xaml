@@ -47,6 +47,12 @@
                     ToolTip="Copy this report — the exception, where it was thrown, and the last 25 log lines"/>
             <Button x:Name="OpenLogButton" Content="Open log folder" Height="30" Padding="12,0" Margin="0,0,8,0"
                     Click="OnOpenLog"/>
+            <!-- v0.14.0: shown only when the ledger says this is a loop — a
+                 crash three times in ten minutes is not something a report
+                 fixes, and safe mode is the way back in. -->
+            <Button x:Name="SafeModeButton" Content="Restart in safe mode" Height="30" Padding="12,0" Margin="0,0,8,0"
+                    Click="OnRestartSafeMode" Visibility="Collapsed"
+                    ToolTip="Close this and reopen at the Arena home page with customisations bypassed (--safe-mode)"/>
             <Button Content="Close" Height="30" Padding="14,0" Click="OnClose" IsCancel="True"/>
         </StackPanel>
 

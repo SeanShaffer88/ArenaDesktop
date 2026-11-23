@@ -36,6 +36,7 @@ public partial class DiagnosticsWindow : Window
     private readonly Func<string?>? _lastErrorProvider;
     private readonly Action? _onFieldPass;
     private readonly Func<Task<string>>? _onCheckModeRoutes;
+    private readonly Func<string>? _onRepairData;
     private string? _routeSection;
 
     // The route re-check cadence while Diagnostics is open. The probe
@@ -63,8 +64,10 @@ public partial class DiagnosticsWindow : Window
         Action? onExportBundle = null, Action? onOpenLog = null,
         Func<string?>? lastErrorProvider = null,
         Action? onFieldPass = null,
-        Func<Task<string>>? onCheckModeRoutes = null)
+        Func<Task<string>>? onCheckModeRoutes = null,
+        Func<string>? onRepairData = null)
     {
+        _onRepairData = onRepairData;
         _reportProvider = reportProvider;
         _onRollback = onRollback;
         _onExportBundle = onExportBundle;
@@ -97,6 +100,8 @@ public partial class DiagnosticsWindow : Window
             OpenLogButton.Visibility = Visibility.Visible;
         if (lastErrorProvider is not null)
             CopyLastErrorButton.Visibility = Visibility.Visible;
+        if (onRepairData is not null)
+            RepairDataButton.Visibility = Visibility.Visible;
         RefreshReport();
     }
 
@@ -109,6 +114,17 @@ public partial class DiagnosticsWindow : Window
     private void OnOpenLog(object sender, RoutedEventArgs e) => _onOpenLog?.Invoke();
 
     /// <summary>Copy just the newest error, redacted (S10 #93).</summary>
+    /// <summary>v0.14.0: check and repair the app's own files; the owner window does the work.</summary>
+    private void OnRepairData(object sender, RoutedEventArgs e)
+    {
+        if (_onRepairData is null)
+            return;
+        RepairNote.Text = _onRepairData();
+        RepairNote.Visibility = Visibility.Visible;
+        // The report is stale the moment a file is reset, so re-collect it.
+        RefreshReport();
+    }
+
     private void OnCopyLastError(object sender, RoutedEventArgs e)
     {
         var last = _lastErrorProvider?.Invoke();

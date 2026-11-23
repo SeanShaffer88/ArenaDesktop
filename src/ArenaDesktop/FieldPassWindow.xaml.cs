@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using ArenaDesktop.Core;
@@ -207,6 +208,39 @@ public partial class FieldPassWindow : Window
         catch
         {
             StatusText.Text = "Couldn't copy — the clipboard is busy.";
+        }
+    }
+
+    /// <summary>
+    /// Save the pass as a file (v0.14.0): Markdown for a person, JSON for a
+    /// tool. The dialog's filter decides which, and the extension follows it so
+    /// the file opens in the right app afterwards.
+    /// </summary>
+    private void OnExportSummary(object sender, RoutedEventArgs e)
+    {
+        FlushNote();
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Export the field pass",
+            FileName = $"arenadesktop-field-pass-{DateTime.Now:yyyyMMdd}.md",
+            Filter = "Markdown (*.md)|*.md|JSON (*.json)|*.json",
+            DefaultExt = ".md",
+            InitialDirectory = AppPaths.RootDir,
+        };
+        if (dialog.ShowDialog(this) != true)
+            return;
+        try
+        {
+            var json = dialog.FilterIndex == 2 || dialog.FileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
+            var contents = json
+                ? FieldPassSummary.ToJson(_session, _appVersion, DateTimeOffset.Now)
+                : FieldPassSummary.Render(_session, _appVersion, DateTimeOffset.Now);
+            File.WriteAllText(dialog.FileName, contents);
+            StatusText.Text = $"Report saved: {dialog.FileName}";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Couldn't save the report ({ex.GetType().Name}) — try another folder.";
         }
     }
 

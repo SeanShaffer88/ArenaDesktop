@@ -760,6 +760,19 @@ public sealed class DiagnosticsData
     public IReadOnlyList<string>? RecentErrors { get; init; }
 
     /// <summary>
+    /// v0.14.0: the app's own files, one line each (see <see cref="DataHealth"/>),
+    /// plus the verdict line. Null = not collected, so older callers and tests
+    /// compose exactly what they always did.
+    /// </summary>
+    public IReadOnlyList<string>? DataFileLines { get; init; }
+
+    /// <summary>
+    /// v0.14.0: "the last run ended in an error …" when the crash ledger says
+    /// so, null when the previous exit was clean (or nothing is known).
+    /// </summary>
+    public string? LastRunLine { get; init; }
+
+    /// <summary>
     /// The startup-time trend line (enhancement pack) — computed from
     /// <see cref="StartupRuns"/> by <see cref="StartupTrend"/>; rendered
     /// only when collected, so callers that don't supply it keep the
@@ -865,6 +878,22 @@ public static class DiagnosticsReport
             lines.Add("Data sizes");
             foreach (var (label, bytes) in data.DataSizes)
                 lines.Add($"  {label}: {(bytes is { } b ? DownloadText.FormatBytes(b) : "couldn't be measured")}");
+        }
+        // v0.14.0: the data-file inventory and the last run's ending — the
+        // two facts that turn "something is wrong" into a named file or a
+        // named run.
+        if (data.LastRunLine is { } lastRun)
+        {
+            lines.Add("");
+            lines.Add("Last run");
+            lines.Add("  " + lastRun);
+        }
+        if (data.DataFileLines is { Count: > 0 } dataFiles)
+        {
+            lines.Add("");
+            lines.Add("Data files (this PC)");
+            foreach (var line in dataFiles)
+                lines.Add("  " + line);
         }
         // S10 #89: the most recent errors, redacted, when collected.
         if (data.RecentErrors is { } errors)
