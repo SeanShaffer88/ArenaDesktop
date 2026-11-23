@@ -1071,7 +1071,7 @@ public partial class MainWindow : Window
             return;
         }
         ShowFromTray();
-        var dialog = new CommandPaletteWindow(_settings) { Owner = this };
+        var dialog = new CommandPaletteWindow(_settings, IsPaletteCommandAvailable) { Owner = this };
         dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
         // S5: transient shell windows follow the text scale too.
         ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
@@ -1079,6 +1079,23 @@ public partial class MainWindow : Window
         FocusReturn.ShowDialog(dialog);
         if (dialog.SelectedCommandId is { } id)
             ExecutePaletteCommand(id);
+    }
+
+    /// <summary>
+    /// Which palette commands apply right now (v0.11.0). Two do not always:
+    /// a named zoom level that the active range cannot hold, and "Lock
+    /// ArenaDesktop" before there is a lock to open. Hiding them is better
+    /// than offering a command whose only outcome is a refusal.
+    /// </summary>
+    private bool IsPaletteCommandAvailable(PaletteCommand command)
+    {
+        if (CommandPalette.ZoomPresetFor(command.Id) is { } preset)
+            return ZoomPresets.IsAvailable(preset, _settings.ExtendedZoomRange);
+        return command.Id switch
+        {
+            "lock-now" => AppLock.IsLockActive(_settings),
+            _ => true,
+        };
     }
 
     /// <summary>
@@ -1099,6 +1116,11 @@ public partial class MainWindow : Window
         if (id.StartsWith(CommandPalette.ModePrefix, StringComparison.Ordinal))
         {
             NavigateArenaMode(id[CommandPalette.ModePrefix.Length..]);
+            return;
+        }
+        if (CommandPalette.ZoomPresetFor(id) is { } preset)
+        {
+            ApplyZoomPreset(preset);
             return;
         }
         switch (id)
@@ -1132,10 +1154,20 @@ public partial class MainWindow : Window
             case "restore-closed": OnRestoreClosedPage(this, new RoutedEventArgs()); break;
             case "zoom-in": StepZoom(up: true); break;
             case "zoom-out": StepZoom(up: false); break;
-            case "zoom-reset": ResetZoom(); break;
             case "print": OnPrint(this, new RoutedEventArgs()); break;
+            case "save-as-pdf": OnSaveAsPdf(this, new RoutedEventArgs()); break;
             case "copy-address": OnCopyPageAddress(this, new RoutedEventArgs()); break;
             case "open-in-browser": OnOpenInBrowser(this, new RoutedEventArgs()); break;
+            case "open-in-new-window": OnOpenInNewWindow(this, new RoutedEventArgs()); break;
+            // v0.11.0: the rest of the ⋯ menu, which the palette had not
+            // reached yet.
+            case "quick-ask": QuickDictate(); break;
+            case "connection-security": OnConnectionSecurity(this, new RoutedEventArgs()); break;
+            case "view-log": OnViewLog(this, new RoutedEventArgs()); break;
+            case "open-log-folder": OnOpenLogFolder(this, new RoutedEventArgs()); break;
+            case "export-support-bundle": OnExportSupportBundle(this, new RoutedEventArgs()); break;
+            case "about": OnAbout(this, new RoutedEventArgs()); break;
+            case "lock-now": OnLockNow(this, new RoutedEventArgs()); break;
             default:
                 _log.Warn($"Palette command '{id}' has no handler — ignoring it");
                 break;
@@ -2586,6 +2618,17 @@ public partial class MainWindow : Window
     {
         if (sender is not System.Windows.Controls.MenuItem { Tag: string id } || ZoomPresets.Find(id) is not { } preset)
             return;
+        ApplyZoomPreset(preset);
+    }
+
+    /// <summary>
+    /// Set the zoom to a named level (v0.11.0: the View menu's presets and
+    /// the palette's, one implementation). A level the active range cannot
+    /// hold says so — the palette hides those, but a menu item and a stale
+    /// id can still ask.
+    /// </summary>
+    private void ApplyZoomPreset(ZoomPreset preset)
+    {
         if (!ZoomPresets.IsAvailable(preset, _settings.ExtendedZoomRange) || !_webReady)
         {
             SetStatus($"{preset.Display} isn't in the current zoom range — turn on the extended range in Settings");

@@ -37,16 +37,20 @@ public partial class CommandPaletteWindow : Window
 
     private readonly AppSettings _settings;
 
+    /// <summary>The shell's "does this command apply right now?" answer — null when every command does.</summary>
+    private readonly Func<PaletteCommand, bool>? _isAvailable;
+
     /// <summary>Handlers wired in XAML fire during construction; nothing may touch half-built state before this is true.</summary>
     private bool _ready;
 
     /// <summary>The id the user chose, or null when the palette was dismissed.</summary>
     public string? SelectedCommandId { get; private set; }
 
-    public CommandPaletteWindow(AppSettings settings)
+    public CommandPaletteWindow(AppSettings settings, Func<PaletteCommand, bool>? isAvailable = null)
     {
         InitializeComponent();
         _settings = settings;
+        _isAvailable = isAvailable;
         _ready = true;
         Refresh(null);
         Loaded += (_, _) =>
@@ -59,11 +63,14 @@ public partial class CommandPaletteWindow : Window
     /// <summary>Recompute the list for what is in the box and select the first match, so Enter is always the obvious next key.</summary>
     private void Refresh(string? query)
     {
-        var rows = CommandPalette.Search(query)
+        var rows = CommandPalette.Search(query, _isAvailable)
             .Select(c => new PaletteRow { Command = c, Keys = HintFor(c) })
             .ToList();
         Results.ItemsSource = rows;
-        SummaryText.Text = CommandPalette.SummaryText(rows.Count, CommandPalette.All.Count, query);
+        // The total counts what is available, not what exists: "12 of 49"
+        // must not imply eleven commands are missing.
+        SummaryText.Text = CommandPalette.SummaryText(
+            rows.Count, CommandPalette.Available(_isAvailable).Count, query);
         RunButton.IsEnabled = rows.Count > 0;
         if (rows.Count > 0)
             Results.SelectedIndex = 0;

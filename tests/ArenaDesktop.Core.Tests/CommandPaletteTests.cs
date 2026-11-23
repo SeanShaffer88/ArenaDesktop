@@ -94,7 +94,11 @@ public class CommandPaletteTests
             "focus-mode", "always-on-top",
             "layout-standard", "layout-compact", "layout-left-rail", "layout-cycle",
             "find", "back", "forward", "home", "reload", "restore-closed",
-            "zoom-in", "zoom-out", "zoom-reset", "print", "copy-address", "open-in-browser",
+            "zoom-in", "zoom-out", "print", "save-as-pdf", "copy-address",
+            "open-in-browser", "open-in-new-window",
+            // v0.11.0: the rest of the ⋯ menu.
+            "quick-ask", "connection-security", "view-log", "open-log-folder",
+            "export-support-bundle", "about", "lock-now",
         ];
         foreach (var id in dispatching)
         {
@@ -146,7 +150,8 @@ public class CommandPaletteTests
         var broad = CommandPalette.Search("zoom").Count;
         var narrow = CommandPalette.Search("zoom reset").Count;
         Assert.True(narrow <= broad, "adding a term must never widen the list");
-        Assert.Contains(CommandPalette.Search("zoom reset"), c => c.Id == "zoom-reset");
+        // "reset" finds the 100% preset, which is the Ctrl+0 action.
+        Assert.Contains(CommandPalette.Search("zoom reset"), c => c.Id == "zoom-preset:actual");
     }
 
     [Fact]
@@ -217,7 +222,7 @@ public class CommandPaletteTests
     {
         var total = CommandPalette.All.Count;
         Assert.Contains($"3 of {total}", CommandPalette.SummaryText(3, total, "zoom"));
-        // One match says so in the singular, rather than "1 of 37 commands".
+        // One match says so in the singular, rather than "1 of N commands".
         Assert.Contains("1 of", CommandPalette.SummaryText(1, total, "rotate"));
         Assert.Contains("Enter runs it", CommandPalette.SummaryText(1, total, "rotate"));
     }
@@ -250,6 +255,220 @@ public class CommandPaletteTests
         }
     }
 
+    // ──────────────────────── zoom presets (v0.11.0) ────────────────────────
+
+    [Fact]
+    public void EveryZoomPresetHasACommand()
+    {
+        foreach (var preset in ZoomPresets.All)
+        {
+            var command = CommandPalette.ById(CommandPalette.ZoomPresetId(preset));
+            Assert.NotNull(command);
+            Assert.Equal($"Zoom to {preset.Display}", command!.Title);
+            Assert.Equal("Zoom", command.Group);
+            Assert.Equal(preset, CommandPalette.ZoomPresetFor(command.Id));
+        }
+    }
+
+    [Fact]
+    public void TheHundredPercentPresetIsTheCtrlZeroAction()
+    {
+        // One action, one row: 100% is Ctrl+0, so it carries that key
+        // instead of a second "reset zoom" command that did the same thing.
+        var actual = ZoomPresets.All.Single(p => Math.Abs(p.Factor - 1.0) < 0.001);
+        var command = CommandPalette.ById(CommandPalette.ZoomPresetId(actual))!;
+        Assert.Equal("zoom-reset", command.ShortcutId);
+        Assert.Null(CommandPalette.ById("zoom-reset"));
+        // The other levels have no key of their own, and say nothing.
+        Assert.All(
+            ZoomPresets.All.Where(p => p != actual),
+            p => Assert.Null(CommandPalette.ById(CommandPalette.ZoomPresetId(p))!.ShortcutId));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("zoom-preset:")]
+    [InlineData("zoom-preset:nonsense")]
+    [InlineData("zoom-reset")]
+    [InlineData("mode:half")]
+    public void ZoomPresetFor_ReturnsNullForAnythingElse(string? id) =>
+        Assert.Null(CommandPalette.ZoomPresetFor(id));
+
+    // ──────────────────────── availability (v0.11.0) ────────────────────────
+
+    [Fact]
+    public void Available_NullPredicateKeepsEveryCommand() =>
+        Assert.Equal(CommandPalette.All.Count, CommandPalette.Available(null).Count);
+
+    [Fact]
+    public void Available_FiltersTheCatalogue()
+    {
+        var available = CommandPalette.Available(c => c.Group == "Zoom");
+        Assert.NotEmpty(available);
+        Assert.All(available, c => Assert.Equal("Zoom", c.Group));
+    }
+
+    [Fact]
+    public void Search_AppliesAvailabilityBeforeMatching()
+    {
+        // The shell hides a command that cannot work; a hidden command
+        // must not be findable by name either, or the palette would show
+        // a row that only refuses.
+        var without = CommandPalette.Search("lock", c => c.Id != "lock-now");
+        Assert.DoesNotContain(without, c => c.Id == "lock-now");
+
+        var onlyLock = CommandPalette.Search(null, c => c.Id == "lock-now");
+        Assert.Single(onlyLock);
+        Assert.Equal("lock-now", onlyLock[0].Id);
+    }
+
+    [Fact]
+    public void Grouped_AppliesAvailabilityToo()
+    {
+        var grouped = CommandPalette.Grouped(null, c => c.Id != "lock-now");
+        Assert.DoesNotContain(grouped.SelectMany(g => g.Commands), c => c.Id == "lock-now");
+        Assert.Equal(CommandPalette.All.Count - 1, grouped.Sum(g => g.Commands.Count));
+    }
+
+    [Fact]
+    public void AvailabilityIsTheShellsCall_NotCores()
+    {
+        // Core stores no "is there a lock?" fact of its own: the predicate
+        // comes from the shell, and the shell's answer decides both what
+        // is listed and what the summary counts.
+        var shell = Source("src/ArenaDesktop/MainWindow.xaml.cs");
+        Assert.Contains("private bool IsPaletteCommandAvailable(PaletteCommand command)", shell);
+        Assert.Contains("AppLock.IsLockActive(_settings)", shell);
+        Assert.Contains("ZoomPresets.IsAvailable(preset, _settings.ExtendedZoomRange)", shell);
+        Assert.Contains("new CommandPaletteWindow(_settings, IsPaletteCommandAvailable)", shell);
+        var window = Source("src/ArenaDesktop/CommandPaletteWindow.xaml.cs");
+        Assert.Contains("CommandPalette.Available(_isAvailable).Count", window);
+    }
+
+    // ──────────────────────── the menus are all reachable ────────────────────────
+
+    /// <summary>
+    /// Every clickable item in the ⋯ menu, mapped to the palette command
+    /// that does the same thing. This dictionary IS the v0.11.0 promise:
+    /// the palette covers the menu, and a new menu item without a command
+    /// fails this test until someone either adds one or writes down why
+    /// it is exempt.
+    /// </summary>
+    private static readonly Dictionary<string, string> MenuCoveredByPalette = new()
+    {
+        ["OnSettings"] = "settings",
+        ["OnDownloads"] = "downloads",
+        ["OnBattleLab"] = "battle-lab-pane",
+        ["OnPromptPad"] = "prompt-pad",
+        ["OnFieldPass"] = "field-pass",
+        ["OnShortcuts"] = "shortcuts",
+        ["OnDiagnostics"] = "diagnostics",
+        ["OnSessionWindow"] = "session",
+        ["OnHelp"] = "help",
+        ["OnCheckForUpdates"] = "check-updates",
+        ["OnConnectionSecurity"] = "connection-security",
+        ["OnViewLog"] = "view-log",
+        ["OnOpenLogFolder"] = "open-log-folder",
+        ["OnExportSupportBundle"] = "export-support-bundle",
+        ["OnAbout"] = "about",
+        ["OnLockNow"] = "lock-now",
+        ["OnToggleFocusMode"] = "focus-mode",
+        ["OnTogglePin"] = "always-on-top",
+        ["OnSelectStandardLayout"] = "layout-standard",
+        ["OnSelectLeftRailLayout"] = "layout-left-rail",
+        ["OnCycleLayout"] = "layout-cycle",
+        ["OnFind"] = "find",
+        ["OnBack"] = "back",
+        ["OnForward"] = "forward",
+        ["OnHome"] = "home",
+        ["OnReload"] = "reload",
+        ["OnRestoreClosedPage"] = "restore-closed",
+        ["OnZoomIn"] = "zoom-in",
+        ["OnZoomOut"] = "zoom-out",
+        ["OnPrint"] = "print",
+        ["OnSaveAsPdf"] = "save-as-pdf",
+        ["OnCopyPageAddress"] = "copy-address",
+        ["OnOpenInBrowser"] = "open-in-browser",
+        ["OnOpenInNewWindow"] = "open-in-new-window",
+    };
+
+    /// <summary>
+    /// Menu handlers that are deliberately not palette commands, each with
+    /// the reason. Anything added here is a decision, not an oversight.
+    /// </summary>
+    private static readonly Dictionary<string, string> MenuExemptFromPalette = new()
+    {
+        // The palette itself, and the two buttons that open a menu.
+        ["OnCommandPalette"] = "it opens the palette; a palette row for it would be a loop",
+        ["OnMenu"] = "opens the ⋯ menu this list is derived from",
+        ["OnRailMenu"] = "opens the ⋯ menu in the Left Rail layout",
+        ["OnRailProfiles"] = "opens the Left Rail profile flyout",
+        // Parameterised rows: one handler, nine modes, covered by mode:<id>.
+        ["OnArenaMode"] = "parameterised by its Tag; covered by the nine mode: commands",
+        ["OnRailArenaMode"] = "the Left Rail's copy of the mode rows",
+        // Components of a surface that is opened from the palette.
+        ["OnFindClose"] = "a control in the find bar, which the find command opens",
+        ["OnFindNext"] = "a control in the find bar",
+        ["OnFindPrevious"] = "a control in the find bar",
+        ["OnFindOptionChanged"] = "a checkbox in the find bar",
+        ["OnFindOptionsPopup"] = "a control in the find bar",
+        ["OnCancelDownload"] = "a button in the downloads surface, which the downloads command opens",
+        // State-dependent rows: present only while a mode is pinned.
+        ["OnPinCurrentMode"] = "offered only while browsing a mode, and it changes state the palette does not model",
+        ["OnUnpinMode"] = "the same row, while something is pinned",
+        ["OnGoPinnedMode"] = "the status bar's jump to the pinned mode",
+        // Recovery prompts own their buttons.
+        ["OnWatchdogReload"] = "a button on the recovery overlay",
+        ["OnWatchdogWait"] = "a button on the recovery overlay",
+        // The zoom-preset rows share one handler with a Tag; the palette
+        // generates one command per preset instead.
+        ["OnZoomPreset"] = "one handler for five rows; the palette has one command per preset",
+        ["OnToggleCompactFocusLayout"] = "the checkable twin of the layout-compact command",
+    };
+
+    [Fact]
+    public void EveryMenuItemHandlerIsACoveredPaletteCommand_OrAWrittenExemption()
+    {
+        var xaml = Source("src/ArenaDesktop/MainWindow.xaml");
+        var handlers = System.Text.RegularExpressions.Regex
+            .Matches(xaml, "Click=\"(On[A-Za-z]+)\"")
+            .Select(m => m.Groups[1].Value)
+            .Distinct()
+            .ToList();
+        Assert.NotEmpty(handlers);
+
+        foreach (var handler in handlers)
+        {
+            var covered = MenuCoveredByPalette.ContainsKey(handler);
+            var exempt = MenuExemptFromPalette.ContainsKey(handler);
+            Assert.True(covered || exempt,
+                $"{handler} is a menu item with no palette command and no written exemption");
+            Assert.False(covered && exempt, $"{handler} is both covered and exempt");
+        }
+    }
+
+    [Fact]
+    public void EveryMappingNamesARealCommand_AndNoMappingIsStale()
+    {
+        foreach (var (_, id) in MenuCoveredByPalette)
+        {
+            Assert.NotNull(CommandPalette.ById(id));
+        }
+        // Exemptions must carry a reason — a silent exemption is how this
+        // list would rot.
+        Assert.All(MenuExemptFromPalette, pair =>
+            Assert.False(string.IsNullOrWhiteSpace(pair.Value), $"{pair.Key} has no reason"));
+
+        // And no stale entries: a mapping for a handler the XAML no longer
+        // has means a menu item was removed and the promise was not.
+        var xaml = Source("src/ArenaDesktop/MainWindow.xaml");
+        foreach (var handler in MenuCoveredByPalette.Keys.Concat(MenuExemptFromPalette.Keys))
+        {
+            Assert.Contains($"Click=\"{handler}\"", xaml);
+        }
+    }
+
     // ──────────────────────── the shell contract ────────────────────────
 
     [Fact]
@@ -261,11 +480,15 @@ public class CommandPaletteTests
         // than a command that is not listed.
         foreach (var command in CommandPalette.All)
         {
-            if (command.Id.StartsWith(CommandPalette.ModePrefix, StringComparison.Ordinal))
+            // Generated ids carry their argument in the id and are
+            // dispatched by prefix, so the case is the prefix itself.
+            if (command.Id.StartsWith(CommandPalette.ModePrefix, StringComparison.Ordinal)
+                || command.Id.StartsWith(CommandPalette.ZoomPresetPrefix, StringComparison.Ordinal))
                 continue;
             Assert.Contains($"case \"{command.Id}\"", shell);
         }
         Assert.Contains("CommandPalette.ModePrefix", shell);
+        Assert.Contains("CommandPalette.ZoomPresetFor(id)", shell);
     }
 
     [Fact]

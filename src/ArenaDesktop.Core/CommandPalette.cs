@@ -38,6 +38,9 @@ public static class CommandPalette
     /// <summary>The id prefix for a "go to this Arena mode" command; the rest of the id is the mode's id.</summary>
     public const string ModePrefix = "mode:";
 
+    /// <summary>The id prefix for a zoom-preset command; the rest of the id is the preset's id in <see cref="ZoomPresets"/>.</summary>
+    public const string ZoomPresetPrefix = "zoom-preset:";
+
     /// <summary>The groups, in the order the palette lists them.</summary>
     public static readonly IReadOnlyList<string> GroupOrder = new[]
     {
@@ -90,6 +93,25 @@ public static class CommandPalette
                 "help troubleshooting problem fix guide offline pages support"),
             new PaletteCommand("check-updates", "Check for updates", "Open",
                 "update upgrade release newer version check"),
+            // v0.11.0: the rest of the ⋯ menu. A command that is only in
+            // the palette would be a new capability; these are the same
+            // doors, finally reachable from one box.
+            new PaletteCommand("quick-ask", "Quick ask — focus the page", "Open",
+                "quick ask dictate type ready focus prompt box start typing voice"),
+            new PaletteCommand("connection-security", "Connection security…", "Open",
+                "connection security certificate tls https encryption address verified lock"),
+            new PaletteCommand("view-log", "View the log…", "Open",
+                "log viewer errors warnings info redaction read diagnostics tail"),
+            new PaletteCommand("open-log-folder", "Open the log folder", "Open",
+                "log folder explorer files open directory"),
+            new PaletteCommand("export-support-bundle", "Export a support bundle…", "Open",
+                "support bundle zip export diagnostics report redacted attach"),
+            new PaletteCommand("about", "About ArenaDesktop", "Open",
+                "about version channel architecture licenses credits build"),
+            // Availability is the shell's call (Core has no idea whether a
+            // lock is set), which is what the filter on Search is for.
+            new PaletteCommand("lock-now", "Lock ArenaDesktop", "Open",
+                "lock password app lock privacy step away now secure"),
 
             // ── View: the window's own shape ──
             new PaletteCommand("focus-mode", "Toggle focus mode", "View",
@@ -126,16 +148,40 @@ public static class CommandPalette
                 "zoom in bigger larger scale", "zoom-in"),
             new PaletteCommand("zoom-out", "Zoom out", "Zoom",
                 "zoom out smaller scale", "zoom-out"),
-            new PaletteCommand("zoom-reset", "Reset zoom to 100%", "Zoom",
-                "zoom reset actual size 100 normal", "zoom-reset"),
+        });
 
+        // The five named zoom levels come from Core's own preset list, so
+        // the View menu and the palette can never offer different ones. The
+        // 100% preset is the Ctrl+0 action, so it carries that key rather
+        // than a duplicate "reset zoom" command.
+        foreach (var preset in ZoomPresets.All)
+        {
+            // 100% is the one people reach for by another name ("reset",
+            // "normal"), so it carries those words as well as the level.
+            var isActual = preset.Id == "actual";
+            commands.Add(new PaletteCommand(
+                ZoomPresetId(preset),
+                $"Zoom to {preset.Display}",
+                "Zoom",
+                isActual
+                    ? $"zoom preset {preset.Display} level scale actual size reset normal default 100"
+                    : $"zoom preset {preset.Display} level scale actual size",
+                isActual ? "zoom-reset" : null));
+        }
+
+        commands.AddRange(new[]
+        {
             // ── Page ──
             new PaletteCommand("print", "Print…", "Page",
                 "print paper printer", "print"),
+            new PaletteCommand("save-as-pdf", "Save as PDF…", "Page",
+                "save pdf export document file print"),
             new PaletteCommand("copy-address", "Copy the page address", "Page",
                 "copy address link url page current"),
             new PaletteCommand("open-in-browser", "Open in your browser", "Page",
                 "open browser external default web page"),
+            new PaletteCommand("open-in-new-window", "Open in a new window", "Page",
+                "new window second monitor same profile another"),
         });
 
         return commands;
@@ -148,16 +194,40 @@ public static class CommandPalette
     /// doubles as a browsable index, which is how people discover the
     /// commands they did not know existed.
     /// </summary>
-    public static IReadOnlyList<PaletteCommand> Search(string? query)
+    /// <summary>
+    /// The commands that are available right now. <paramref name="isAvailable"/>
+    /// is the shell's answer to "does this one apply?" — whether an app
+    /// lock exists, whether a zoom level is inside the current range — so
+    /// the palette can hide a command instead of offering one that would
+    /// only refuse. Null means everything is available.
+    /// </summary>
+    public static IReadOnlyList<PaletteCommand> Available(Func<PaletteCommand, bool>? isAvailable) =>
+        isAvailable is null ? All : All.Where(isAvailable).ToList();
+
+    /// <summary>The palette id for a zoom preset (see <see cref="ZoomPresets"/>).</summary>
+    public static string ZoomPresetId(ZoomPreset preset) => ZoomPresetPrefix + preset.Id;
+
+    /// <summary>
+    /// The zoom preset an id names, or null when it names none (a stale
+    /// id from a hand-edited file is not a crash).
+    /// </summary>
+    public static ZoomPreset? ZoomPresetFor(string? id) =>
+        id is not null && id.StartsWith(ZoomPresetPrefix, StringComparison.Ordinal)
+            ? ZoomPresets.Find(id[ZoomPresetPrefix.Length..])
+            : null;
+
+    public static IReadOnlyList<PaletteCommand> Search(
+        string? query, Func<PaletteCommand, bool>? isAvailable = null)
     {
+        var pool = Available(isAvailable);
         if (string.IsNullOrWhiteSpace(query))
-            return All;
+            return pool;
         var terms = query.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                          .Select(t => t.ToLowerInvariant())
                          .ToList();
         if (terms.Count == 0)
-            return All;
-        return All.Where(c => terms.All(t => Matches(c, t))).ToList();
+            return pool;
+        return pool.Where(c => terms.All(t => Matches(c, t))).ToList();
     }
 
     private static bool Matches(PaletteCommand command, string term)
@@ -168,9 +238,10 @@ public static class CommandPalette
     }
 
     /// <summary>Matches grouped for display: (group title, commands), empty groups dropped, groups in <see cref="GroupOrder"/>.</summary>
-    public static IReadOnlyList<(string Group, IReadOnlyList<PaletteCommand> Commands)> Grouped(string? query)
+    public static IReadOnlyList<(string Group, IReadOnlyList<PaletteCommand> Commands)> Grouped(
+        string? query, Func<PaletteCommand, bool>? isAvailable = null)
     {
-        var matches = Search(query);
+        var matches = Search(query, isAvailable);
         return GroupOrder
             .Select(group => (Group: group, Commands: (IReadOnlyList<PaletteCommand>)matches
                 .Where(c => c.Group == group).ToList()))
