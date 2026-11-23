@@ -1,6 +1,10 @@
 using System.Windows;
 using System.Windows.Input;
 using ArenaDesktop.Core;
+// The app references Windows Forms for the tray, so its implicit usings
+// put System.Windows.Forms in scope too — unqualified KeyEventArgs would
+// be ambiguous. Same aliasing the main window does for MenuItem etc.
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace ArenaDesktop;
 

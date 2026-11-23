@@ -4,6 +4,7 @@ using System.Windows.Input;
 using ArenaDesktop.Core;
 using Clipboard = System.Windows.Clipboard;
 using MessageBox = System.Windows.MessageBox;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace ArenaDesktop;
 
