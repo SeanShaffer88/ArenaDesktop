@@ -43,6 +43,9 @@ public sealed class CommandLineOptions
     /// <summary>Open the Field pass window (v0.2.0): the nine guided on-this-PC checks with the user's own verdicts.</summary>
     public bool OpenFieldPass { get; init; }
 
+    /// <summary>Open the prompt pad (v0.9.0): a scratchpad for one prompt at a time, which copies to the clipboard and opens the page the user picked. Separate from Quick ask, which only focuses Arena's page.</summary>
+    public bool OpenPromptPad { get; init; }
+
     /// <summary>Quick ask (S11 #97): show the window and focus the Arena page, ready to type. The tray item and the Jump List task ride this flag (--dictate stays as an alias).</summary>
     public bool QuickDictate { get; init; }
 
@@ -77,6 +80,7 @@ public static class CommandLine
         var openDownloads = false;
         var openBattleLab = false;
         var openFieldPass = false;
+        var openPromptPad = false;
         var quickDictate = false;
         string? arenaModeId = null;
         var showHelp = false;
@@ -121,6 +125,10 @@ public static class CommandLine
             else if (arg.Equals("--field-pass", StringComparison.OrdinalIgnoreCase))
             {
                 openFieldPass = true;
+            }
+            else if (arg.Equals("--prompt-pad", StringComparison.OrdinalIgnoreCase))
+            {
+                openPromptPad = true;
             }
             else if (arg.Equals("--dictate", StringComparison.OrdinalIgnoreCase)
                      || arg.Equals("--ask", StringComparison.OrdinalIgnoreCase))
@@ -233,6 +241,7 @@ public static class CommandLine
             OpenDownloads = openDownloads,
             OpenBattleLab = openBattleLab,
             OpenFieldPass = openFieldPass,
+            OpenPromptPad = openPromptPad,
             QuickDictate = quickDictate,
             ArenaModeId = arenaModeId,
             ShowHelp = showHelp,
@@ -266,6 +275,8 @@ public static class CommandLineUsage
         "  --downloads      Open the Downloads window.\n" +
         "  --battle-lab     Open the Battle Lab (prompt library, run queue, results journal).\n" +
         "  --field-pass     Open the Field pass (nine guided checks, your own verdicts).\n" +
+        "  --prompt-pad     Open the prompt pad (write one prompt, copy it, and\n" +
+        "                   jump to the page you picked — pasting is yours).\n" +
         "  --ask, --dictate Open ArenaDesktop with Arena focused, ready to type (Quick ask).\n" +
         "  --battle         Go to Battle (Arena's home experience).\n" +
         "  --direct         Go to Direct Chat (its own page; pick the model there).\n" +
@@ -295,6 +306,7 @@ public static class CommandLineUsage
         "  arenadesktop://downloads       Open Downloads\n" +
         "  arenadesktop://battle-lab      Open the Battle Lab\n" +
         "  arenadesktop://field-pass      Open the Field pass\n" +
+        "  arenadesktop://prompt-pad      Open the prompt pad\n" +
         "  arenadesktop://help            Open Help & troubleshooting\n" +
         "  arenadesktop://profile/<id>    Start in (or switch to) a profile\n" +
         "  arenadesktop://battle          Go to Battle\n" +

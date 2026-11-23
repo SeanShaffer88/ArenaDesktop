@@ -17,6 +17,7 @@ Arena has no Windows app, so this is one: a small native program that opens aren
 - **Stay signed in** — a dedicated WebView2 profile on your PC keeps your Arena session between launches, and the app reopens the last page you were on.
 - **Tray support** — the tray menu runs the whole app while it's hidden: Open, Arena modes, Quick ask, New window, Reload, Downloads, Settings, Switch profile, a web-view status line, and Exit. Closing the window minimizes to the tray by default; after a while hidden the web view can suspend to free memory (never during downloads or after the microphone has been used). A global hotkey (Ctrl+Alt+A, changeable) shows or hides the app from anywhere.
 - **Battle Lab** — a side pane beside the Arena page for running Battle prompts in an organised way (⋯ menu → Tools → Battle Lab, the tray menu, `--battle-lab`, `arenadesktop://battle-lab`, or Ctrl+Shift+B), so a prompt can be read while you write the battle it belongs to. The pane reflows to fit — three columns in a wide window, two with the journal underneath in a normal one, one tabbed column when it is narrow: a searchable prompt library grouped by category, saved as you edit, with square-bracket blanks like [topic] that you fill in at copy time; "Copy prompt & open Battle" puts the finished text on the clipboard and brings the main window forward on the Battle page, ready to paste. A run queue lines prompts up in order, and a results journal keeps the winners you record by hand (A won / B won / Tie, with a note) — nothing is read from the Arena page. Four sample prompts are there on first run; edit or delete them freely.
+- **Prompt pad** — a small scratchpad for the prompt you only want once (⋯ menu → Tools → Prompt pad…, the tray, `--prompt-pad`, `arenadesktop://prompt-pad`, or Ctrl+Shift+P). Write or paste the prompt, pick the Arena page beside the button, and **Copy & open** (it names the page) puts the text on the clipboard while that page comes forward with the keyboard in it, ready for your own Ctrl+V — nothing is typed into Arena and nothing is read from it. It remembers the last ten prompts on this PC (double-click one to reuse it, Forget to drop it), fills `[blank]` placeholders with Battle Lab's own dialog, asks before copying a prompt past 6,000 characters, and honours the opt-in clipboard clear.
 - **Field pass** — nine guided checks that prove the app on your PC (⋯ menu → Field pass…, Diagnostics, `--field-pass`, or `arenadesktop://field-pass`): layouts, Battle Lab, Arena mode jumps, a battle and its journal entry, downloads, the tray and hotkey, the app lock, profile switching, and the update check. Each check says what to do and what working looks like, with a button that opens the feature; you mark Pass, Problem, or Skip, add notes if you like, and everything is saved on this PC as you go. "Copy summary" puts the finished pass on the clipboard as plain text for a bug report.
 - **Downloads with progress and control** — generated images, files and exports download in parallel with live progress %, estimated time remaining, and speed in the status bar; the taskbar button mirrors overall progress. The Downloads window is a small manager: pause/resume/cancel and retry per download, plus a searchable history with Open / Show in folder / Copy path / Open with… / Delete file and **Delete N selected…** for a multi-selection (the confirmation names the count and the total size) — sorted newest, oldest, largest, smallest or by name, filtered by size, and totalled for whatever the current filter shows. Settings checks the downloads folder can be written to and has room, and a finished download's tray balloon names the file, its size and where it landed. Folder, ask-where-to-save, name-collision behaviour and history size are all in Settings.
 - **Multiple accounts** — profiles keep separate Arena sign-ins on one PC, each with its own session data — up to 32. Each can have its own zoom, downloads folder, accent colour and start page; switch from the ⋯ menu, the tray, or Settings, create a desktop shortcut per profile, or launch with `--profile <id>`.
@@ -64,6 +65,7 @@ Either way: the app is not code-signed, so Windows SmartScreen may warn on first
 | Settings | `%APPDATA%\ArenaDesktop\settings.json` |
 | Download history | `%APPDATA%\ArenaDesktop\downloads.json` (names, sizes, dates, paths, and completed/failed state — never source URLs) |
 | Diagnostic log | `%APPDATA%\ArenaDesktop\logs\arenadesktop.log` (URLs are logged host-and-path only, never with query strings) |
+| Remembered prompts (prompt pad) | `%APPDATA%\ArenaDesktop\prompt-pad.json` (the last ten prompts and the page the pad opens; portable mode keeps it in `data`) |
 | Web profile (login session) | `%LOCALAPPDATA%\ArenaDesktop\WebView2` for the default profile; extra profiles get sibling folders (`WebView2-<id>`) |
 | Downloads | Your Downloads folder, or the folder chosen in Settings |
 
@@ -83,6 +85,7 @@ In **portable mode**, Settings, Download history, and the Diagnostic log live un
 | Ctrl+Shift+D | Open Downloads |
 | Alt+Home | Go to Arena home |
 | Ctrl+Shift+B | Show or hide the Battle Lab pane |
+| Ctrl+Shift+P | Open the prompt pad |
 | Ctrl+/ | Keyboard shortcuts — every shortcut grouped by area, searchable, click a row to copy its keys |
 | F8 | Focus mode — hide the toolbar and status bar (Esc exits) |
 | F11 | Full screen (Esc exits) |
@@ -103,12 +106,13 @@ Every capability in the window is also available from the command line — deskt
 | `--downloads` | Open the Downloads window |
 | `--battle-lab` | Open the Battle Lab pane (prompt library, run queue, results journal) |
 | `--field-pass` | Open the Field pass window (nine guided checks, your own verdicts) |
+| `--prompt-pad` | Open the prompt pad (one prompt, copied for you and handed to the Arena page you pick) |
 | `--ask` / `--dictate` | Quick ask: show the window with the Arena page focused, ready to type (`--dictate` is kept as an alias) |
 | `--safe-mode` | Start at the home page with no automatic update check |
 | `--help` / `--version` | Show usage / the app version and exit |
 | `--exit-for-update` | Ask the running instance to close so an update can install (the installer uses this, then reopens the app); applies at once, even while locked, and just exits when nothing is running |
 
-Links work the same way: `arenadesktop://open`, `arenadesktop://home`, `arenadesktop://settings`, `arenadesktop://downloads`, `arenadesktop://battle-lab`, `arenadesktop://field-pass`, `arenadesktop://help`, `arenadesktop://profile/<id>`, `arenadesktop://battle`, `arenadesktop://direct`, `arenadesktop://side-by-side`, `arenadesktop://leaderboard`. That's the complete list, on purpose: a link can never carry a web address or open anything else.
+Links work the same way: `arenadesktop://open`, `arenadesktop://home`, `arenadesktop://settings`, `arenadesktop://downloads`, `arenadesktop://battle-lab`, `arenadesktop://field-pass`, `arenadesktop://prompt-pad`, `arenadesktop://help`, `arenadesktop://profile/<id>`, `arenadesktop://battle`, `arenadesktop://direct`, `arenadesktop://side-by-side`, `arenadesktop://leaderboard`. That's the complete list, on purpose: a link can never carry a web address or open anything else.
 
 ## Building from source
 

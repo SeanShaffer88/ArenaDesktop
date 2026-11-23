@@ -146,3 +146,15 @@ The log records everything the app does, and that is mostly INFO. The **Errors /
 The level is read from the `[LEVEL]` marker the app writes at the start of each line, not by searching the message text — so an INFO line that happens to mention an error is not misfiled as one. A line that doesn't match the expected shape is grouped under *Unparsed* rather than hidden, and with everything selected the filter is off entirely.
 
 Two things always work on the **whole** file, not the filtered view: *Copy redacted log* and the redaction check. A report missing the lines you filtered out would be worse than no report.
+
+## How do I use the prompt pad?
+
+The prompt pad is a small window for one prompt at a time — the place for a prompt you want to try once, without adding it to Battle Lab's library. Open it with **Ctrl+Shift+P**, from ⋯ → **Tools** → *Prompt pad…*, from the tray menu, with `--prompt-pad`, or with an `arenadesktop://prompt-pad` link.
+
+Write or paste the prompt, pick the Arena page beside the copy button, then choose the **Copy & open** button — it carries the page's name — or press Ctrl+Enter. ArenaDesktop puts the text on the clipboard and brings that page forward with the keyboard in it; press Ctrl+V to paste. The app never types into Arena for you — the paste is yours, the same rule Battle Lab's copy button follows.
+
+Enter adds a new line and Esc closes the window. If the prompt has [blanks], **Fill blanks…** appears and opens the same fill-in dialog Battle Lab uses; the filled text goes back into the box, so what you see is what will be pasted. A prompt longer than 6,000 characters asks before it is copied, with its exact size.
+
+The pad remembers the last ten prompts in `prompt-pad.json` beside your settings, and never sends them anywhere. Double-click one (or select it and press Enter) to load it back into the box. **Forget** removes the selected prompt and **Forget all** empties the list — neither touches the text in the box or anything in Battle Lab. In portable mode the file travels with your other settings; your sign-in still does not.
+
+If Settings → Behavior has "Clear copied prompts from the clipboard after…" turned on, a pad copy is cleared on that schedule too, unless you copy something else in the meantime or the app is locked.
