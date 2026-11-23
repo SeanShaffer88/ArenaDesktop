@@ -44,7 +44,7 @@ public sealed record PaletteQuery(PaletteArgumentKind Kind, string Argument, str
 ///   find cables       → the find bar, with "cables" in it
 ///   profile Work      → the Work profile
 ///   mode side         → Side by Side
-///   saved cables      → the saved prompt, on the clipboard (v0.15.0)
+///   saved cables      → the saved prompt, on the clipboard (v0.14.0)
 /// </code>
 ///
 /// The rule is the palette's own: a verb, a space, an argument. Anything else

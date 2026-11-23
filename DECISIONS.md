@@ -1,4 +1,4 @@
-## 2026-11-23 — The palette's fifth verb is `saved`, not `prompt` (v0.15.0)
+## 2026-11-23 — The palette's fifth verb is `saved`, not `prompt` (v0.14.0)
 
 A verb that takes an argument also takes words away from the search. "prompt
 pad" is a documented way to reach the pad (Help.md lists it beside `settings`
