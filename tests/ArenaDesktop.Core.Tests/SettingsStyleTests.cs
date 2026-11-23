@@ -6,8 +6,8 @@ namespace ArenaDesktop.Core.Tests;
 
 /// <summary>
 /// v0.15.0: the Settings window's restyle — section cards, white titles with
-/// a red rule, token-only fields and buttons, and OK/Cancel pinned below the
-/// scroll area. These read the XAML as text (the WPF project cannot be
+/// a red rule, left-pane section navigation, token-only fields and buttons,
+/// and OK/Cancel pinned below the page. These read the XAML as text (the WPF project cannot be
 /// referenced from this suite), the same way the other drift guards do.
 /// </summary>
 public class SettingsStyleTests
@@ -30,13 +30,26 @@ public class SettingsStyleTests
         // Every section carries it…
         foreach (var section in SectionNames)
             Assert.Contains($"<Border x:Name=\"{section}\" Style=\"{{StaticResource SectionCard}}\">", xaml);
-        // …and the named container is a direct child of SectionsPanel: the
-        // search filter toggles its Visibility, so a wrapper around it
-        // would leave an empty card behind when a section is hidden.
+        // …and the named card is a direct child of SectionsPanel, so
+        // left-nav selection can hide the whole card without an empty wrapper.
         var panelTagEnd = xaml.IndexOf('>', xaml.IndexOf("x:Name=\"SectionsPanel\"", StringComparison.Ordinal));
         var first = xaml.IndexOf("<Border x:Name=\"SectionBehavior\"", StringComparison.Ordinal);
         Assert.True(panelTagEnd >= 0 && first > panelTagEnd, "SectionsPanel must precede the sections");
         Assert.Equal("", xaml[(panelTagEnd + 1)..first].Trim());
+    }
+
+    [Fact]
+    public void SettingsUsesLeftNavigationAndShowsOneSectionPageAtATime()
+    {
+        var xaml = Source("src/ArenaDesktop/SettingsWindow.xaml");
+        var code = Source("src/ArenaDesktop/SettingsWindow.xaml.cs");
+        Assert.Contains("x:Name=\"SectionNavigation\"", xaml);
+        Assert.Contains("SelectionChanged=\"OnSectionNavigationChanged\"", xaml);
+        Assert.Contains("DisplayMemberPath=\"Title\"", xaml);
+        Assert.Contains("<ScrollViewer x:Name=\"SettingsScroller\" Grid.Column=\"1\"", xaml);
+        Assert.Contains("container.Visibility = id == sectionId ? Visibility.Visible : Visibility.Collapsed", code);
+        Assert.Contains("SectionNavigation.SelectedItem = remembered", code);
+        Assert.DoesNotContain("OnSettingsScrolled", code);
     }
 
     [Fact]
@@ -68,7 +81,7 @@ public class SettingsStyleTests
         var xaml = Source("src/ArenaDesktop/SettingsWindow.xaml");
         // S6 #51: a window-local implicit style replaces App.xaml's, so each
         // one must re-apply the focus ring itself.
-        foreach (var type in new[] { "TextBox", "ComboBox", "Button", "CheckBox", "RadioButton" })
+        foreach (var type in new[] { "TextBox", "ComboBox", "Button", "CheckBox", "RadioButton", "ListBox", "ListBoxItem" })
             Assert.Contains("ShellFocusVisual", StyleBlock(xaml, $"TargetType=\"{type}\""));
     }
 

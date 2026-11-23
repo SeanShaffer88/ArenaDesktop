@@ -239,11 +239,11 @@ public sealed class AppSettings
     public List<string> FavoriteModeIds { get; set; } = new();
 
     // Settings-window memory (v0.9.0, S5 #48).
-    /// <summary>The Settings section last in view (a SettingsSearch section id), so Settings reopens where it was left. Sanitized to a known id or null.</summary>
+    /// <summary>The last selected Settings section (a SettingsSearch section id), so Settings reopens where it was left. Sanitized to a known id or null.</summary>
     public string? SettingsLastSection { get; set; }
 
-    /// <summary>Settings window width in pixels (S5 #48). Sanitized to a sane range; the default matches the window's width (v0.15.0: widened so the widest row fits inside a section card).</summary>
-    public double SettingsWindowWidth { get; set; } = 580;
+    /// <summary>Settings window width in pixels (S5 #48). Sanitized to a sane range; the default accommodates the left navigation and section page.</summary>
+    public double SettingsWindowWidth { get; set; } = 860;
 
     /// <summary>Settings window height in pixels (S5 #48); 0 = the window's default height. Sanitized to 0 or a sane range.</summary>
     public double SettingsWindowHeight { get; set; }
@@ -496,7 +496,7 @@ public sealed class AppSettings
         // rather than being clamped up — a hand-edited 600 must not quietly
         // become a two-hour lock the user never chose.
         AppLockIdleMinutes = IdleLock.Sanitize(AppLockIdleMinutes);
-        SettingsWindowWidth = SettingsWindowWidth is >= 420 and <= 2000 ? SettingsWindowWidth : 580;
+        SettingsWindowWidth = SettingsWindowWidth is >= 800 and <= 2000 ? SettingsWindowWidth : 860;
         SettingsWindowHeight = SettingsWindowHeight == 0 || SettingsWindowHeight is >= 400 and <= 2000
             ? SettingsWindowHeight
             : 0;
