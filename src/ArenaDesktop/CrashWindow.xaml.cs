@@ -178,7 +178,7 @@ public static class CrashPresenter
             if (string.IsNullOrEmpty(exe))
                 return;
             Process.Start(new ProcessStartInfo(exe, "--safe-mode") { UseShellExecute = true });
-            Application.Current?.Shutdown();
+            System.Windows.Application.Current?.Shutdown();
         }
         catch
         {

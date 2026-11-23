@@ -1131,7 +1131,8 @@ public partial class MainWindow : Window
                 FindTextBox.SelectAll();
                 break;
             case PaletteArgumentKind.Profile:
-                SwitchToProfile(clone: _settings.Clone(), targetProfileId: query.Argument);
+                // The menu's own path: it clones, flushes and restarts.
+                SwitchToProfileFromMenu(query.Argument);
                 break;
             case PaletteArgumentKind.Mode:
                 NavigateArenaMode(query.Argument);

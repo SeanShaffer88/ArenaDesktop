@@ -91,11 +91,11 @@ public class DataExportTests
     {
         var entries = new[]
         {
-            Entry("Alpha", BattleOutcome.AWon),
-            Entry("Alpha", BattleOutcome.BWon),
+            Entry("Alpha", BattleOutcome.AWins),
+            Entry("Alpha", BattleOutcome.BWins),
             Entry("Alpha", BattleOutcome.Tie),
-            Entry("Beta", BattleOutcome.AWon),
-            Entry("Beta", BattleOutcome.AWon),
+            Entry("Beta", BattleOutcome.AWins),
+            Entry("Beta", BattleOutcome.AWins),
         };
         var standings = BattleJournalMarkdown.RankByPrompt(entries);
         Assert.Equal(2, standings.Count);
@@ -111,9 +111,9 @@ public class DataExportTests
     {
         var standings = BattleJournalMarkdown.RankByPrompt(new[]
         {
-            Entry("Same prompt", BattleOutcome.AWon),
-            Entry("same prompt", BattleOutcome.BWon),
-            Entry("   ", BattleOutcome.AWon),
+            Entry("Same prompt", BattleOutcome.AWins),
+            Entry("same prompt", BattleOutcome.BWins),
+            Entry("   ", BattleOutcome.AWins),
         });
         var only = Assert.Single(standings);
         Assert.Equal(2, only.Total);
@@ -122,11 +122,11 @@ public class DataExportTests
     [Fact]
     public void TheJournalMarkdownGrowsTheLeaderboard_OnlyWhenThereIsMoreThanOnePrompt()
     {
-        var one = new[] { Entry("Only one", BattleOutcome.AWon) };
+        var one = new[] { Entry("Only one", BattleOutcome.AWins) };
         var single = BattleJournalMarkdown.RenderJournalMarkdown(one, BattleJournalTally.Of(one));
         Assert.DoesNotContain("Which prompts win", single);
 
-        var two = new[] { Entry("First", BattleOutcome.AWon), Entry("Second", BattleOutcome.BWon) };
+        var two = new[] { Entry("First", BattleOutcome.AWins), Entry("Second", BattleOutcome.BWins) };
         var both = BattleJournalMarkdown.RenderJournalMarkdown(two, BattleJournalTally.Of(two));
         Assert.Contains("## Which prompts win", both);
         Assert.Contains("| First | 1 | 1 | 0 | 0 |", both);
