@@ -1069,7 +1069,7 @@ public static class BattleJournalMarkdown
 
 /// <summary>
 /// Running a saved prompt from outside the pane (v0.14.0): the head of the run
-/// queue, or a prompt the palette named with <c>prompt &lt;text&gt;</c>. The rule is
+/// queue, or a prompt the palette named with <c>saved &lt;text&gt;</c>. The rule is
 /// in Core so the status line, the copy and the blanks refusal are testable;
 /// the shell supplies the clipboard and the page.
 /// </summary>
@@ -1137,7 +1137,7 @@ public sealed record PromptPickResult(PromptPickKind Kind, BattlePrompt? Prompt,
     IReadOnlyList<BattlePrompt> Matches, string Status);
 
 /// <summary>
-/// The palette's <c>prompt &lt;text&gt;</c> verb (v0.15.0): which saved prompt did
+/// The palette's <c>saved &lt;text&gt;</c> verb (v0.14.0): which saved prompt did
 /// you mean?
 ///
 /// Ranking is deliberate and stated, because a search that silently prefers

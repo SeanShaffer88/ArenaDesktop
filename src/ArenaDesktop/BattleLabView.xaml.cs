@@ -192,7 +192,7 @@ public partial class BattleLabView : UserControl
     public void RefreshFromLibrary() => RefreshLibrary();
 
     /// <summary>
-    /// The palette's <c>prompt &lt;text&gt;</c> found several prompts (v0.15.0).
+    /// The palette's <c>saved &lt;text&gt;</c> found several prompts (v0.14.0).
     /// The pane is shown with its own search box holding the words, so the
     /// shortlist the status bar names is the list on screen — the app filters
     /// the library rather than picking for you.

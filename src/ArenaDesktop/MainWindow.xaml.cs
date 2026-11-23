@@ -1268,7 +1268,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// The palette's <c>prompt &lt;text&gt;</c> (v0.15.0): one match is copied and
+    /// The palette's <c>saved &lt;text&gt;</c> (v0.14.0): one match is copied and
     /// Battle opened; several are shown in the filtered pane rather than
     /// guessed between; none says where the library is. The status line comes
     /// from Core, so the wording is tested; the log records the outcome and

@@ -4,7 +4,7 @@ using Xunit;
 namespace ArenaDesktop.Core.Tests;
 
 /// <summary>
-/// v0.15.0 — the palette's <c>prompt &lt;text&gt;</c> verb. The ranking is the
+/// v0.14.0 — the palette's <c>saved &lt;text&gt;</c> verb. The ranking is the
 /// subject: a search that silently prefers one saved prompt over another is
 /// how you copy the wrong thing, so each rank is pinned and a tie is a
 /// shortlist rather than a guess.
