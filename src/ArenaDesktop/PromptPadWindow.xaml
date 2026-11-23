@@ -15,7 +15,7 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="16,14,16,14">
+    <Grid Margin="16,14,16,14" KeyboardNavigation.TabNavigation="Continue" KeyboardNavigation.ControlTabNavigation="Continue">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>

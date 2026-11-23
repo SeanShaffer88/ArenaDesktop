@@ -6,13 +6,12 @@ namespace ArenaDesktop.Core;
 public sealed record SettingsSectionInfo(string Id, string Title, string Keywords);
 
 /// <summary>
-/// The Settings search index (S5 #41). Settings is one scrolling window
-/// of sections (not tabs), so search works at section level: a query
-/// matches a section when EVERY term appears in its title or keywords;
-/// matching sections stay visible (and are highlighted), the rest
-/// collapse, and the window scrolls to the first match. The index lives
-/// in Core so the mapping from words to sections is unit-tested against
-/// the real layout instead of drifting in the shell.
+/// The stable section keyword index for Settings search. A query keeps
+/// a section visible when every term appears in its title or keywords;
+/// the WPF shell also searches the live controls in each section (labels,
+/// help text, accessible names and combo choices) and can move keyboard
+/// focus to a selected match. The section map lives in Core so its
+/// vocabulary and layout identifiers stay independently testable.
 /// </summary>
 public static class SettingsSearch
 {
@@ -33,7 +32,7 @@ public static class SettingsSearch
         new SettingsSectionInfo(TrayId, "Tray & notifications",
             "tray icon single click double click reopen flash taskbar attention quiet hours do not disturb notifications balloon silent night"),
         new SettingsSectionInfo(ProfilesId, "Account profiles",
-            "profile account sign-in rename accent color dot switch remove add copy settings start page home custom url zoom downloads folder data size last used shortcut desktop storage cap limit cache cleanup"),
+            "profile account sign-in rename accent color dot switch remove add copy settings start page home custom url zoom downloads folder data size last used shortcut desktop storage cap limit cache cleanup export restore backup preferences profile settings site data cookies"),
         new SettingsSectionInfo(AppearanceId, "Appearance & toolbar",
             "theme dark light follow windows system accent color shell text size font scale toolbar customize reorder hide show buttons layout compact focus left rail standard reset appearance dim dimming dimmed reading quieter"),
         new SettingsSectionInfo(ZoomId, "Zoom",

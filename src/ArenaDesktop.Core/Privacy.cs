@@ -458,7 +458,7 @@ public static class BackupGuide
         return
             "What to back up, and what each piece covers:\n\n" +
             $"1) Your sign-ins (cookies and site data) live in each profile's WebView2 folder under:\n{webViewRoot}\n" +
-            "Copying that whole folder backs up every profile's sign-in on this PC.\n\n" +
+            "Copying that whole folder backs up every profile's sign-in on this PC. First exit ArenaDesktop completely: a live WebView2 profile can still be writing its databases, so copying it while the app is open may produce an incomplete backup. Restore only while ArenaDesktop is closed, and replace the matching profile folder rather than merging files. Keep this copy private — it contains sign-in data.\n\n" +
             $"2) Your settings (preferences, profile names, start pages) live in:\n{settingsRoot}\n" +
             "— or use Settings → Data → Export settings, which writes the same settings to one file " +
             "(there is also an encrypted-export option). Import brings them back on any PC.\n\n" +

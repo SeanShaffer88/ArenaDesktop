@@ -8,7 +8,7 @@ or borrowed images. Please capture, signed in to Arena:
 2. The ⋯ menu open on **Arena modes**, showing all nine modes
    (Battle / Direct Chat / Side by Side / Leaderboard / Agent / Image /
    Code / Video / Web Search).
-3. The Settings window.
+3. The Settings window in Dark theme (`settings.png`), Light theme (`settings-light.png`), and Windows High Contrast (`settings-high-contrast.png`), plus a search query with a matching control focused (`settings-search.png`).
 4. The tray icon's right-click menu, showing the Arena modes submenu.
 5. A generated image downloading, showing the status-bar progress % and ETA.
 6. The prompt pad (Ctrl+Shift+P) with a prompt in the box and two
@@ -17,5 +17,6 @@ or borrowed images. Please capture, signed in to Arena:
    the list is narrowed and the keys beside a row are visible.
 
 Save as `main-window.png`, `arena-modes-menu.png`, `settings.png`,
+`settings-light.png`, `settings-high-contrast.png`, `settings-search.png`,
 `tray-menu.png`, `download-progress.png`, `prompt-pad.png`,
-`command-palette.png` in this folder.
+`command-palette.png` in this folder. Only `main-window.png` is captured so far; all remaining images must come from a real Windows run.

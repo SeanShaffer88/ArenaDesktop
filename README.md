@@ -45,7 +45,7 @@ Captures come from real runs on Windows — no mock-ups, no borrowed images. One
 
 ## Install
 
-**Installer (recommended):** open the [latest release](../../releases/latest) and download the file named `ArenaDesktop-Setup-v<version>-x64.exe` — the version in the name is the release you are looking at, so the newest release always has the newest number (v0.15.0 at the time of writing). Run it. On a Windows-on-ARM PC this runs under emulation. It's a per-user install (no admin needed), with a Start Menu shortcut and an entry in Apps & Features for uninstalling. Uninstalling keeps your settings and sign-in data unless you choose to delete them when asked.
+**Installer (recommended):** open the [latest release](../../releases/latest) and download the file named `ArenaDesktop-Setup-v<version>-x64.exe` — the version in the name is the release you are looking at, so the newest release always has the newest number (v0.16.0 at the time of writing). Run it. On a Windows-on-ARM PC this runs under emulation. It's a per-user install (no admin needed), with a Start Menu shortcut and an entry in Apps & Features for uninstalling. Uninstalling keeps your settings and sign-in data unless you choose to delete them when asked.
 
 **Portable zip:** download `ArenaDesktop-v<version>-windows-x64.zip` from the same page, unzip anywhere, and run `ArenaDesktop.exe`. Every release also ships `SHA256SUMS.txt`, so you can check what you downloaded: `certutil -hashfile <file> SHA256` and compare.
 
@@ -157,7 +157,7 @@ See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md). In short: Windows runtime beha
 
 Three documents are kept for this question rather than one paragraph here:
 
-- **[QUALITY.md](QUALITY.md)** — the current scorecard, scored from evidence, with each row naming what would raise it (31/40 as of v0.15.0). The short version: the build, the full test suite and the released binary's start-up are verified on a Windows runner; interactive behaviour is not, because no on-machine pass has been recorded yet.
+- **[QUALITY.md](QUALITY.md)** — the current scorecard, scored from evidence, with each row naming what would raise it (31/40 as of v0.16.0). The short version: the build, the full test suite and the released binary's start-up are verified on a Windows runner; interactive behaviour is not, because no on-machine pass has been recorded yet.
 - **[KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)** — what the app deliberately does not do, and why, in plain language.
 - **[RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)** — the on-machine pass that would turn "Unverified" into a recording, item by item.
 

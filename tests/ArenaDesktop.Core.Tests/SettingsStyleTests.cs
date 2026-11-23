@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Xunit;
 
 namespace ArenaDesktop.Core.Tests;
@@ -99,6 +100,82 @@ public class SettingsStyleTests
         Assert.Contains("IsEnabled", template);
         Assert.False(Regex.IsMatch(template, "#[0-9A-Fa-f]{6}"),
             "the Button template must not hardcode a color");
+    }
+
+    [Fact]
+    public void SearchNavigatesToMatchingControls_AndAnnouncesResults()
+    {
+        var xaml = Source("src/ArenaDesktop/SettingsWindow.xaml");
+        var code = Source("src/ArenaDesktop/SettingsWindow.xaml.cs");
+        Assert.Contains("AutomationProperties.Name=\"Search Settings controls\"", xaml);
+        Assert.Contains("AutomationProperties.LiveSetting=\"Polite\"", xaml);
+        Assert.Contains("PreviewKeyDown=\"OnSearchPreviewKeyDown\"", xaml);
+        Assert.Contains("Key.Down", code);
+        Assert.Contains("Key.Up", code);
+        Assert.Contains("Key.Enter", code);
+        Assert.Contains("selected.Focus()", code);
+        Assert.Contains("SearchControlMatches", code);
+    }
+
+    [Fact]
+    public void ProfileRestoreAndSettingsBackupShowTheirBoundaries()
+    {
+        var xaml = Source("src/ArenaDesktop/SettingsWindow.xaml");
+        var code = Source("src/ArenaDesktop/SettingsWindow.xaml.cs");
+        Assert.Contains("OnExportProfileSettings", xaml);
+        Assert.Contains("OnImportProfileSettings", xaml);
+        Assert.Contains("site data are not included", xaml, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ProfileSettingsTransfer.TryImport", code);
+        Assert.Contains("ProfileSettingsTransfer.Apply", code);
+        Assert.Contains("SettingsRestorePreview.Compare", code);
+        Assert.True(code.IndexOf("SettingsRestorePreview.Compare", StringComparison.Ordinal)
+                    < code.IndexOf("CopySettingsInto(imported, _working)", StringComparison.Ordinal),
+            "backup differences must be previewed before settings are replaced");
+    }
+
+    [Fact]
+    public void SettingsWindowExposesKeyboardAndScreenReaderContracts()
+    {
+        var xaml = Source("src/ArenaDesktop/SettingsWindow.xaml");
+        Assert.Contains("AutomationProperties.Name=\"ArenaDesktop Settings\"", xaml);
+        Assert.Contains("AutomationProperties.LiveSetting=\"Assertive\"", xaml);
+        Assert.Contains("KeyboardNavigation.TabNavigation=\"Continue\"", xaml);
+        Assert.Contains("FocusVisualStyle", StyleBlock(xaml, "TargetType=\"Button\""));
+        Assert.Contains("ShellFocusVisual", StyleBlock(xaml, "TargetType=\"TextBox\""));
+    }
+
+    [Fact]
+    public void UtilityWindowsHaveNamedRootsAndAnnouncedSearchOrStatus()
+    {
+        var shortcuts = Source("src/ArenaDesktop/ShortcutsWindow.xaml");
+        var pad = Source("src/ArenaDesktop/PromptPadWindow.xaml");
+        var palette = Source("src/ArenaDesktop/CommandPaletteWindow.xaml");
+        Assert.Contains("AutomationProperties.Name=\"Keyboard shortcuts\"", shortcuts);
+        Assert.Contains("AutomationProperties.LiveSetting=\"Polite\"", shortcuts);
+        Assert.Contains("AutomationProperties.Name=\"Prompt pad\"", pad);
+        Assert.Contains("AutomationProperties.LiveSetting=\"Polite\"", pad);
+        Assert.Contains("AutomationProperties.Name=\"Command palette\"", palette);
+        Assert.Contains("AutomationProperties.LiveSetting=\"Polite\"", palette);
+        foreach (var xaml in new[] { shortcuts, pad, palette })
+            Assert.Contains("KeyboardNavigation.TabNavigation=\"Continue\"", xaml);
+    }
+
+    [Fact]
+    public void NamedSettingsControlsExposeANameOrHelpText()
+    {
+        var xaml = Source("src/ArenaDesktop/SettingsWindow.xaml");
+        var document = System.Xml.Linq.XDocument.Parse(xaml);
+        XNamespace xNamespace = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var interactive = new HashSet<string>(StringComparer.Ordinal)
+            { "TextBox", "ComboBox", "Button", "CheckBox", "RadioButton", "ListBox", "ListView" };
+        var missing = document.Descendants()
+            .Where(element => interactive.Contains(element.Name.LocalName)
+                              && element.Attribute(xNamespace + "Name") is not null)
+            .Where(element => !new[] { "ToolTip", "AutomationProperties.Name", "Content", "Text" }
+                .Any(attribute => element.Attribute(attribute) is not null))
+            .Select(element => $"{element.Name.LocalName} {element.Attribute(xNamespace + "Name")!.Value}")
+            .ToArray();
+        Assert.Empty(missing);
     }
 
     private static string StyleBlock(string xaml, string marker)
