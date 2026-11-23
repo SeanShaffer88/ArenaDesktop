@@ -22,5 +22,6 @@ renamed; "New" = written for ArenaDesktop.
 | Arena modes (9: Battle/Direct/SideBySide/Leaderboard/Agent/Image/Code/Video/Web Search, URLs verified live 2026-10-27) | **New** | ArenaModesTests — registry, CLI, protocol, JSON round-trip, shortcut catalog |
 | Jump List mode tasks | **New** | JumpListBuilder (Battle, Leaderboard) |
 | Battle Lab (prompt library, blanks, run queue, manual results journal; side pane + tray + `--battle-lab` + `arenadesktop://battle-lab`) | **New** (v0.2.0), pane in v0.8.0 | Core BattleLab + BattleLabTests; copy-to-clipboard only — never injects into or reads the Arena page |
+| Prompt pad (one-prompt scratchpad: box → clipboard → page, last ten prompts remembered; menu, tray, Ctrl+Shift+P, `--prompt-pad`, `arenadesktop://prompt-pad`) | **New** (v0.9.0) | Core PromptPad/PromptPadStore + PromptPadTests; copy-to-clipboard only — never injects into or reads the Arena page |
 | Tray Arena modes submenu | **New** | TrayController, from the Core registry |
 | Windows runtime behaviour | **Unverified** | RELEASE_CHECKLIST.md on-machine pass owed |

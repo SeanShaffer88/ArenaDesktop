@@ -1,0 +1,122 @@
+<Window x:Class="ArenaDesktop.PromptPadWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Prompt pad"
+        Width="560" Height="600" MinWidth="440" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
+        AutomationProperties.Name="Prompt pad">
+    <Window.Resources>
+        <Style x:Key="PadNote" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16,14,16,14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="132"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" FontSize="16" FontWeight="SemiBold" Text="Prompt pad"
+                   AutomationProperties.Name="Prompt pad headline"/>
+        <TextBlock Grid.Row="1" Style="{StaticResource PadNote}" Margin="0,6,0,10"
+                   Text="Write or paste one prompt here, then copy it and jump to the Arena page you picked. ArenaDesktop never types into Arena — the paste is your own Ctrl+V. Remembered prompts stay on this PC and never leave it."/>
+
+        <!-- Ctrl+Enter copies: Enter is a newline, because prompts are
+             often more than one line. -->
+        <TextBox Grid.Row="2" x:Name="Editor"
+                 AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top"
+                 VerticalScrollBarVisibility="Auto" Padding="8" FontSize="14"
+                 Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                 BorderBrush="{StaticResource HairlineBrush}" CaretBrush="{StaticResource TextBrush}"
+                 TextChanged="OnEditorTextChanged" PreviewKeyDown="OnEditorPreviewKeyDown"
+                 AutomationProperties.Name="Prompt text"/>
+
+        <TextBlock Grid.Row="3" x:Name="HintText" Style="{StaticResource PadNote}" Margin="0,8,0,0"
+                   AutomationProperties.Name="Prompt pad status"
+                   AutomationProperties.LiveSetting="Polite"/>
+
+        <Grid Grid.Row="4" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Copy &amp; open" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <ComboBox Grid.Column="1" x:Name="ModeCombo" DisplayMemberPath="Label"
+                      HorizontalAlignment="Left" MinWidth="190" Padding="6,3"
+                      SelectionChanged="OnModeChanged"
+                      AutomationProperties.Name="Arena page to open"
+                      ToolTip="Which Arena page the copy opens"/>
+            <Button Grid.Column="2" x:Name="FillBlanksButton" Content="Fill blanks…"
+                    Height="30" Padding="10,0,10,0" Visibility="Collapsed" Click="OnFillBlanks"
+                    AutomationProperties.Name="Fill in the prompt's blanks"
+                    ToolTip="Fill this prompt's [blanks] before copying it"/>
+        </Grid>
+
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="CopyButton" Content="Copy &amp; open Battle" Height="32" Padding="14,0,14,0"
+                    IsDefault="True" Click="OnCopy"
+                    AutomationProperties.Name="Copy the prompt and open the page"
+                    ToolTip="Put the prompt on the clipboard and open the page (Ctrl+Enter)"
+                    Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}"
+                    BorderThickness="0"/>
+            <Button Content="Close" Width="80" Height="32" Margin="8,0,0,0" IsCancel="True" Click="OnClose"
+                    AutomationProperties.Name="Close the prompt pad"/>
+        </StackPanel>
+
+        <TextBlock Grid.Row="6" x:Name="RecentsHeading" Margin="0,16,0,0" FontSize="12" FontWeight="SemiBold"
+                   TextWrapping="Wrap" AutomationProperties.Name="Remembered prompts heading"/>
+
+        <ListBox Grid.Row="7" x:Name="RecentsList" Margin="0,8,0,0"
+                 Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                 BorderBrush="{StaticResource HairlineBrush}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 MouseDoubleClick="OnRecentDoubleClick" KeyDown="OnRecentKeyDown"
+                 AutomationProperties.Name="Remembered prompts"
+                 ToolTip="Double-click (or press Enter) to load a remembered prompt into the box">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid Margin="4,3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding Preview}" FontSize="13"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Grid.Column="1" Text="{Binding When}" FontSize="11" Margin="10,0,0,0"
+                                   Foreground="{StaticResource MutedBrush}"/>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <Grid Grid.Row="8" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Enter loads the selected prompt into the box."
+                       Style="{StaticResource PadNote}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button x:Name="RemoveButton" Content="Forget" Height="28" Padding="10,0,10,0" Click="OnForgetRecent"
+                        AutomationProperties.Name="Forget the selected remembered prompt"
+                        ToolTip="Remove the selected prompt from this list (the text in the box is untouched)"/>
+                <Button x:Name="ClearButton" Content="Forget all" Height="28" Padding="10,0,10,0" Margin="8,0,0,0"
+                        Click="OnClearRecents"
+                        AutomationProperties.Name="Forget every remembered prompt"
+                        ToolTip="Empty the remembered list (the text in the box is untouched)"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

@@ -309,6 +309,11 @@ public static class HelpCatalog
             "Why does the log viewer have level buttons?",
             "log viewer level buttons errors warnings info unparsed filter narrow chips find redaction copy redacted diagnostics",
             HelpAction.OpenDiagnostics, "Open Diagnostics", null),
+        // v0.9.0: the prompt pad — the scratchpad for one prompt at a time.
+        new HelpPage("prompt-pad",
+            "How do I use the prompt pad?",
+            "prompt pad scratchpad scratch pad write draft jot copy clipboard paste quick temporary one prompt recents remembered remove clear ctrl shift p hand off arena page mode picker blank",
+            HelpAction.None, null, null),
     };
 
     public static HelpPage? ById(string? id) =>

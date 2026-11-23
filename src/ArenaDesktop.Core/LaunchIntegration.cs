@@ -34,6 +34,9 @@ public enum LaunchIntentKind
     /// <summary>Show the window and open the Field pass (v0.2.0).</summary>
     OpenFieldPass,
 
+    /// <summary>Show the window and open the prompt pad (v0.9.0) — a scratchpad for one prompt at a time.</summary>
+    OpenPromptPad,
+
     /// <summary>Open Help &amp; troubleshooting.</summary>
     ShowHelp,
 
@@ -84,6 +87,8 @@ public sealed record LaunchIntent(LaunchIntentKind Kind, string? ProfileId = nul
             return new LaunchIntent(LaunchIntentKind.OpenBattleLab);
         if (options.OpenFieldPass)
             return new LaunchIntent(LaunchIntentKind.OpenFieldPass);
+        if (options.OpenPromptPad)
+            return new LaunchIntent(LaunchIntentKind.OpenPromptPad);
         if (options.ArenaModeId is not null && ArenaModes.TryGet(options.ArenaModeId, out var mode))
             return new LaunchIntent(LaunchIntentKind.GoArenaMode, ModeId: mode.Id);
         if (options.OpenHome)
@@ -157,6 +162,10 @@ public sealed record LaunchIntent(LaunchIntentKind Kind, string? ProfileId = nul
             case "field-pass":
                 return path is "" or "/"
                     ? ProtocolParseResult.Ok(new LaunchIntent(LaunchIntentKind.OpenFieldPass))
+                    : ProtocolParseResult.Refused($"unknown route '{DescribeForLog(text)}'");
+            case "prompt-pad":
+                return path is "" or "/"
+                    ? ProtocolParseResult.Ok(new LaunchIntent(LaunchIntentKind.OpenPromptPad))
                     : ProtocolParseResult.Refused($"unknown route '{DescribeForLog(text)}'");
             case "help":
                 return path is "" or "/"

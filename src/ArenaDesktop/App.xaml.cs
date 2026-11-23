@@ -313,6 +313,7 @@ public partial class App : System.Windows.Application
         var coldIntent = protocolIntent ?? LaunchIntent.FromCommandLine(options);
         if (coldIntent.Kind is LaunchIntentKind.GoHome or LaunchIntentKind.OpenDownloads
                 or LaunchIntentKind.OpenBattleLab
+                or LaunchIntentKind.OpenPromptPad
                 or LaunchIntentKind.QuickDictate or LaunchIntentKind.ShowHelp
                 or LaunchIntentKind.GoArenaMode
             || (coldIntent.Kind == LaunchIntentKind.OpenSettings && !options.OpenSettings))

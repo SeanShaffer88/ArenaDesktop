@@ -113,6 +113,23 @@ public partial class MainWindow : Window
     // forward while the pass stays open.
     private FieldPassWindow? _fieldPassWindow;
 
+    // Prompt pad (v0.9.0): modeless like the field pass, but deliberately
+    // single-instance — one pad, and asking for it again brings it forward
+    // rather than stacking a second window on the same file.
+    private PromptPadWindow? _promptPadWindow;
+
+    /// <summary>True when the pad was hidden by the lock rather than closed, so unlocking can bring it back.</summary>
+    private bool _promptPadHiddenForLock;
+
+    // Clipboard lifetime for a pad copy (v0.9.0): Battle Lab arms its own
+    // timer, but the pad closes the moment it copies, so the clear is
+    // armed HERE, on the window that outlives it — otherwise the opt-in
+    // "clear copied prompts" setting would quietly stop applying to pad
+    // copies. One timer, one copied text, same Core rules.
+    private string? _padClipboardCopiedText;
+    private DateTimeOffset? _padClipboardClearAtUtc;
+    private DispatcherTimer? _padClipboardTimer;
+
     // v1.0.0 (S11) — the global show/hide hotkey (#96: its manager
     // owns the RegisterHotKey registration on this window's handle),
     // the launch intent queued behind the lock (#99/#100: one slot,
@@ -226,7 +243,8 @@ public partial class MainWindow : Window
             quickDictate: QuickDictate,
             openArenaMode: NavigateArenaMode,
             openBattleLab: OpenBattleLabFromTray,
-            favoriteModeIds: () => _settings.FavoriteModeIds);
+            favoriteModeIds: () => _settings.FavoriteModeIds,
+            openPromptPad: OpenPromptPadWindow);
 
         // S6 #54: live regions for assistive-tech announcements, and
         // the download events that feed them (the wording is Core's).
@@ -994,6 +1012,136 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnPromptPad(object sender, RoutedEventArgs e) => OpenPromptPadWindow();
+
+    /// <summary>
+    /// The prompt pad (v0.9.0): one modeless window, behind the app lock
+    /// like every other surface (S7 #64). The ⋯ menu, the tray,
+    /// Ctrl+Shift+P, <c>--prompt-pad</c> and an
+    /// <c>arenadesktop://prompt-pad</c> link all land here, so there is
+    /// only ever one pad.
+    /// </summary>
+    public void OpenPromptPadWindow()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        ShowFromTray();
+        if (_promptPadWindow is not null)
+        {
+            // It may be hidden because the app locked while it was open
+            // (see PresentLockWindow); showing it again returns the text
+            // the user left in the box.
+            if (!_promptPadWindow.IsVisible)
+                _promptPadWindow.Show();
+            _promptPadWindow.Activate();
+            return;
+        }
+        var window = new PromptPadWindow(_log, OnPromptPadCopied) { Owner = this };
+        window.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(window);
+        ShellTextScaling.Apply(window, _settings.ShellFontScale);
+        window.Closed += (_, _) =>
+        {
+            _promptPadWindow = null;
+            _promptPadHiddenForLock = false;
+        };
+        _promptPadWindow = window;
+        window.Show();
+    }
+
+    /// <summary>
+    /// The pad put a prompt on the clipboard: bring the page it picked
+    /// forward, put the keyboard in the page so the paste is one Ctrl+V
+    /// away, and say exactly what happened. Nothing is typed into Arena —
+    /// the pad copies, the user pastes, the same rule as Battle Lab.
+    /// </summary>
+    private void OnPromptPadCopied(ArenaMode mode, string text)
+    {
+        ShowFromTray();
+        NavigateArenaMode(mode.Id);
+        try
+        {
+            Browser.Focus();
+        }
+        catch (Exception ex)
+        {
+            // The page can be mid-init on a cold start; the status line
+            // below still tells the user what to do.
+            _log.Warn($"Prompt pad focus failed: {ex.Message}");
+        }
+        SetStatus(PromptPad.CopyStatus(text, mode));
+        _session.RecordPromptCopied();
+        ArmPadClipboardClear(text);
+    }
+
+    /// <summary>
+    /// Arm the opt-in clipboard clear for a pad copy (v0.9.0). The rules
+    /// are Core's, not a timer's: nothing runs when the setting is off,
+    /// and only text this app put there is ever cleared.
+    /// </summary>
+    private void ArmPadClipboardClear(string copiedText)
+    {
+        _padClipboardCopiedText = null;
+        _padClipboardClearAtUtc = null;
+        _padClipboardTimer?.Stop();
+        var minutes = ClipboardLifetime.Sanitize(_settings.ClipboardClearMinutes);
+        if (!ClipboardLifetime.ShouldArm(minutes))
+            return;
+        _padClipboardCopiedText = copiedText;
+        _padClipboardClearAtUtc = ClipboardLifetime.ClearAt(DateTimeOffset.UtcNow, minutes);
+        _padClipboardTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _padClipboardTimer.Tick -= OnPadClipboardTimerTick;
+        _padClipboardTimer.Tick += OnPadClipboardTimerTick;
+        _padClipboardTimer.Start();
+    }
+
+    /// <summary>Clear a pad-copied prompt once the delay is up, and only while the clipboard still holds exactly that text.</summary>
+    private void OnPadClipboardTimerTick(object? sender, EventArgs e)
+    {
+        if (_padClipboardClearAtUtc is not { } clearAt)
+        {
+            _padClipboardTimer?.Stop();
+            return;
+        }
+        string? current = null;
+        try
+        {
+            current = System.Windows.Clipboard.ContainsText() ? System.Windows.Clipboard.GetText() : null;
+        }
+        catch
+        {
+            // The clipboard can be held by another app for a moment: try
+            // again on the next tick rather than guessing.
+            return;
+        }
+        if (!ClipboardLifetime.ShouldClear(DateTimeOffset.UtcNow, clearAt, _padClipboardCopiedText, current))
+        {
+            // The deadline passed but the clipboard holds something else:
+            // the user's own copy wins, and this is over.
+            if (DateTimeOffset.UtcNow >= clearAt)
+                _padClipboardClearAtUtc = null;
+            return;
+        }
+        // The setting promises never to clear behind a lock screen.
+        if (_isLocked)
+            return;
+        try
+        {
+            System.Windows.Clipboard.Clear();
+            SetStatus("Copied prompt cleared from the clipboard.");
+            _log.Info("Prompt pad: copied prompt cleared from the clipboard on schedule");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Prompt pad: clipboard clear failed: {ex.Message}");
+        }
+        _padClipboardCopiedText = null;
+        _padClipboardClearAtUtc = null;
+        _padClipboardTimer?.Stop();
+    }
+
     /// <summary>
     /// Battle Lab copied a prompt: the page the Lab picked (Battle,
     /// Direct Chat or Side by Side) comes forward ready for the paste.
@@ -1008,6 +1156,10 @@ public partial class MainWindow : Window
             mode = ArenaModes.All[0];
         NavigateArenaMode(mode.Id);
         Browser.Focus();
+        // v0.9.0: the session window has always offered "prompts copied",
+        // and nothing ever incremented it. Every copy that hands a prompt
+        // to Arena now counts itself here and in OnPromptPadCopied.
+        _session.RecordPromptCopied();
         SetStatus($"Battle Lab prompt copied — click the prompt box on {mode.Label} and paste (Ctrl+V).");
     }
 
@@ -3139,6 +3291,15 @@ public partial class MainWindow : Window
             ShowFromTray();
             return;
         }
+        // v0.9.0: the prompt pad is a window of its own and can hold text
+        // the user would not want on screen behind a lock. Hide it on the
+        // way in rather than closing it, so unlocking brings the box back
+        // exactly as it was.
+        if (_promptPadWindow is { IsVisible: true })
+        {
+            _promptPadWindow.Hide();
+            _promptPadHiddenForLock = true;
+        }
         var window = new LockWindow(record, _lockThrottle, exitOnClose: false) { Owner = this };
         ShellTextScaling.Apply(window, _settings.ShellFontScale);
         _lockWindow = window;
@@ -3168,6 +3329,15 @@ public partial class MainWindow : Window
             _initDeferred = false;
             await InitWebViewAsync();
             MaybeAutoCheckForUpdates();
+        }
+        // v0.9.0: a pad that was open when the app locked comes back with
+        // the text it was holding. Shown before the main window so the
+        // unlock ends with the window in front, not the pad.
+        if (_promptPadHiddenForLock)
+        {
+            _promptPadHiddenForLock = false;
+            if (_promptPadWindow is not null && !_promptPadWindow.IsVisible)
+                _promptPadWindow.Show();
         }
         // ShowFromTray drains whatever queued behind the lock (S11
         // #99/#100) — one intent, the newest: the queue is last-wins
@@ -3321,6 +3491,9 @@ public partial class MainWindow : Window
                 break;
             case LaunchIntentKind.OpenFieldPass:
                 OpenFieldPassFromLaunch();
+                break;
+            case LaunchIntentKind.OpenPromptPad:
+                OpenPromptPadWindow();
                 break;
             case LaunchIntentKind.ShowHelp:
                 ShowFromTray();
@@ -4437,6 +4610,15 @@ public partial class MainWindow : Window
                 HideSidePane();
             else
                 OpenBattleLabPane();
+            e.Handled = true;
+            return;
+        }
+        // v0.9.0: the prompt pad's own key. Ctrl+P is the page's print,
+        // so this is Ctrl+Shift+P — and it opens rather than toggles,
+        // because the pad closes itself once it copied.
+        if (e.Key == Key.P && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            OpenPromptPadWindow();
             e.Handled = true;
             return;
         }

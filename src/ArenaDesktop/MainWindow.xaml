@@ -185,6 +185,10 @@
                                     <MenuItem x:Name="BattleLabItem" Header="Show Battle Lab pane" Click="OnBattleLab"
                                               InputGestureText="Ctrl+Shift+B"
                                               ToolTip="Open Battle Lab beside the Arena page — prompt library, run queue and results journal, without leaving the page"/>
+                                    <!-- v0.9.0: one prompt at a time, copied and handed to the page. -->
+                                    <MenuItem Header="Prompt pad…" Click="OnPromptPad"
+                                              InputGestureText="Ctrl+Shift+P"
+                                              ToolTip="Write one prompt in a scratchpad, copy it, and open the Arena page you pick — pasting is your Ctrl+V"/>
                                     <MenuItem Header="Field pass…" Click="OnFieldPass"/>
                                     <Separator/>
                                     <MenuItem Header="Keyboard shortcuts…" Click="OnShortcuts" InputGestureText="Ctrl+/"

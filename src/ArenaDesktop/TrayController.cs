@@ -60,6 +60,9 @@ public sealed class TrayController : IDisposable
     private readonly Func<IReadOnlyList<string>>? _favoriteModeIds;
     // Battle Lab (v0.2.0): optional like Quick ask.
     private readonly Action? _openBattleLab;
+    // Prompt pad (v0.9.0): optional like the rest of the tool windows.
+    private readonly Action? _openPromptPad;
+    private Forms.ToolStripMenuItem? _promptPadItem;
     private Forms.ToolStripMenuItem? _battleLabItem;
     private Forms.ToolStripMenuItem? _modesItem;
     private Forms.ToolStripMenuItem? _favoritesItem;
@@ -119,7 +122,8 @@ public sealed class TrayController : IDisposable
         Action? quickDictate = null,
         Action<string>? openArenaMode = null,
         Action? openBattleLab = null,
-        Func<IReadOnlyList<string>>? favoriteModeIds = null)
+        Func<IReadOnlyList<string>>? favoriteModeIds = null,
+        Action? openPromptPad = null)
     {
         _log = log;
         _dispatcher = dispatcher;
@@ -149,6 +153,7 @@ public sealed class TrayController : IDisposable
         _quickDictate = quickDictate;
         _openArenaMode = openArenaMode;
         _openBattleLab = openBattleLab;
+        _openPromptPad = openPromptPad;
         _favoriteModeIds = favoriteModeIds;
     }
 
@@ -218,6 +223,13 @@ public sealed class TrayController : IDisposable
                 _battleLabItem = new Forms.ToolStripMenuItem("Battle Lab");
                 _battleLabItem.Click += (_, _) => _dispatcher.Invoke(_openBattleLab);
                 menu.Items.Add(_battleLabItem);
+            }
+            // Prompt pad (v0.9.0): the scratchpad, one click from the tray.
+            if (_openPromptPad is not null)
+            {
+                _promptPadItem = new Forms.ToolStripMenuItem("Prompt pad");
+                _promptPadItem.Click += (_, _) => _dispatcher.Invoke(_openPromptPad);
+                menu.Items.Add(_promptPadItem);
             }
             _settingsItem = new Forms.ToolStripMenuItem("Settings…");
             _settingsItem.Click += (_, _) => _dispatcher.Invoke(_openSettings);
@@ -405,6 +417,7 @@ public sealed class TrayController : IDisposable
         // except while locked, where it is forced off.
         if (_newWindowItem is not null) _newWindowItem.Enabled = !locked;
         if (_dictateItem is not null) _dictateItem.Enabled = !locked;
+        if (_promptPadItem is not null) _promptPadItem.Enabled = !locked;
         if (_reloadItem is not null) _reloadItem.Enabled = !locked;
         if (_downloadsItem is not null) _downloadsItem.Enabled = !locked;
         if (_settingsItem is not null) _settingsItem.Enabled = !locked;

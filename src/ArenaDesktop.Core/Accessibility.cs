@@ -265,6 +265,11 @@ public static class ShortcutCatalog
         // that doesn't mean two mouse trips through the ⋯ menu.
         new ShortcutAction("side-pane", "Open or close the Battle Lab pane", ShortcutScope.InApp, Remappable: false,
             new[] { "Ctrl+Shift+B" }),
+        // v0.9.0: the prompt pad is the one surface you want WHILE
+        // reading something else, so it is a single fixed key rather
+        // than a trip through the menu.
+        new ShortcutAction("prompt-pad", "Open the prompt pad", ShortcutScope.InApp, Remappable: false,
+            new[] { "Ctrl+Shift+P" }),
         new ShortcutAction("fullscreen", "Full screen", ShortcutScope.InApp, Remappable: false,
             new[] { "F11" }),
         new ShortcutAction("escape", "Close find / leave focus mode or full screen", ShortcutScope.InApp, Remappable: false,

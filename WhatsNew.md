@@ -2,6 +2,22 @@
 
 The release notes ArenaDesktop shows on the first launch of a new version. This file is generated from CHANGELOG.md's current-version section at release time (see RELEASE_CHECKLIST.md) — do not edit it by hand; a test pins it to the changelog so the two can't drift.
 
+## [0.9.0] — 2026-11-23
+
+A scratchpad for the prompt you only want once. Battle Lab is the library — kept, organised, journaled — and it is the wrong place for a prompt you are about to try exactly one time. The prompt pad is that place: open it, write or paste the prompt, and it goes on the clipboard while the Arena page you picked comes forward with the keyboard already in it.
+
+### Added
+
+- **The prompt pad.** A small window (⋯ menu → **Tools** → *Prompt pad…*, the tray menu, `--prompt-pad`, `arenadesktop://prompt-pad`, or **Ctrl+Shift+P**) holding one prompt and the page it is for. **Copy & open** (the button names the page; or Ctrl+Enter) puts the text on the clipboard and brings that page forward, ready for your own Ctrl+V. Nothing is typed into Arena and nothing is read from it — the pad copies, you paste, exactly as Battle Lab's copy button has always worked. Enter is a new line, Esc closes the window.
+- **The page you used last is remembered.** The picker beside the copy button offers every Arena mode (Battle by default) and the pad reopens on the one you chose last, stored in the pad's own file rather than guessed from the current page.
+- **It remembers the last ten prompts.** A copied prompt is kept in `prompt-pad.json` beside your settings, and portable mode carries it with the rest of your data. Double-click one to load it back into the box, **Forget** removes the selected prompt, **Forget all** empties the list — neither touches the text in the box, and none of it is sent anywhere.
+- **Blanks can be filled, and long prompts are checked first.** A prompt with `[blanks]` shows **Fill blanks…**, which opens the dialog Battle Lab uses and puts the filled text back in the box, so the box always shows what will be pasted. A prompt past 6,000 characters asks before it is copied, with its exact size, using the same rule and wording as Battle Lab.
+- **The clipboard lifetime setting covers the pad.** With "Clear copied prompts from the clipboard after…" turned on, a pad copy is cleared on the same schedule as a Battle Lab copy. The pad closes the moment it copies, so the countdown is kept by the main window instead — it never clears while the app is locked, and it only ever clears text this app put there.
+
+### Fixed
+
+- **The session window's "prompts copied" counter never moved.** It has been offered since v0.4.0, but nothing ever incremented it, so it always read zero. A prompt copied from Battle Lab's copy button and a prompt copied from the pad now each count once — still this-run-only, still saved nowhere, still nothing read from the Arena page.
+
 ## [0.3.1] — 2026-11-02
 
 ### Changed

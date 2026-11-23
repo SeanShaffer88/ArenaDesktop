@@ -75,6 +75,8 @@ public class S6Tests
             "focus-page", "status-line",
             // v0.8.0: Battle Lab is a pane, so it has its own toggle.
             "side-pane",
+            // v0.9.0: the prompt pad opens on one fixed key.
+            "prompt-pad",
         };
         Assert.Equal(
             expected.OrderBy(x => x),
