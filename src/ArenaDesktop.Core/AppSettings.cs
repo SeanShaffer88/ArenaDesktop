@@ -496,7 +496,7 @@ public sealed class AppSettings
         // rather than being clamped up — a hand-edited 600 must not quietly
         // become a two-hour lock the user never chose.
         AppLockIdleMinutes = IdleLock.Sanitize(AppLockIdleMinutes);
-        SettingsWindowWidth = SettingsWindowWidth is >= 420 and <= 2000 ? SettingsWindowWidth : 480;
+        SettingsWindowWidth = SettingsWindowWidth is >= 420 and <= 2000 ? SettingsWindowWidth : 580;
         SettingsWindowHeight = SettingsWindowHeight == 0 || SettingsWindowHeight is >= 400 and <= 2000
             ? SettingsWindowHeight
             : 0;
