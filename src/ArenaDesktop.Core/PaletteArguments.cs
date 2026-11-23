@@ -19,6 +19,9 @@ public enum PaletteArgumentKind
 
     /// <summary><c>mode side</c> — go to that Arena mode (resolved to a mode id).</summary>
     Mode,
+
+    /// <summary><c>saved cables</c> — find that saved prompt, copy it, open Battle.</summary>
+    Prompt,
 }
 
 /// <summary>One parsed query: what kind, which argument, and the row the palette shows.</summary>
@@ -41,6 +44,7 @@ public sealed record PaletteQuery(PaletteArgumentKind Kind, string Argument, str
 ///   find cables       → the find bar, with "cables" in it
 ///   profile Work      → the Work profile
 ///   mode side         → Side by Side
+///   saved cables      → the saved prompt, on the clipboard (v0.15.0)
 /// </code>
 ///
 /// The rule is the palette's own: a verb, a space, an argument. Anything else
@@ -54,7 +58,7 @@ public static class PaletteArguments
     public const string IdPrefix = "arg:";
 
     /// <summary>The four verbs, in the order help should list them.</summary>
-    public static readonly IReadOnlyList<string> Verbs = new[] { "zoom", "find", "profile", "mode" };
+    public static readonly IReadOnlyList<string> Verbs = new[] { "zoom", "find", "profile", "mode", "saved" };
 
     /// <summary>
     /// Parse a query against the profiles this app knows (names and ids both
@@ -83,6 +87,13 @@ public static class PaletteArguments
                 $"Find “{Shorten(argument)}” on the page", "Opens the find bar with this text"),
             "profile" => ParseProfile(argument, profiles),
             "mode" => ParseMode(argument),
+            // "saved", not "prompt": "prompt pad" must keep opening the pad,
+            // and it does — the verb is a word no command title starts with.
+            // The library is not known here (parsing stays pure), so the verb
+            // only carries the words; PromptPick resolves them against the
+            // library the shell hands it.
+            "saved" => new PaletteQuery(PaletteArgumentKind.Prompt, argument,
+                $"Copy the saved prompt “{Shorten(argument)}”", "Finds it in Battle Lab, copies it, opens Battle"),
             _ => None(),
         };
     }
@@ -102,6 +113,7 @@ public static class PaletteArguments
             "find" => PaletteArgumentKind.Find,
             "profile" => PaletteArgumentKind.Profile,
             "mode" => PaletteArgumentKind.Mode,
+            "saved" => PaletteArgumentKind.Prompt,
             _ => PaletteArgumentKind.None,
         };
         if (kind == PaletteArgumentKind.None)
@@ -119,6 +131,7 @@ public static class PaletteArguments
             PaletteArgumentKind.Find => "find",
             PaletteArgumentKind.Profile => "profile",
             PaletteArgumentKind.Mode => "mode",
+            PaletteArgumentKind.Prompt => "saved",
             _ => throw new ArgumentOutOfRangeException(nameof(query), "Not an argumented query"),
         };
         return $"{IdPrefix}{kind}:{query.Argument}";
@@ -126,7 +139,7 @@ public static class PaletteArguments
 
     /// <summary>The one line of help the palette shows under an argumented row.</summary>
     public static string HelpText() =>
-        "Arguments: zoom 125 · find cables · profile Work · mode side";
+        "Arguments: zoom 125 · find cables · profile Work · mode side · saved cables";
 
     private static PaletteQuery ParseZoom(string argument)
     {
@@ -178,6 +191,7 @@ public static class PaletteArguments
         PaletteArgumentKind.Zoom => $"Zoom to {argument}%",
         PaletteArgumentKind.Find => $"Find “{Shorten(argument)}” on the page",
         PaletteArgumentKind.Profile => $"Switch to the {argument} profile",
+        PaletteArgumentKind.Prompt => $"Copy the saved prompt “{Shorten(argument)}”",
         _ => $"Go to {argument}",
     };
 

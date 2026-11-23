@@ -1068,10 +1068,10 @@ public static class BattleJournalMarkdown
 }
 
 /// <summary>
-/// Running the queue from outside the pane (v0.14.0): "copy the next queued
-/// prompt" without opening Battle Lab. The rule is in Core so the status line,
-/// the copy and the blanks refusal are testable; the shell supplies the
-/// clipboard and the page.
+/// Running a saved prompt from outside the pane (v0.14.0): the head of the run
+/// queue, or a prompt the palette named with <c>prompt &lt;text&gt;</c>. The rule is
+/// in Core so the status line, the copy and the blanks refusal are testable;
+/// the shell supplies the clipboard and the page.
 /// </summary>
 public sealed record QueueRun(BattlePrompt Prompt, string Text, bool Ready, string Status);
 
@@ -1079,15 +1079,29 @@ public sealed record QueueRun(BattlePrompt Prompt, string Text, bool Ready, stri
 public static class BattleQueueRunner
 {
     /// <summary>
-    /// The next prompt to run, or null when the queue is empty. <c>Ready</c>
-    /// is false when the prompt still has blanks with no default — those are
-    /// the one thing the app will not guess at, and the status line names them
-    /// so the answer is "open Battle Lab and fill them", not "nothing happened".
+    /// The next prompt in the queue, or null when it is empty. The status line
+    /// carries "1 of N" and the reminder that logging a result retires it.
     /// </summary>
     public static QueueRun? Next(BattleLabLibrary library)
     {
         if (library is null || library.NextUp is not { } prompt)
             return null;
+        var prompts = library.QueuePrompts;
+        var index = prompts.ToList().FindIndex(p => string.Equals(p.Id, prompt.Id, StringComparison.OrdinalIgnoreCase));
+        var count = prompts.Count;
+        return For(prompt, index < 0
+            ? " — paste it into the Battle page."
+            : $" ({index + 1} of {count}) — paste it into the Battle page; logging its result in Battle Lab takes it off the queue.");
+    }
+
+    /// <summary>
+    /// One prompt, ready to copy. <c>Ready</c> is false when the prompt still
+    /// has blanks with no default — those are the one thing the app will not
+    /// guess at, and the status line names them so the answer is "open Battle
+    /// Lab and fill them", not "nothing happened".
+    /// </summary>
+    public static QueueRun For(BattlePrompt prompt, string suffix)
+    {
         var noValues = new Dictionary<string, string>();
         var text = PromptBlanks.Fill(prompt.Body, noValues);
         var left = PromptBlanks.Unfilled(prompt.Body, noValues);
@@ -1095,13 +1109,84 @@ public static class BattleQueueRunner
         {
             var names = string.Join(", ", left.Select(b => $"[{b}]"));
             return new QueueRun(prompt, text, Ready: false,
-                $"“{prompt.Name}” has blanks to fill first ({names}) — open Battle Lab to run it.");
+                $"“{Name(prompt.Name)}” has blanks to fill first ({names}) — open Battle Lab to run it.");
         }
-        var position = library.QueuePrompts
-            .Select((p, i) => (p, i))
-            .FirstOrDefault(pair => string.Equals(pair.p.Id, prompt.Id, StringComparison.OrdinalIgnoreCase));
-        var count = library.QueuePrompts.Count;
-        return new QueueRun(prompt, text, Ready: true,
-            $"Copied “{prompt.Name}” ({position.i + 1} of {count}) — paste it into the Battle page; logging its result in Battle Lab takes it off the queue.");
+        return new QueueRun(prompt, text, Ready: true, $"Copied “{Name(prompt.Name)}”{suffix}");
     }
+
+    /// <summary>A name short enough for the status bar — the prompt keeps its own name on disk.</summary>
+    private static string Name(string? name) =>
+        (name ?? "").Length <= 60 ? (name ?? "") : name![..59] + "…";
+}
+
+/// <summary>How a <c>prompt</c> query landed: nothing, exactly one, or a shortlist.</summary>
+public enum PromptPickKind
+{
+    /// <summary>No saved prompt matches.</summary>
+    None,
+
+    /// <summary>One prompt — copy it.</summary>
+    One,
+
+    /// <summary>Several prompts tie at the best rank — filter Battle Lab to them.</summary>
+    Many,
+}
+
+/// <summary>See <see cref="PromptPickKind"/>.</summary>
+public sealed record PromptPickResult(PromptPickKind Kind, BattlePrompt? Prompt,
+    IReadOnlyList<BattlePrompt> Matches, string Status);
+
+/// <summary>
+/// The palette's <c>prompt &lt;text&gt;</c> verb (v0.15.0): which saved prompt did
+/// you mean?
+///
+/// Ranking is deliberate and stated, because a search that silently prefers
+/// one prompt over another is how you copy the wrong thing: a name that
+/// matches exactly, then a name that starts with the words, then a name that
+/// contains them, then a category with that name, then a body that mentions
+/// them. The first rank that finds anything wins; ties inside a rank are a
+/// shortlist rather than a guess.
+/// </summary>
+public static class PromptPicker
+{
+    /// <summary>How many matches the shortlist names before it stops counting.</summary>
+    public const int ShortlistCap = 5;
+
+    public static PromptPickResult Find(BattleLabLibrary? library, string? query)
+    {
+        var text = (query ?? "").Trim();
+        if (library is null || text.Length == 0)
+            return new PromptPickResult(PromptPickKind.None, null, Array.Empty<BattlePrompt>(), NoMatch(text));
+
+        var prompts = library.SearchPrompts(null);   // whole library, library order
+        var ranks = new Func<BattlePrompt, bool>[]
+        {
+            p => string.Equals(p.Name.Trim(), text, StringComparison.OrdinalIgnoreCase),
+            p => p.Name.Trim().StartsWith(text, StringComparison.OrdinalIgnoreCase),
+            p => p.Name.Contains(text, StringComparison.OrdinalIgnoreCase),
+            p => string.Equals((p.Category ?? "").Trim(), text, StringComparison.OrdinalIgnoreCase),
+            p => p.Body.Contains(text, StringComparison.OrdinalIgnoreCase),
+        };
+        foreach (var rank in ranks)
+        {
+            var hits = prompts.Where(rank)
+                .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (hits.Count == 0)
+                continue;
+            if (hits.Count == 1)
+                return new PromptPickResult(PromptPickKind.One, hits[0], hits,
+                    $"Copied “{Shorten(hits[0].Name)}” — paste it into the Battle page.");
+            return new PromptPickResult(PromptPickKind.Many, null, hits,
+                $"{hits.Count} saved {(hits.Count == 1 ? "prompt matches" : "prompts match")} “{Shorten(text)}” — Battle Lab is filtered to them.");
+        }
+        return new PromptPickResult(PromptPickKind.None, null, Array.Empty<BattlePrompt>(), NoMatch(text));
+    }
+
+    private static string NoMatch(string text) => text.Length == 0
+        ? "Type a few words of the prompt's name after “prompt”."
+        : $"No saved prompt matches “{Shorten(text)}” — open Battle Lab (⋯ → Tools) to see the library, or save one from the prompt pad.";
+
+    private static string Shorten(string text) => text.Length <= 40 ? text : text[..39] + "…";
 }
