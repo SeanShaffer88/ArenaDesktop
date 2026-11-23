@@ -302,7 +302,8 @@ public static class ShortcutCheatSheet
     public static string GroupFor(ShortcutAction action) => action.Id switch
     {
         _ when action.Id.StartsWith("mode-", StringComparison.Ordinal) => "Arena modes",
-        ShortcutCatalog.SettingsId or ShortcutCatalog.DownloadsId or ShortcutCatalog.HomeId or "shortcuts" => "Opening things",
+        ShortcutCatalog.SettingsId or ShortcutCatalog.DownloadsId or ShortcutCatalog.HomeId or "shortcuts"
+            or "command-palette" => "Opening things",
         "find" or "print" or "reload" or "restore-closed" => "The page",
         "back" or "forward" or "focus-page" => "Moving around",
         // The status line is read off the page, not the window: group it

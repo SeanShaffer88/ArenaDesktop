@@ -1,0 +1,86 @@
+<Window x:Class="ArenaDesktop.CommandPaletteWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Command palette"
+        Width="620" Height="440" MinWidth="480" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
+        PreviewKeyDown="OnWindowPreviewKeyDown"
+        AutomationProperties.Name="Command palette">
+    <Window.Resources>
+        <Style x:Key="PaletteNote" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16,14,16,14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" FontSize="16" FontWeight="SemiBold" Text="Command palette"
+                   AutomationProperties.Name="Command palette headline"/>
+        <TextBlock Grid.Row="1" Style="{StaticResource PaletteNote}" Margin="0,6,0,10"
+                   Text="Type what you want to do — a mode, a window, a layout. The same words work in Settings, Help and the shortcut list."/>
+
+        <TextBox Grid.Row="2" x:Name="Query" Height="34" Padding="8,4" FontSize="14"
+                 VerticalContentAlignment="Center"
+                 Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                 BorderBrush="{StaticResource HairlineBrush}" CaretBrush="{StaticResource TextBrush}"
+                 TextChanged="OnQueryChanged" PreviewKeyDown="OnQueryPreviewKeyDown"
+                 AutomationProperties.Name="Command to find"
+                 ToolTip="Filter commands as you type"/>
+
+        <ListBox Grid.Row="3" x:Name="Results" Margin="0,10,0,0" MinHeight="120"
+                 Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                 BorderBrush="{StaticResource HairlineBrush}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 SelectionChanged="OnResultsSelectionChanged"
+                 MouseDoubleClick="OnResultsDoubleClick"
+                 AutomationProperties.Name="Matching commands">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid Margin="4,3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="120"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding Title}" FontSize="13"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Grid.Column="1" Text="{Binding Keys}" FontSize="13" FontWeight="SemiBold"
+                                   Margin="10,0,10,0" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="2" Text="{Binding Group}" FontSize="11"
+                                   Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"
+                                   HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"/>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <Grid Grid.Row="4" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" x:Name="SummaryText" Style="{StaticResource PaletteNote}"
+                       VerticalAlignment="Center" Margin="0,0,10,0"
+                       AutomationProperties.Name="Palette status"
+                       AutomationProperties.LiveSetting="Polite"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button x:Name="RunButton" Content="Run" Width="80" Height="30" IsDefault="True" Click="OnRun"
+                        Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}"
+                        BorderThickness="0"
+                        AutomationProperties.Name="Run the highlighted command"/>
+                <Button Content="Close" Width="80" Height="30" Margin="8,0,0,0" IsCancel="True" Click="OnClose"
+                        AutomationProperties.Name="Close the command palette"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

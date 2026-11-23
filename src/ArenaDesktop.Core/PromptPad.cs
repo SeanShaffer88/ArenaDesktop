@@ -32,6 +32,16 @@ public sealed class PromptPadData
 
     /// <summary>The mode "Copy &amp; open" navigates to, as an Arena mode id; Battle when nothing usable is stored.</summary>
     public string ModeId { get; set; } = ArenaModes.BattleId;
+
+    /// <summary>
+    /// What was in the box when the pad was last closed (v0.10.0). The
+    /// pad used to lose unsent text, which is a poor deal for the one
+    /// surface in the app that exists to hold a half-written thought.
+    /// Cleared when the prompt it describes is copied, so the pad never
+    /// reopens with the same text twice. Plain text on disk, exactly like
+    /// the remembered prompts — see KNOWN_LIMITATIONS.md.
+    /// </summary>
+    public string Draft { get; set; } = "";
 }
 
 /// <summary>
@@ -108,6 +118,21 @@ public static class PromptPad
         return data.Recents.RemoveAll(e => e is null || Normalize(e.Text) == key) > 0;
     }
 
+    /// <summary>
+    /// Keep what is in the box for the next time the pad opens
+    /// (v0.10.0). Whitespace-only text is stored as no draft at all: an
+    /// empty box that happens to hold a newline should reopen empty.
+    /// </summary>
+    public static PromptPadData SetDraft(PromptPadData data, string? text)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        data.Draft = IsCopyable(text) ? text!.Trim() : "";
+        return data;
+    }
+
+    /// <summary>The draft to put back in the box, never null.</summary>
+    public static string Draft(PromptPadData data) => data?.Draft ?? "";
+
     /// <summary>Forget every remembered prompt. The target page is left alone — clearing the list is not a settings reset.</summary>
     public static PromptPadData Clear(PromptPadData data)
     {
@@ -158,6 +183,7 @@ public static class PromptPad
             .ToList();
         foreach (var entry in data.Recents)
             entry.Text = entry.Text.Trim();
+        data.Draft = (data.Draft ?? "").Trim();
         data.ModeId = ArenaModes.TryGet(data.ModeId, out var mode) ? mode.Id : ArenaModes.BattleId;
         return data;
     }

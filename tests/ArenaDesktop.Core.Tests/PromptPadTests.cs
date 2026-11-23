@@ -375,6 +375,106 @@ public class PromptPadTests
         Assert.Contains("LaunchIntentKind.OpenPromptPad", app);
     }
 
+    // ──────────────────────── the draft (v0.10.0) ────────────────────────
+
+    [Fact]
+    public void SetDraft_KeepsUnsentTextForNextTime()
+    {
+        var data = PromptPad.SetDraft(new PromptPadData(), "  half a thought\n");
+        Assert.Equal("half a thought", data.Draft);
+        Assert.Equal("half a thought", PromptPad.Draft(data));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("\n\t")]
+    public void SetDraft_StoresBlankAsNoDraftAtAll(string? text) =>
+        Assert.Equal("", PromptPad.SetDraft(new PromptPadData(), text).Draft);
+
+    [Fact]
+    public void Draft_IsNeverNull()
+    {
+        Assert.Equal("", PromptPad.Draft(new PromptPadData()));
+        Assert.Equal("", PromptPad.Draft(new PromptPadData { Draft = null! }));
+    }
+
+    [Fact]
+    public void Clear_ForgetsThePrompts_ButNotTheBox()
+    {
+        // "Forget all" is about the remembered list. The half-written
+        // prompt in the box is not a remembered prompt.
+        var data = new PromptPadData();
+        PromptPad.Remember(data, "a remembered prompt", Now);
+        PromptPad.SetDraft(data, "still typing this");
+        PromptPad.Clear(data);
+        Assert.Empty(data.Recents);
+        Assert.Equal("still typing this", data.Draft);
+    }
+
+    [Fact]
+    public void Remember_DoesNotTouchTheDraft()
+    {
+        // The window clears the draft itself once it copies; the Core
+        // helper must not guess that a remembered prompt was the draft.
+        var data = PromptPad.SetDraft(new PromptPadData(), "draft");
+        PromptPad.Remember(data, "a different prompt", Now);
+        Assert.Equal("draft", data.Draft);
+    }
+
+    [Fact]
+    public void Sanitized_TrimsTheDraft_AndSurvivesNull()
+    {
+        Assert.Equal("padded", PromptPad.Sanitized(new PromptPadData { Draft = "  padded  " }).Draft);
+        Assert.Equal("", PromptPad.Sanitized(new PromptPadData { Draft = null! }).Draft);
+    }
+
+    [Fact]
+    public void Store_RoundTripsTheDraft()
+    {
+        var dir = TempDir();
+        try
+        {
+            var path = Path.Combine(dir, "prompt-pad.json");
+            var data = PromptPad.SetDraft(new PromptPadData(), "an unsent prompt");
+            PromptPadStore.Save(path, data);
+            var loaded = PromptPadStore.Load(path);
+            Assert.Equal("an unsent prompt", loaded.Draft);
+            Assert.Empty(loaded.Recents);
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [Fact]
+    public void Store_FileWithoutADraftReadsAsEmpty()
+    {
+        // v0.9.0 files have no Draft property at all; loading one must not
+        // fail and must not invent text.
+        var dir = TempDir();
+        try
+        {
+            var path = Path.Combine(dir, "prompt-pad.json");
+            File.WriteAllText(path, "{\"ModeId\":\"battle\",\"Recents\":[]}");
+            var loaded = PromptPadStore.Load(path);
+            Assert.Equal("", PromptPad.Draft(loaded));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [Fact]
+    public void Window_SavesTheDraftOnClose_AndClearsItOnCopy()
+    {
+        var window = File.ReadAllText(
+            Path.Combine(RepoRoot(), "src", "ArenaDesktop", "PromptPadWindow.xaml.cs"));
+        Assert.Contains("Editor.Text = PromptPad.Draft(_data);", window);
+        Assert.Contains("Closing += (_, _) => SaveDraft();", window);
+        // A copy clears the draft, so reopening the pad does not hand
+        // back the prompt that was just pasted.
+        Assert.Contains("PromptPad.SetDraft(_data, \"\");", window);
+        Assert.Contains("_copied", window);
+    }
+
     private static string RepoRoot()
     {
         var dir = new DirectoryInfo(

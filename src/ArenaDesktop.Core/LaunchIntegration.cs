@@ -37,6 +37,9 @@ public enum LaunchIntentKind
     /// <summary>Show the window and open the prompt pad (v0.9.0) — a scratchpad for one prompt at a time.</summary>
     OpenPromptPad,
 
+    /// <summary>Show the window and open the command palette (v0.10.0).</summary>
+    OpenCommandPalette,
+
     /// <summary>Open Help &amp; troubleshooting.</summary>
     ShowHelp,
 
@@ -89,6 +92,8 @@ public sealed record LaunchIntent(LaunchIntentKind Kind, string? ProfileId = nul
             return new LaunchIntent(LaunchIntentKind.OpenFieldPass);
         if (options.OpenPromptPad)
             return new LaunchIntent(LaunchIntentKind.OpenPromptPad);
+        if (options.OpenCommandPalette)
+            return new LaunchIntent(LaunchIntentKind.OpenCommandPalette);
         if (options.ArenaModeId is not null && ArenaModes.TryGet(options.ArenaModeId, out var mode))
             return new LaunchIntent(LaunchIntentKind.GoArenaMode, ModeId: mode.Id);
         if (options.OpenHome)
@@ -166,6 +171,10 @@ public sealed record LaunchIntent(LaunchIntentKind Kind, string? ProfileId = nul
             case "prompt-pad":
                 return path is "" or "/"
                     ? ProtocolParseResult.Ok(new LaunchIntent(LaunchIntentKind.OpenPromptPad))
+                    : ProtocolParseResult.Refused($"unknown route '{DescribeForLog(text)}'");
+            case "palette":
+                return path is "" or "/"
+                    ? ProtocolParseResult.Ok(new LaunchIntent(LaunchIntentKind.OpenCommandPalette))
                     : ProtocolParseResult.Refused($"unknown route '{DescribeForLog(text)}'");
             case "help":
                 return path is "" or "/"
