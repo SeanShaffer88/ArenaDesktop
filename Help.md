@@ -173,6 +173,8 @@ Since v0.13.0 the box says **what** failed and **where** in the app it was throw
 
 If it happens **every time you open Settings**, look at the top of the Settings window: since v0.13.0 a panel that cannot be read is named in a banner ("Some settings could not be shown") and the rest of the window still works. The name in that banner is the part worth reporting.
 
+Settings is searchable: type a word to keep matching sections visible and highlight them; the other sections hide until you clear the search. Since v0.15.0, each section is grouped in a card and OK/Cancel stay at the bottom while you scroll. The search and the load-failure banner work the same as before.
+
 If it happens **at launch**, the app says the main window could not be created and offers the same report; `--safe-mode` starts clean at the home page with the customisations bypassed, which is the way back in.
 
 ## How do I find a command without the menus?
