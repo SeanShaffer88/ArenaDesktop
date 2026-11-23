@@ -6,9 +6,9 @@ namespace ArenaDesktop.Core.Tests;
 public class SettingsControlSearchTests
 {
     [Theory]
-    [InlineData("update freq", "Check for updates automatically Every launch Once a week", true)]
+    [InlineData("update freq", "Check for updates automatically Every launch Once a week Update frequency", true)]
     [InlineData("week launch", "Check for updates automatically Every launch Once a week", true)]
-    [InlineData("automa freq", "Check for updates automatically Every launch Once a week", true)]
+    [InlineData("automa freq", "Check for updates automatically Every launch Once a week Update frequency", true)]
     [InlineData("update daily", "Check for updates automatically Every launch Once a week", false)]
     [InlineData("cookie", "Restore profile settings", false)]
     public void Matches_UsesEveryWordAsAPrefix(string query, string searchableText, bool expected) =>
