@@ -55,7 +55,7 @@ Captures come from real runs on Windows — no mock-ups, no borrowed images. One
 
 ## Install
 
-**Installer (recommended):** open the [latest release](../../releases/latest) and download the file named `ArenaDesktop-Setup-v<version>-x64.exe` — the version in the name is the release you are looking at, so the newest release always has the newest number (v0.20.0 at the time of writing). Run it. On a Windows-on-ARM PC this runs under emulation. It's a per-user install (no admin needed), with a Start Menu shortcut and an entry in Apps & Features for uninstalling. Uninstalling keeps your settings and sign-in data unless you choose to delete them when asked.
+**Installer (recommended):** open the [latest release](../../releases/latest) and download the file named `ArenaDesktop-Setup-v<version>-x64.exe` — the version in the name is the release you are looking at, so the newest release always has the newest number (v0.21.0 at the time of writing). Run it. On a Windows-on-ARM PC this runs under emulation. It's a per-user install (no admin needed), with a Start Menu shortcut and an entry in Apps & Features for uninstalling. Uninstalling keeps your settings and sign-in data unless you choose to delete them when asked.
 
 **Portable zip:** download `ArenaDesktop-v<version>-windows-x64.zip` from the same page, unzip anywhere, and run `ArenaDesktop.exe`. Every release also ships `SHA256SUMS.txt`, so you can check what you downloaded: `certutil -hashfile <file> SHA256` and compare.
 

@@ -2,6 +2,12 @@
 
 The release notes ArenaDesktop shows on the first launch of a new version. This file is generated from CHANGELOG.md's current-version section at release time (see RELEASE_CHECKLIST.md) — do not edit it by hand; a test pins it to the changelog so the two can't drift.
 
+## [0.21.0] — 2026-11-23
+
+### Changed
+
+- **Tabs are now concurrent live pages.** Each tab has its own WebView2 view on the profile's shared environment (sign-in is shared, exactly as before), so a Battle, an Agent task and the Leaderboard stay loaded and running at once — switching tabs no longer reloads the page. Views are created when a tab is first shown; to bound memory, at most six tabs hold a live view at once and the least-recently-used background view is released (its tab keeps its URL and title and reloads when next opened — the previous behaviour). Background pages are never suspended on switch; tray suspend still offers every live view to WebView2, which declines for active media. Downloads from a background tab take the same path as before and are attributed to their tab in the notification centre. Design: `docs/MULTI_VIEW_TABS.md`.
+
 ## [0.20.0] — 2026-11-23
 
 The completeness program (plan: `docs/COMPLETENESS_PLAN.md`).

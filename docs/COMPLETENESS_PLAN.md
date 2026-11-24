@@ -174,13 +174,23 @@ tab. New tab (Ctrl+T), close tab (Ctrl+W), reopen closed
 (Ctrl+Shift+T), and "open in new window" reuses SecondaryWindow for
 a truly concurrent page.
 
-**Honest limitation.** These are *state tabs*, not concurrent live
-pages: Arena pages reload on tab switch (the single-view
-architecture is load-bearing for find/downloads/watchdog/retry, and
-a multi-view rewrite of MainWindow was judged too risky to land
-blind). Concurrent live pages remain available via SecondaryWindow.
-The Core model is view-agnostic, so a future multi-view host can
-adopt it unchanged. Recorded in KNOWN_LIMITATIONS.
+**Honest limitation (as shipped in v0.20.0).** These are *state
+tabs*, not concurrent live pages: Arena pages reload on tab switch
+(the single-view architecture is load-bearing for
+find/downloads/watchdog/retry, and a multi-view rewrite of
+MainWindow was judged too risky to land blind). Concurrent live
+pages remain available via SecondaryWindow. The Core model is
+view-agnostic, so a future multi-view host can adopt it unchanged.
+Recorded in KNOWN_LIMITATIONS.
+
+**Follow-up (unreleased, branch `feat/multi-view-tabs`).** The
+multi-view host has landed, exactly on the view-agnostic model:
+each tab owns a live WebView2 view on the profile's one shared
+environment, created lazily, capped at six live views with Core
+LRU eviction back to state tabs. Design + audit:
+`docs/MULTI_VIEW_TABS.md`. The state-tab limitation in
+KNOWN_LIMITATIONS is replaced by the live-view cap and the
+browser-process-crash cost. Windows runtime Unverified.
 
 ## D2. Chat export & search — Status: implemented (app's own data)
 
