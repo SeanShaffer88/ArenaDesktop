@@ -31,6 +31,16 @@ Arena has no Windows app, so this is one: a small native program that opens aren
 - **Private by construction** — no telemetry, no accounts of its own, no data collection. The only files it writes are its settings, a rolling local log, and the WebView2 profile — all under your user profile, all deletable by you at any time.
 - **Forgiving** — second launches wake the running window instead of opening a duplicate; a corrupted settings file is preserved as a backup and defaults are used; load failures explain themselves in plain words and offer a retry.
 
+## Rendering engine
+
+New in v0.18.0, the app carries its own rendering engine for streamed responses (`src/ArenaDesktop.Core/Rendering`, hosted by the `ArenaRenderView` WebView2 control). It parses a response as it streams in — in chunks of any size, so a code fence split across two chunks is still recognised — identifies text, code and widget blocks as they arrive, and renders them as interactive components in the style of Replit's workspace interface:
+
+- **Code blocks** get a file tab (from `lang:file` or `title=` on the fence), a language badge, a line-number gutter, and Copy, Run and Expand actions, with syntax highlighting for C#, Python, JavaScript, TypeScript, JSON, HTML, CSS and Bash. Highlighting is built in — no new dependencies — and keywords inside strings and comments are never highlighted.
+- **Embedded widgets** declared as a `widget:` fence with a JSON body render as components: tables as tables, charts with their data handed to the host, and HTML previews inside a sandboxed frame with scripts disabled.
+- **Safe by construction** — all streamed content is HTML-escaped before it is rendered, the page carries a restrictive content-security policy, nothing remote is fetched, and the engine never executes streamed code: Run and Expand are reported to the host window, which decides what they mean.
+
+The parser's core guarantee is tested directly: parsing a response one character at a time produces exactly the same blocks as parsing it whole. Developer notes live in `src/ArenaDesktop.Core/Rendering/README.md`.
+
 ## Screenshots
 
 Captures come from real runs on Windows — no mock-ups, no borrowed images. One is here so far (the main window); the rest of the list in [docs/screenshots/CAPTURE.md](docs/screenshots/CAPTURE.md) is owed and will be added as it is taken.
