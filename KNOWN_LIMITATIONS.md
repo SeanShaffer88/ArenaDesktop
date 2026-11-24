@@ -9,6 +9,9 @@ Honest list of what ArenaDesktop does not do or has not proven yet. Kept current
 
 ## Product limits
 
+- **Simple Mode hides, it does not remove.** With Simple Mode on, Battle Lab, the prompt pad and the command palette are unreachable from every door (menu, tray, keyboard, command line, links), and the tray menu shows only Open and Exit — but the Battle Lab library, run queue and pad draft stay on disk untouched, and turning the mode off restores every surface exactly as it was. Simple Mode's shell gating is **Unverified** on a real Windows desktop until the on-machine pass covers it.
+- **No performance baseline exists yet.** `PERFORMANCE.md` documents the metrics and how to reproduce them, but cold startup, idle working set and workflow CPU have not been measured on a Windows machine; no figure is claimed until the first field pass records one.
+
 - **Inside Direct Chat and Side by Side, you pick the model(s).** ArenaDesktop takes you to the right page; the model choice at the top of those pages is Arena's own picker — the app never injects script into the page, so it cannot choose for you.
 - **Battle Lab lives in the main window.** Since v0.8.0 it is a side pane, not a window, so it cannot be dragged to a second monitor — the page and the Lab share one window by design. In a narrow window the pane folds to one tabbed column, and below 706px of content width the split is refused outright (the status bar says so) rather than showing two unusable columns.
 - **Battle Lab results are recorded by hand.** The app never reads anything from the Arena page, so the results journal only contains what you log yourself (A won / B won / Tie plus your note); winners are never detected automatically.
