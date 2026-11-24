@@ -2,6 +2,22 @@
 
 All notable changes to ArenaDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.18.0] — 2026-11-23
+
+A custom rendering engine for streamed responses, styled after Replit's workspace interface. Streamed text is parsed as it arrives, code blocks are identified mid-stream, and everything is rendered as interactive components with syntax highlighting and embedded widgets.
+
+### Added
+
+- **Streaming stream parser.** Responses are parsed incrementally in chunks of any size — a code fence split across chunks is still recognised. Text, code and widget blocks are tracked separately and reported as started, updated and completed, and an unterminated fence is closed cleanly when the stream ends.
+- **Replit-style code blocks.** Each code block renders with a file tab (from `lang:file` or `title=` on the fence), a language badge, a line-number gutter, and Copy, Run and Expand actions. Run and Expand are reported to the host window; the engine itself never executes streamed code.
+- **Syntax highlighting** for C#, Python, JavaScript, TypeScript, JSON, HTML, CSS and Bash, built in with no new dependencies. Keywords inside strings and comments are never highlighted.
+- **Embedded widgets.** A `widget:` fence with a JSON body renders as a component: tables render as tables, charts carry their data to the host, and HTML previews render inside a sandboxed frame with scripts disabled.
+- **Safe by construction.** All streamed content is HTML-escaped before rendering, the rendered page carries a restrictive content-security policy, and no remote fonts, scripts or code are fetched.
+
+### Verification status
+
+The full build and Core suite pass locally and in CI, including chunked-versus-whole parsing equivalence tests. Rendering on a real Windows desktop remains **Unverified** until the on-machine checklist runs.
+
 ## [0.17.0] — 2026-11-23
 
 Settings no longer presents all nine sections in one long page. The new left navigation keeps the section list available while showing one page at a time. Search filters the section list and can still jump directly to matching controls.
