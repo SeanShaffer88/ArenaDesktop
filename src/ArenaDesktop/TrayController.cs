@@ -651,6 +651,13 @@ public sealed class TrayController : IDisposable
     }
 
     /// <summary>
+    /// A general notification-centre balloon (completeness slice D3):
+    /// same quiet gate and mechanics as the download balloon; the
+    /// centre's store is the durable record, this is the glance.
+    /// </summary>
+    public void ShowNotification(string title, string body) => ShowDownloadComplete(title, body);
+
+    /// <summary>
     /// The Settings test notification (S10 #92): shown even when the
     /// quiet-hours gate would hold back an AUTOMATIC balloon — a test
     /// the user explicitly asked for that silently does nothing

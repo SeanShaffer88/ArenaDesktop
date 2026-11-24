@@ -22,6 +22,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="40"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="24"/>
         </Grid.RowDefinitions>
@@ -205,6 +206,24 @@
                                     <MenuItem x:Name="BattleNextQueuedItem" Header="Copy the next queued prompt" Click="OnBattleNextQueued"
                                               ToolTip="Paste-ready copy of the head of the run queue, with the Battle page opened for it — the same as Battle Lab's Use next, without opening the pane"/>
                                     <MenuItem Header="Field pass…" Click="OnFieldPass"/>
+                                    <MenuItem Header="Notifications…" Click="OnNotifications"
+                                              ToolTip="Downloads, local tasks and comparisons — the durable notification record"/>
+                                    <MenuItem Header="Library search &amp; export…" Click="OnLibrary"
+                                              ToolTip="Search and export everything ArenaDesktop itself stores"/>
+                                    <MenuItem Header="Git panel…" Click="OnGit"
+                                              ToolTip="Status, diff, stage, commit, push and branch switching for your project folder"/>
+                                    <MenuItem Header="Back up profile (encrypted)…" Click="OnProfileBackup"
+                                              ToolTip="Settings + profile preferences in one passphrase-encrypted file (no sign-ins — Windows binds those to this PC)"/>
+                                    <MenuItem Header="Restore profile backup…" Click="OnProfileRestore"
+                                              ToolTip="Restore a profile backup made by ArenaDesktop (you will see a preview first)"/>
+                                    <MenuItem Header="Script commands…" Click="OnScripts"
+                                              ToolTip="Your own commands in the command palette — the local automation surface"/>
+                                    <MenuItem Header="Terminal…" Click="OnTerminal"
+                                              ToolTip="Run commands in your project folder, with streamed output"/>
+                                    <MenuItem Header="Scratch comparison…" Click="OnCompare"
+                                              ToolTip="Send one prompt to your own BYOK and local models side by side"/>
+                                    <MenuItem Header="AI providers (BYOK)…" Click="OnProviders"
+                                              ToolTip="Your own OpenAI, Anthropic, Google or local-model keys, for Scratch comparison"/>
                                     <Separator/>
                                     <MenuItem Header="Keyboard shortcuts…" Click="OnShortcuts" InputGestureText="Ctrl+/"
                                               ToolTip="Every keyboard shortcut in one searchable list; three of them can be changed in Settings"/>
@@ -256,7 +275,7 @@
              the ⋯ menu live at the foot, under the brand dot that
              tops the rail. The mode column scrolls when the window
              is too short for all of it. -->
-        <Border x:Name="LeftRail" Grid.Column="0" Grid.RowSpan="4" Visibility="Collapsed"
+        <Border x:Name="LeftRail" Grid.Column="0" Grid.RowSpan="5" Visibility="Collapsed"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,1,0">
             <DockPanel LastChildFill="True" Margin="0,6">
@@ -357,7 +376,22 @@
              closed — same grid, same row, so nothing about the page's
              layout changes when the pane is hidden. SplitWorkspace owns
              the arithmetic for how wide the pane may be. -->
-        <Grid Grid.Row="2" Grid.Column="1" x:Name="ContentSplit" SizeChanged="OnContentSplitSizeChanged">
+        <!-- Tab strip (completeness slice D1): state tabs over the one
+             browsing view — see TabSet in Core and KNOWN_LIMITATIONS. -->
+        <Border x:Name="TabStrip" Grid.Row="2" Grid.Column="1" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal">
+                <ItemsControl x:Name="TabItems">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+                <Button x:Name="NewTabButton" Content="+" Width="28" Height="24" Margin="2,2,0,2" Click="OnNewTab"
+                        ToolTip="New tab (Ctrl+T)" AutomationProperties.Name="New tab"/>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="3" Grid.Column="1" x:Name="ContentSplit" SizeChanged="OnContentSplitSizeChanged">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition x:Name="PageColumn" Width="*"/>
                 <ColumnDefinition x:Name="PaneSplitterColumn" Width="0"/>
@@ -455,7 +489,7 @@
         </Grid>
 
         <!-- Status bar -->
-        <Border x:Name="StatusBar" Grid.Row="3" Grid.Column="1" Background="{StaticResource SurfaceBrush}"
+        <Border x:Name="StatusBar" Grid.Row="4" Grid.Column="1" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0">
             <DockPanel LastChildFill="True" Margin="8,0">
                 <Button x:Name="CancelDownloadButton" DockPanel.Dock="Right" Content="&#x2715;" Width="22" Height="18"

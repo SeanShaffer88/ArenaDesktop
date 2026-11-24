@@ -99,6 +99,22 @@ Navigation is policy-checked, not assumed (`UrlPolicy` in
 - **Logs** record scheme, host and path only (`RedactForLog`) — never
   a query string or fragment, which can carry tokens or chat content.
 
+### WebView2 permissions — exactly what is exposed, and how to revoke it
+
+Permission requests are decided by policy in Core (`UrlPolicy.IsAutoGrantedPermission`) and applied in the main window's `PermissionRequested` handler. There is no in-app permission prompt; the table below is the whole policy, and the same table is shown in Settings → Privacy & security (both come from `PermissionsTransparency` in Core):
+
+| Feature | Policy | How to revoke |
+| --- | --- | --- |
+| Microphone | Auto-granted to `https://arena.ai` only; denied to every other origin | Settings → Privacy & security → Permissions: set microphone for arena.ai to Block, or clear site data |
+| Notifications | Auto-granted to `https://arena.ai` only; denied to every other origin | Same permissions list (Block), or Windows notification settings |
+| Camera | Never granted — denied to every origin, including arena.ai | Nothing to revoke; no grant is ever made, and denials are counted in the privacy report |
+| Geolocation | Never granted — denied to every origin | Nothing to revoke |
+| Clipboard | Page-driven inside the web view; the shell adds no clipboard access beyond the copy actions you invoke yourself | The app keeps no clipboard history |
+| Downloads | Only into the folder and collision policy you chose; WebView2's own flyout is suppressed for the app's Downloads window | Settings → Downloads |
+| Password autosave & autofill | WebView2's own features, on by default, stored inside the profile's WebView2 folder | Settings → Privacy & security toggles; clear site data to remove stored entries |
+
+Saved per-origin choices live inside each WebView2 profile and are edited through the same Settings permissions manager (backed by the profile's own permission store, via `WebPrivacyGateway`). Denied requests are counted per kind + host in the privacy report — counts and host names only, never URLs.
+
 ### `arenadesktop://` links
 
 Links are an allowlist, not a router (`LaunchIntent.ParseProtocolUri`

@@ -55,7 +55,7 @@ Captures come from real runs on Windows — no mock-ups, no borrowed images. One
 
 ## Install
 
-**Installer (recommended):** open the [latest release](../../releases/latest) and download the file named `ArenaDesktop-Setup-v<version>-x64.exe` — the version in the name is the release you are looking at, so the newest release always has the newest number (v0.19.0 at the time of writing). Run it. On a Windows-on-ARM PC this runs under emulation. It's a per-user install (no admin needed), with a Start Menu shortcut and an entry in Apps & Features for uninstalling. Uninstalling keeps your settings and sign-in data unless you choose to delete them when asked.
+**Installer (recommended):** open the [latest release](../../releases/latest) and download the file named `ArenaDesktop-Setup-v<version>-x64.exe` — the version in the name is the release you are looking at, so the newest release always has the newest number (v0.20.0 at the time of writing). Run it. On a Windows-on-ARM PC this runs under emulation. It's a per-user install (no admin needed), with a Start Menu shortcut and an entry in Apps & Features for uninstalling. Uninstalling keeps your settings and sign-in data unless you choose to delete them when asked.
 
 **Portable zip:** download `ArenaDesktop-v<version>-windows-x64.zip` from the same page, unzip anywhere, and run `ArenaDesktop.exe`. Every release also ships `SHA256SUMS.txt`, so you can check what you downloaded: `certutil -hashfile <file> SHA256` and compare.
 
@@ -83,7 +83,14 @@ Either way: the app is not code-signed, so Windows SmartScreen may warn on first
 | Web profile (login session) | `%LOCALAPPDATA%\ArenaDesktop\WebView2` for the default profile; extra profiles get sibling folders (`WebView2-<id>`) |
 | Downloads | Your Downloads folder, or the folder chosen in Settings |
 
-In **portable mode**, Settings, Download history, and the Diagnostic log live under a `data` folder beside the exe instead of `%APPDATA%\ArenaDesktop` — and so do `battle-lab.json`, `prompt-pad.json` and `field-pass.json`. The Web profile stays in `%LOCALAPPDATA%` in this version — a portable copy does not carry your sign-in.
+In **portable mode**, Settings, Download history, and the Diagnostic log live under a `data` folder beside the exe instead of `%APPDATA%\ArenaDesktop` — and so do `battle-lab.json`, `prompt-pad.json`, `field-pass.json` and the Web profiles (`data\WebView2`, `data\WebView2-<id>`), so the whole app is one carryable folder. One honest limit: WebView2 protects its cookies with Windows DPAPI for the Windows user and PC that created them, so a portable copy taken to another PC or another Windows user will ask you to sign in again there — the session only travels within the same user on the same machine.
+
+## Accessibility
+
+- **Screen readers.** Shell status changes are announced through polite/assertive live regions, every control on the main window and the program's own windows carries an automation name, and dialogs return focus to what opened them. Battle outcomes, download completions and task results are announced, not only shown.
+- **Keyboard.** Everything the shell does is reachable by keyboard: the command palette (Ctrl+K) covers every menu item, shortcuts are listed in one place (Ctrl+/) and three of them can be remapped in Settings.
+- **High contrast & themes.** Dark and Light themes plus a full Windows High Contrast mode: when Windows is in High Contrast, the shell re-points every colour at the system roles and follows it live. Text scaling (100/125/150%) and reduced-motion support (following Windows, or forced on/off) are in Settings → Accessibility.
+- **Language.** The shell is English today. New surfaces are being built on an externalized string table (`ShellStrings` in Core) so translations have one home; a UI-language setting exists and currently offers English only — we would rather say that than ship machine-translated labels.
 
 ## Keyboard shortcuts
 
@@ -100,6 +107,7 @@ In **portable mode**, Settings, Download history, and the Diagnostic log live un
 | Alt+Home | Go to Arena home |
 | Ctrl+Shift+B | Show or hide the Battle Lab pane |
 | Ctrl+Shift+P | Open the prompt pad |
+| Ctrl+T / Ctrl+W / Ctrl+Shift+T | New tab / close tab / reopen closed tab |
 | Ctrl+K | Command palette — every command in one searchable list |
 | Ctrl+Shift+K | Cycle the window layout: Standard → Compact Focus → Left Rail |
 | Ctrl+/ | Keyboard shortcuts — every shortcut grouped by area, searchable, click a row to copy its keys |
@@ -170,6 +178,7 @@ Three documents are kept for this question rather than one paragraph here:
 - **[QUALITY.md](QUALITY.md)** — the current scorecard, scored from evidence, with each row naming what would raise it (31/40 as of v0.16.0). The short version: the build, the full test suite and the released binary's start-up are verified on a Windows runner; interactive behaviour is not, because no on-machine pass has been recorded yet.
 - **[KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)** — what the app deliberately does not do, and why, in plain language.
 - **[RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)** — the on-machine pass that would turn "Unverified" into a recording, item by item.
+- **[ROADMAP.md](ROADMAP.md)** — what is planned, what is decided against, and how to vote on feature requests (👍 reactions on issues).
 
 Release notes for each published version are in [docs/release-notes](docs/release-notes) (and in the app's What's New on first launch); every change is in [CHANGELOG.md](CHANGELOG.md); every decision worth arguing about is in [DECISIONS.md](DECISIONS.md).
 

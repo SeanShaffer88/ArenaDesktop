@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Roadmap
+    url: https://github.com/SeanShaffer88/ArenaDesktop/blob/main/ROADMAP.md
+    about: What is planned, what is decided against, and how voting works
+  - name: Security policy
+    url: https://github.com/SeanShaffer88/ArenaDesktop/blob/main/SECURITY.md
+    about: Report vulnerabilities privately here — never as a public issue

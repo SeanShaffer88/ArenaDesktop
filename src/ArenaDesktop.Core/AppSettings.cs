@@ -369,6 +369,26 @@ public sealed class AppSettings
     /// </summary>
     public List<string> PendingProfileFolderDeletions { get; set; } = new();
 
+    // BYOK providers (completeness slice B1/B2). Config only — the
+    /// keys themselves live in the ApiKeyVault, never in this file.
+    /// <summary>Configured bring-your-own-key and local-model providers.</summary>
+    public List<ChatProviderConfig> ChatProviders { get; set; } = new();
+
+    /// <summary>The developer project folder (completeness slice C): the Git panel's and terminal's home. Null = not chosen.</summary>
+    public string? ProjectFolder { get; set; }
+
+    /// <summary>Open browser tabs per profile (completeness slice D1), restored on the next launch.</summary>
+    public Dictionary<string, TabSet> OpenTabsByProfile { get; set; } = new();
+
+    /// <summary>Notification-centre categories the user has muted (completeness slice D3), by category name.</summary>
+    public List<string> MutedNotificationCategories { get; set; } = new();
+
+    /// <summary>Shell UI language (completeness slice D4): "" / "system" follows Windows; a culture name pins it. Only English tables ship today.</summary>
+    public string UiLanguage { get; set; } = "";
+
+    /// <summary>User-defined script commands (completeness slice D5) — the palette's Scripts family.</summary>
+    public List<ScriptCommand> ScriptCommands { get; set; } = new();
+
     /// <summary>Legacy shared last-page (pre-v0.3.1). Migrated into LastUrlByProfile for the default profile on load, then cleared.</summary>
     public string? LastUrl { get; set; }
 
@@ -405,6 +425,15 @@ public sealed class AppSettings
         else
             DownloadsFolder = DownloadsFolder.Trim();
         DownloadHistoryCap = DownloadHistoryStore.SanitizeCap(DownloadHistoryCap);
+        ChatProviders = ChatProviderCatalog.Sanitize(ChatProviders);
+        if (string.IsNullOrWhiteSpace(ProjectFolder)) ProjectFolder = null;
+        else ProjectFolder = ProjectFolder.Trim();
+        OpenTabsByProfile ??= new Dictionary<string, TabSet>();
+        foreach (var key in OpenTabsByProfile.Keys.ToList())
+            OpenTabsByProfile[key] = TabSet.Sanitize(OpenTabsByProfile[key]);
+        MutedNotificationCategories = NotificationStore.SanitizeMuted(MutedNotificationCategories);
+        UiLanguage = ShellStrings.SanitizeUiLanguage(UiLanguage);
+        ScriptCommands = ScriptCommandCatalog.Sanitize(ScriptCommands);
         if (!Enum.IsDefined(CollisionPolicy))
             CollisionPolicy = DownloadCollisionPolicy.AutoRename;
         // S4: the suspend timeout must be one of the offered options,

@@ -82,6 +82,24 @@ public static class CommandPalette
                 "prompt-pad"),
             new PaletteCommand("battle-next-queue", "Copy the next queued prompt", "Open",
                 "battle lab queue next run prompt copy automate one by one"),
+            new PaletteCommand("profile-backup", "Back up profile (encrypted)", "Open",
+                "profile backup encrypted export passphrase settings preferences"),
+            new PaletteCommand("profile-restore", "Restore profile backup", "Open",
+                "profile restore backup import encrypted passphrase settings"),
+            new PaletteCommand("script-commands", "Manage script commands", "Open",
+                "scripts commands automation plugins extensions manage custom"),
+            new PaletteCommand("notifications", "Open Notifications", "Open",
+                "notifications centre unread downloads tasks events alerts"),
+            new PaletteCommand("library", "Open Library search & export", "Open",
+                "library search export prompts journal downloads archive markdown json"),
+            new PaletteCommand("git-panel", "Open the Git panel", "Open",
+                "git status diff stage commit push pull branch repository project"),
+            new PaletteCommand("terminal", "Open the terminal", "Open",
+                "terminal shell command prompt run build project folder console"),
+            new PaletteCommand("scratch-compare", "Open Scratch comparison", "Open",
+                "scratch compare comparison side by side models byok local prompt test"),
+            new PaletteCommand("providers", "Open AI providers (BYOK)", "Open",
+                "byok api key openai anthropic google ollama lm studio local model providers"),
             new PaletteCommand("field-pass", "Open the field pass", "Open",
                 "field pass checks verify prove tour guided problem skip verdicts"),
             new PaletteCommand("shortcuts", "Keyboard shortcuts", "Open",
@@ -206,6 +224,13 @@ public static class CommandPalette
     public static IReadOnlyList<PaletteCommand> Available(Func<PaletteCommand, bool>? isAvailable) =>
         isAvailable is null ? All : All.Where(isAvailable).ToList();
 
+    /// <summary>Available commands including caller-supplied extras (the Scripts family, slice D5).</summary>
+    public static IReadOnlyList<PaletteCommand> Available(
+        Func<PaletteCommand, bool>? isAvailable, IReadOnlyList<PaletteCommand>? extras) =>
+        extras is null || extras.Count == 0
+            ? Available(isAvailable)
+            : Available(isAvailable).Concat(extras.Where(c => isAvailable?.Invoke(c) ?? true)).ToList();
+
     /// <summary>The palette id for a zoom preset (see <see cref="ZoomPresets"/>).</summary>
     public static string ZoomPresetId(ZoomPreset preset) => ZoomPresetPrefix + preset.Id;
 
@@ -219,9 +244,10 @@ public static class CommandPalette
             : null;
 
     public static IReadOnlyList<PaletteCommand> Search(
-        string? query, Func<PaletteCommand, bool>? isAvailable = null)
+        string? query, Func<PaletteCommand, bool>? isAvailable = null,
+        IReadOnlyList<PaletteCommand>? extras = null)
     {
-        var pool = Available(isAvailable);
+        var pool = Available(isAvailable, extras);
         if (string.IsNullOrWhiteSpace(query))
             return pool;
         var terms = query.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
