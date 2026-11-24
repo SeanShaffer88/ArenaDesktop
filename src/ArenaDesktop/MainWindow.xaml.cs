@@ -31,6 +31,17 @@ public partial class MainWindow : Window
     private bool _reallyExit;
     private bool _webReady;
 
+    // Multi-view tabs (docs/MULTI_VIEW_TABS.md): Browser is the
+    // ACTIVE tab's WebView2 control — the field is repointed on every
+    // tab switch, so the window's many call sites keep meaning "the
+    // page the user is looking at". Every tab's view is created from
+    // the profile's ONE environment (_env), so sign-in is shared.
+    // Assigned in the constructor before anything can read it.
+    private Microsoft.Web.WebView2.Wpf.WebView2 Browser = null!;
+    private CoreWebView2Environment? _env;
+    private readonly Dictionary<string, TabView> _views = new();
+    private TabView? _activeView;
+
     // v0.5.0 (S1) — navigation history model, focus mode, find, auto-retry.
     private readonly NavigationHistory _history = new();
     private bool _focusMode;
@@ -70,9 +81,16 @@ public partial class MainWindow : Window
     // the microphone-grant heuristic for tray suspend (#35). The pinned
     // WebView2 SDK exposes no microphone-capture state (see DECISIONS),
     // so a grant is remembered for the session and treated as "a voice
-    // session may be live" until the page navigates.
+    // session may be live" until the page navigates. Multi-view tabs:
+    // the flag lives per view (TabView.MicGrantedThisSession); this
+    // field mirrors the ACTIVE view's flag for the watchdog and the
+    // other single-page readers, and AnyMicGranted answers for the
+    // whole window (tray suspend offers every live view).
     private AttentionSignal _lastAttention = AttentionSignal.None;
     private bool _micGrantedThisSession;
+
+    private bool AnyMicGranted =>
+        _micGrantedThisSession || _views.Values.Any(v => v.MicGrantedThisSession);
 
     // Enhancement pack (v0.4.0) — the session's own facts (counted in
     // memory, saved nowhere), the visibility clock the reading time is
@@ -180,8 +198,9 @@ public partial class MainWindow : Window
         // shell palette (App applied the theme before constructing us),
         // the toolbar strips are rebuilt from the user's layout (#45),
         // shell text is scaled (#46), and later theme changes re-sync
-        // the title bar + web background.
-        Browser.DefaultBackgroundColor = ThemeManager.BrowserBackground;
+        // the title bar + web background. (Per-view backgrounds are
+        // set when each tab's control is created, and re-synced for
+        // all live views in OnThemeChanged.)
         ApplyToolbarLayout();
         ApplyShellLayout();
         ApplySimpleMode();
@@ -237,7 +256,7 @@ public partial class MainWindow : Window
             OpenRecentDownload,
             RecentDownloadsForTray,
             () => _settings.TraySuspendTimeout,
-            () => _micGrantedThisSession,
+            () => AnyMicGranted,
             () => _settings.TraySingleClickRestore,
             CurrentNotificationSuppression,
             () => _isLocked,
@@ -265,11 +284,10 @@ public partial class MainWindow : Window
 
         // S6 #58: the ring around the web view lights up while
         // keyboard focus is inside the page, so a keyboard user can
-        // always tell page focus from shell focus. (Named handlers,
+        // always tell page focus from shell focus. The focus handlers
+        // are attached per control in CreateTabView (named handlers,
         // not lambdas: the S8 #71 recreate path re-attaches them to
-        // the replacement control.)
-        Browser.GotKeyboardFocus += OnBrowserGotKeyboardFocus;
-        Browser.LostKeyboardFocus += OnBrowserLostKeyboardFocus;
+        // the replacement controls).
 
         PinItem.IsChecked = _settings.AlwaysOnTop;
         Topmost = _settings.AlwaysOnTop;
@@ -290,6 +308,14 @@ public partial class MainWindow : Window
         Closed += (_, _) => _hotkeyManager?.Dispose();
         PreviewKeyDown += OnPreviewKeyDown;
         EnsureInitialTab();
+        // Multi-view tabs: the initial tab's control exists from the
+        // start (its CoreWebView2 is ensured by InitWebViewAsync), so
+        // Browser is never null after construction — the same shape
+        // the single XAML control used to give every call site.
+        var initialView = CreateTabView(Tabs.Active!);
+        _activeView = initialView;
+        Browser = initialView.Control;
+        WebFocusRing.Child = initialView.Control;
         RefreshTabStrip();
         // Slice D4: the tab strip is the first surface on the
         // externalized string table (ShellStrings).
@@ -635,7 +661,11 @@ public partial class MainWindow : Window
             return;
         }
         ApplyDarkTitleBar();
-        Browser.DefaultBackgroundColor = ThemeManager.BrowserBackground;
+        // Every live tab view re-syncs its pre-load background, not
+        // just the visible one — a background tab switched to later
+        // must not flash the old palette while it repaints.
+        foreach (var view in _views.Values)
+            view.Control.DefaultBackgroundColor = ThemeManager.BrowserBackground;
     }
 
     /// <summary>
@@ -1019,12 +1049,14 @@ public partial class MainWindow : Window
         RefreshBattleLabItem();
     }
 
-    // ───────────────────────── tabs (slice D1) ─────────────────────────
-    // State tabs over the one browsing view: the Core TabSet is the
-    // durable model (persisted per profile); switching saves the
-    // current page into the outgoing tab and navigates to the target
-    // tab's page. Pages therefore reload on switch — the honest limit
-    // of the single-view shell, recorded in KNOWN_LIMITATIONS.
+    // ───────────────────────── tabs (slice D1 + multi-view) ─────────────────────────
+    // The Core TabSet is the durable model (persisted per profile).
+    // Each tab owns a live WebView2 view (TabView) on the profile's
+    // one shared environment, created lazily on first activation and
+    // capped by Core's LRU bookkeeping: beyond TabSet.MaxLiveViews
+    // the least-recently-used background view is disposed and its tab
+    // falls back to a state tab (page reloads on next activation).
+    // Browser always points at the ACTIVE tab's control.
 
     /// <summary>The shell UI culture for externalized strings (slice D4).</summary>
     private string UiCulture =>
@@ -1050,6 +1082,146 @@ public partial class MainWindow : Window
     {
         if (Tabs.Tabs.Count == 0)
             Tabs.Open(_settings.ActiveLastUrl ?? UrlPolicy.HomeUrl);
+    }
+
+    /// <summary>
+    /// Create a tab's view control (no core yet — that is ensured
+    /// against the shared environment when the tab is shown) and
+    /// register it with Core's live-view bookkeeping, disposing the
+    /// evicted least-recently-used background view when the cap is
+    /// exceeded. The control is NOT placed in the window here; the
+    /// caller puts the active tab's control into WebFocusRing.
+    /// </summary>
+    private TabView CreateTabView(BrowserTab tab)
+    {
+        var control = new Microsoft.Web.WebView2.Wpf.WebView2
+        {
+            DefaultBackgroundColor = ThemeManager.BrowserBackground,
+        };
+        System.Windows.Automation.AutomationProperties.SetName(control, "Arena web content");
+        // S6 #58 focus ring: named handlers, re-attached per control.
+        control.GotKeyboardFocus += OnBrowserGotKeyboardFocus;
+        control.LostKeyboardFocus += OnBrowserLostKeyboardFocus;
+        control.ZoomFactorChanged += (s, _) =>
+        {
+            // The zoom label belongs to the visible page only.
+            if (s is Microsoft.Web.WebView2.Wpf.WebView2 c && ReferenceEquals(c, Browser))
+                ZoomLabel.Text = ZoomMath.FormatPercent(c.ZoomFactor);
+        };
+        var view = new TabView { TabId = tab.Id, Control = control };
+        _views[tab.Id] = view;
+        if (Tabs.RegisterLiveView(tab.Id) is { } evictId && _views.TryGetValue(evictId, out var evicted))
+        {
+            _log.Info($"Tab view cap reached: disposing the least-recently-used background view (tab '{evicted.TabId}')");
+            DisposeTabView(evicted);
+        }
+        return view;
+    }
+
+    /// <summary>Dispose a tab's view and forget it in Core's bookkeeping. Never called on the active view by eviction (Core guarantees that); tab close disposes the active view only after activation has moved.</summary>
+    private void DisposeTabView(TabView view)
+    {
+        _views.Remove(view.TabId);
+        Tabs.UnregisterLiveView(view.TabId);
+        if (ReferenceEquals(WebFocusRing.Child, view.Control))
+            WebFocusRing.Child = null;
+        try { view.Control.Dispose(); } catch { /* a dead view is why some callers are here */ }
+    }
+
+    /// <summary>The live view for a tab, or null when the tab is currently a state tab.</summary>
+    private TabView? ViewForTab(string tabId) =>
+        _views.TryGetValue(tabId, out var view) ? view : null;
+
+    /// <summary>The live view owning a CoreWebView2 (event senders are cores), or null for the retry view / unknown cores.</summary>
+    private TabView? ViewForCore(CoreWebView2? core) =>
+        core is null ? null : _views.Values.FirstOrDefault(v => ReferenceEquals(v.Core, core));
+
+    private bool IsActiveView(TabView? view) => view is not null && ReferenceEquals(view, _activeView);
+
+    /// <summary>
+    /// True when an event sender belongs to the active view — or to
+    /// no tab view at all (the retry view), whose events have always
+    /// driven the chrome. Chrome effects (status, overlay, titles)
+    /// are gated on this; policy and durable-state effects are not.
+    /// </summary>
+    private bool SenderIsActive(object? sender) =>
+        ViewForCore(sender as CoreWebView2) is not { } view || IsActiveView(view);
+
+    /// <summary>
+    /// Ensure a view's CoreWebView2 against the shared environment and
+    /// wire it (the one WireView path — every tab gets identical
+    /// settings and policy handlers by construction).
+    /// </summary>
+    private async Task EnsureTabViewCoreAsync(TabView view)
+    {
+        if (view.Core is not null || _env is null) return;
+        await view.Control.EnsureCoreWebView2Async(_env);
+        WireView(view);
+        view.Control.ZoomFactor = EffectiveZoom();
+        view.Ready = true;
+    }
+
+    /// <summary>
+    /// Make a tab the visible one: swap its control into the focus
+    /// ring, repoint Browser and the active-view mirrors, refresh the
+    /// chrome from the incoming view, and — for a tab with no live
+    /// view yet — create its view and navigate to its persisted URL.
+    /// Background tabs' pages are never touched: they keep running.
+    /// </summary>
+    private async Task ShowActiveTabAsync()
+    {
+        var tab = Tabs.Active;
+        if (tab is null) return;
+        var view = ViewForTab(tab.Id) ?? CreateTabView(tab);
+        _activeView = view;
+        Browser = view.Control;
+        if (!ReferenceEquals(WebFocusRing.Child, view.Control))
+            WebFocusRing.Child = view.Control;
+        _webReady = view.Ready;
+        _pageTitle = tab.Title;
+        _lastGoodUrl = view.LastGoodUrl;
+        _micGrantedThisSession = view.MicGrantedThisSession;
+        RefreshChromeFromActiveView();
+        if (view.Core is null)
+        {
+            // No environment yet (locked launch, or init still in
+            // flight): InitWebViewAsync creates the active view's
+            // core with the full startup resolution when it runs.
+            if (_env is null) return;
+            _switchingTab = true;
+            try
+            {
+                await EnsureTabViewCoreAsync(view);
+                _webReady = view.Ready;
+                view.Core?.Navigate(tab.Url);
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Tab view init failed: {ex.GetType().Name}: {ex.Message}");
+                ShowOverlay(
+                    "Arena could not start",
+                    $"Something went wrong starting the web view ({ex.Message}). " +
+                    $"The log at {AppPaths.LogPath} has the details.",
+                    "Retry", null);
+            }
+            finally { _switchingTab = false; }
+        }
+    }
+
+    /// <summary>Repaint the window chrome (address, titles, nav buttons, zoom, overlay) from the active view's current state.</summary>
+    private void RefreshChromeFromActiveView()
+    {
+        var view = _activeView;
+        var src = view?.Control.Source?.ToString() ?? "";
+        AddressText.Text = Uri.TryCreate(src, UriKind.Absolute, out var u) ? u.Host : src;
+        TitleText.Text = string.IsNullOrWhiteSpace(_pageTitle) ? "Arena" : _pageTitle;
+        ApplyWindowTitle();
+        if (view is not null && view.Ready)
+        {
+            Overlay.Visibility = Visibility.Collapsed;
+            ZoomLabel.Text = ZoomMath.FormatPercent(view.Control.ZoomFactor);
+        }
+        UpdateNavButtons();
     }
 
     private void RefreshTabStrip()
@@ -1078,19 +1250,28 @@ public partial class MainWindow : Window
         }
     }
 
-    private void SyncActiveTabFromPage()
+    /// <summary>Copy the ACTIVE view's current page into its tab (the wrapper most callers mean).</summary>
+    private void SyncActiveTabFromPage() => SyncTabFromView(_activeView);
+
+    /// <summary>
+    /// Copy one view's current page (URL + title) into its tab and
+    /// persist when anything changed. Runs for background views too —
+    /// a background tab's strip entry must name the page it is
+    /// actually on — but never while a switch is mid-flight.
+    /// </summary>
+    private void SyncTabFromView(TabView? view)
     {
-        if (_switchingTab || !_webReady) return;
-        var tab = Tabs.Active;
+        if (_switchingTab || view is null || !view.Ready) return;
+        var tab = Tabs.Tabs.FirstOrDefault(t => t.Id == view.TabId);
         if (tab is null) return;
-        var src = Browser.Source?.ToString() ?? "";
+        var src = view.Control.Source?.ToString() ?? "";
         var changed = false;
         if (src.Length > 0 && UrlPolicy.ClassifyNavigation(src) == LinkDisposition.InApp && tab.Url != src)
         {
             tab.Url = src;
             changed = true;
         }
-        var title = Browser.CoreWebView2?.DocumentTitle ?? "";
+        var title = view.Core?.DocumentTitle ?? "";
         if (title.Length > 0 && tab.Title != title)
         {
             tab.Title = title;
@@ -1103,22 +1284,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private void NavigateToTab(BrowserTab tab)
-    {
-        if (!_webReady || Browser.CoreWebView2 is null) return;
-        if ((Browser.Source?.ToString() ?? "") == tab.Url) return;
-        _switchingTab = true;
-        try { Browser.CoreWebView2.Navigate(tab.Url); }
-        finally { _switchingTab = false; }
-    }
-
     private void SwitchToTab(string tabId)
     {
         SyncActiveTabFromPage();
         if (!Tabs.Activate(tabId)) return;
         RefreshTabStrip();
         SaveSettings();
-        if (Tabs.Active is { } tab) NavigateToTab(tab);
+        _ = ShowActiveTabAsync();
     }
 
     private void OnTabClicked(object sender, RoutedEventArgs e)
@@ -1136,10 +1308,10 @@ public partial class MainWindow : Window
     private void OpenNewTab()
     {
         SyncActiveTabFromPage();
-        var tab = Tabs.Open(UrlPolicy.HomeUrl);
+        Tabs.Open(UrlPolicy.HomeUrl);
         RefreshTabStrip();
         SaveSettings();
-        NavigateToTab(tab);
+        _ = ShowActiveTabAsync();
         SetStatus(ShellStrings.Get(UiCulture, "status.newtab"));
     }
 
@@ -1151,12 +1323,21 @@ public partial class MainWindow : Window
     private void CloseTab(string tabId)
     {
         SyncActiveTabFromPage();
+        var closing = ViewForTab(tabId);
+        var wasActive = Tabs.ActiveTabId == tabId;
         var next = Tabs.Close(tabId);
         if (next is null)
             next = Tabs.Open(UrlPolicy.HomeUrl);
+        // The closed tab's view dies with it (Tabs.Close already
+        // forgot it in the live-view bookkeeping; DisposeTabView's
+        // own unregister is then a no-op). A reopened tab gets a
+        // fresh view at its persisted URL.
+        if (closing is not null)
+            DisposeTabView(closing);
         RefreshTabStrip();
         SaveSettings();
-        NavigateToTab(next);
+        if (wasActive)
+            _ = ShowActiveTabAsync();
     }
 
     private bool ReopenClosedTab()
@@ -1165,7 +1346,7 @@ public partial class MainWindow : Window
         if (tab is null) return false;
         RefreshTabStrip();
         SaveSettings();
-        NavigateToTab(tab);
+        _ = ShowActiveTabAsync();
         return true;
     }
 
@@ -1949,16 +2130,32 @@ public partial class MainWindow : Window
 
     private async Task<bool> TrySuspendWebViewAsync()
     {
+        if (_env is null)
+            return false;
         try
         {
             // S8 #74: the "before" half of the suspend memory pair,
-            // captured while the renderer is still fully resident.
-            _memBeforeSuspend = MemoryCollector.Collect(Browser.CoreWebView2.Environment);
-            var ok = await Browser.CoreWebView2.TrySuspendAsync();
-            _log.Info(ok
-                ? "WebView2 suspended (window hidden in tray)"
-                : "WebView2 suspend declined by the page (active media/call?)");
-            return ok;
+            // captured while the renderers are still fully resident.
+            _memBeforeSuspend = MemoryCollector.Collect(_env);
+            // Multi-view tabs: EVERY live view is offered suspension
+            // (the window is hidden — no tab is visible). WebView2
+            // declines per view for active media/calls, and that
+            // view simply stays resident; background tabs are never
+            // suspended at any other time, so an Agent task is only
+            // ever frozen by this tray path, and only when WebView2
+            // itself judges the page idle enough to allow it.
+            var suspended = 0;
+            var declined = 0;
+            foreach (var view in _views.Values)
+            {
+                if (view.Core is null) continue;
+                var ok = await view.Core.TrySuspendAsync();
+                view.Suspended = ok;
+                if (ok) suspended++; else declined++;
+            }
+            _log.Info($"WebView2 suspend (window hidden in tray): {suspended} view(s) suspended"
+                + (declined > 0 ? $", {declined} declined by the page (active media/call?)" : ""));
+            return _activeView?.Suspended ?? suspended > 0;
         }
         catch (Exception ex)
         {
@@ -1969,16 +2166,24 @@ public partial class MainWindow : Window
 
     private bool ResumeWebView()
     {
-        if (!_webReady)
+        if (_env is null)
             return false;
         try
         {
-            Browser.CoreWebView2.Resume();
-            _log.Info("WebView2 resumed");
+            var resumed = false;
+            foreach (var view in _views.Values)
+            {
+                if (view.Core is null || !view.Suspended) continue;
+                view.Core.Resume();
+                view.Suspended = false;
+                resumed = true;
+            }
+            if (resumed)
+                _log.Info("WebView2 resumed");
             // S8 #74: the "after" half of the pair (the Diagnostics
             // window shows what suspend actually saved).
-            _memAfterResume = MemoryCollector.Collect(Browser.CoreWebView2.Environment);
-            return true;
+            _memAfterResume = MemoryCollector.Collect(_env);
+            return resumed || _webReady;
         }
         catch (Exception ex)
         {
@@ -2172,11 +2377,30 @@ public partial class MainWindow : Window
         _webInitFailed = false;
         try
         {
-            Directory.CreateDirectory(_profileDir);
-            var env = await CoreWebView2Environment.CreateAsync(
-                browserExecutableFolder: null,
-                userDataFolder: _profileDir);
-            await Browser.EnsureCoreWebView2Async(env);
+            // Multi-view tabs: the environment is created ONCE per
+            // profile and shared by every tab view (and the retry
+            // view), so sign-in is shared. Only the browser-process
+            // recovery path clears _env (the old environment died
+            // with its process) before calling this again.
+            if (_env is null)
+            {
+                Directory.CreateDirectory(_profileDir);
+                _env = await CoreWebView2Environment.CreateAsync(
+                    browserExecutableFolder: null,
+                    userDataFolder: _profileDir);
+            }
+            var tab = Tabs.Active ?? Tabs.Tabs.FirstOrDefault();
+            if (tab is null)
+            {
+                EnsureInitialTab();
+                tab = Tabs.Active!;
+            }
+            var view = ViewForTab(tab.Id) ?? CreateTabView(tab);
+            _activeView = view;
+            Browser = view.Control;
+            if (!ReferenceEquals(WebFocusRing.Child, view.Control))
+                WebFocusRing.Child = view.Control;
+            await EnsureTabViewCoreAsync(view);
         }
         catch (WebView2RuntimeNotFoundException)
         {
@@ -2205,53 +2429,6 @@ public partial class MainWindow : Window
         }
 
         var core = Browser.CoreWebView2;
-#if DEBUG
-        core.Settings.AreDevToolsEnabled = true;
-#else
-        // Release builds: DevTools would let anyone script the live,
-        // signed-in Arena session from the app's own window.
-        core.Settings.AreDevToolsEnabled = false;
-#endif
-        core.Settings.IsStatusBarEnabled = false;
-        core.Settings.IsBuiltInErrorPageEnabled = false;
-        core.Settings.IsZoomControlEnabled = true;
-        core.Settings.AreBrowserAcceleratorKeysEnabled = true;
-        // S7 #68: password autosave / general autofill are the user's
-        // choice now (both default to WebView2's defaults — on). The
-        // value is shared per profile, so this one application covers
-        // every web view this profile ever creates.
-        core.Settings.IsGeneralAutofillEnabled = _settings.GeneralAutofillEnabled;
-        core.Settings.IsPasswordAutosaveEnabled = _settings.PasswordAutosaveEnabled;
-
-        core.NavigationStarting += OnNavigationStarting;
-        core.NavigationCompleted += OnNavigationCompleted;
-        core.NewWindowRequested += OnNewWindowRequested;
-        core.PermissionRequested += OnPermissionRequested;
-        // S7 #69: certificate errors get the app's plain-language
-        // dialog (ask every time; "continue" is per-host, session-only).
-        core.ServerCertificateErrorDetected += OnServerCertificateErrorDetected;
-        core.DownloadStarting += OnDownloadStarting;
-        core.ContextMenuRequested += OnContextMenuRequested;
-        core.DocumentTitleChanged += OnTitleChanged;
-        core.SourceChanged += OnSourceChanged;
-        core.HistoryChanged += (_, _) => UpdateNavButtons();
-        try
-        {
-            // Find in page (v0.5.0, S1 #1): CoreWebView2.Find exists in the
-            // pinned SDK 1.0.4258.31 (StartAsync/FindNext/FindPrevious/Stop,
-            // MatchCount / ActiveMatchIndex + change events).
-            core.Find.MatchCountChanged += (_, _) => UpdateFindCount();
-            core.Find.ActiveMatchIndexChanged += (_, _) => UpdateFindCount();
-        }
-        catch (Exception ex) { _log.Warn($"Find wiring failed: {ex.Message}"); }
-        core.ContainsFullScreenElementChanged += OnFullScreenElementChanged;
-        core.ProcessFailed += OnProcessFailed;
-        Browser.ZoomFactorChanged += (_, _) =>
-        {
-            ZoomLabel.Text = ZoomMath.FormatPercent(Browser.ZoomFactor);
-        };
-
-        Browser.ZoomFactor = EffectiveZoom();
         _webReady = true;
         // S8 #73: the second startup milestone.
         _startupClock?.MarkWebViewReady();
@@ -2325,6 +2502,65 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Apply the settings and wire the policy handlers on ONE tab
+    /// view's core (multi-view tabs). This is the only wiring path —
+    /// initial view, lazily created tab views and recovery views all
+    /// come through here — so every tab carries identical settings
+    /// (DevTools off in Release, no status bar, no built-in error
+    /// page) and identical UrlPolicy / permission / download /
+    /// certificate behaviour by construction. Handlers resolve their
+    /// owning view from the sender; chrome effects are gated on the
+    /// view being the active one inside each handler.
+    /// </summary>
+    private void WireView(TabView view)
+    {
+        var core = view.Core!;
+#if DEBUG
+        core.Settings.AreDevToolsEnabled = true;
+#else
+        // Release builds: DevTools would let anyone script the live,
+        // signed-in Arena session from the app's own window.
+        core.Settings.AreDevToolsEnabled = false;
+#endif
+        core.Settings.IsStatusBarEnabled = false;
+        core.Settings.IsBuiltInErrorPageEnabled = false;
+        core.Settings.IsZoomControlEnabled = true;
+        core.Settings.AreBrowserAcceleratorKeysEnabled = true;
+        // S7 #68: password autosave / general autofill are the user's
+        // choice now (both default to WebView2's defaults — on). The
+        // value is shared per profile, so this one application covers
+        // every web view this profile ever creates.
+        core.Settings.IsGeneralAutofillEnabled = _settings.GeneralAutofillEnabled;
+        core.Settings.IsPasswordAutosaveEnabled = _settings.PasswordAutosaveEnabled;
+
+        core.NavigationStarting += OnNavigationStarting;
+        core.NavigationCompleted += OnNavigationCompleted;
+        core.NewWindowRequested += OnNewWindowRequested;
+        core.PermissionRequested += OnPermissionRequested;
+        // S7 #69: certificate errors get the app's plain-language
+        // dialog (ask every time; "continue" is per-host, session-only).
+        core.ServerCertificateErrorDetected += OnServerCertificateErrorDetected;
+        core.DownloadStarting += OnDownloadStarting;
+        core.ContextMenuRequested += OnContextMenuRequested;
+        core.DocumentTitleChanged += OnTitleChanged;
+        core.SourceChanged += OnSourceChanged;
+        core.HistoryChanged += (_, _) => UpdateNavButtons();
+        try
+        {
+            // Find in page (v0.5.0, S1 #1): CoreWebView2.Find exists in the
+            // pinned SDK 1.0.4258.31 (StartAsync/FindNext/FindPrevious/Stop,
+            // MatchCount / ActiveMatchIndex + change events). The find
+            // bar belongs to the visible page: background views' match
+            // counts never reach the label.
+            core.Find.MatchCountChanged += (_, _) => { if (IsActiveView(view)) UpdateFindCount(); };
+            core.Find.ActiveMatchIndexChanged += (_, _) => { if (IsActiveView(view)) UpdateFindCount(); };
+        }
+        catch (Exception ex) { _log.Warn($"Find wiring failed: {ex.Message}"); }
+        core.ContainsFullScreenElementChanged += OnFullScreenElementChanged;
+        core.ProcessFailed += OnProcessFailed;
+    }
+
+    /// <summary>
     /// For the --smoke-test mode: build the Battle Lab pane and reflow it
     /// through all three arrangements, so the control's XAML and its
     /// re-parenting are exercised on a real Windows image — the Core
@@ -2372,56 +2608,84 @@ public partial class MainWindow : Window
             e.Cancel = true;
             _log.Warn($"Blocked navigation: {UrlPolicy.RedactForLog(e.Uri)}");
             RecordPrivacy(PrivacyEventCategory.BlockedNavigation, SchemeOf(e.Uri), HostOf(e.Uri));
-            SetStatus("That link can't open inside ArenaDesktop");
+            if (SenderIsActive(sender))
+                SetStatus("That link can't open inside ArenaDesktop");
         }
     }
 
     private void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
-        RecordFirstNavigation();
+        // Multi-view tabs: this fires for EVERY live view. Durable
+        // per-view facts (last good URL, the tab's own record, the
+        // session history) update for the sender's view; the chrome
+        // effects (overlay, status, arrival notice, recovery state)
+        // belong to the page the user is looking at, so they run
+        // only for the active view — a background tab finishing (or
+        // failing) a load must not repaint the visible page's state.
+        var core = sender as CoreWebView2;
+        var view = ViewForCore(core);
+        var active = IsActiveView(view);
+        var src = core?.Source;
+        if (active)
+            RecordFirstNavigation();
         if (e.IsSuccess)
         {
-            Overlay.Visibility = Visibility.Collapsed;
-            SetStatus("Ready");
-            // S8 #71/#76: a successful load closes the recovery
-            // incident and refills both automatic budgets.
-            _recovery.OnPageLoaded();
-            var src = Browser.Source?.ToString();
-            if (src is not null)
-                _lastGoodUrl = src;
-            // Enhancement pack: count the page and name where we landed.
-            // The mode comes from the URL through the registry — the app
-            // still never reads page content.
-            var landedMode = ArenaModes.ForUrl(src);
-            _session.RecordPage(landedMode?.Id);
-            if (landedMode is not null)
-                ShowArrivalNotice(landedMode);
+            if (view is not null && src is not null)
+                view.LastGoodUrl = src;
+            if (active)
+            {
+                Overlay.Visibility = Visibility.Collapsed;
+                SetStatus("Ready");
+                // S8 #71/#76: a successful load closes the recovery
+                // incident and refills both automatic budgets.
+                _recovery.OnPageLoaded();
+                if (src is not null)
+                    _lastGoodUrl = src;
+                // Enhancement pack: count the page and name where we landed.
+                // The mode comes from the URL through the registry — the app
+                // still never reads page content.
+                var landedMode = ArenaModes.ForUrl(src);
+                _session.RecordPage(landedMode?.Id);
+                if (landedMode is not null)
+                    ShowArrivalNotice(landedMode);
+            }
             // S4 #35: a new document ends whatever media capture the
-            // old one held, so the microphone-grant heuristic resets.
-            _micGrantedThisSession = false;
+            // old one held, so the microphone-grant heuristic resets —
+            // for the navigating view, and for the active mirror when
+            // that is the view that navigated.
+            if (view is not null)
+                view.MicGrantedThisSession = false;
+            if (active)
+                _micGrantedThisSession = false;
             if (src is not null)
-                _history.Record(src, Browser.CoreWebView2.DocumentTitle);
-            SaveSettings();
+                _history.Record(src, core?.DocumentTitle ?? "");
+            SyncTabFromView(view);
+            if (active)
+                SaveSettings();
         }
         else
         {
-            // S8 #76: the coordinator now owns the failed state the
-            // connectivity retry keys on (S1 #10 used a local flag).
-            _recovery.OnLoadFailed();
-            // Smarter load-failure overlay (v0.5.0, S1 #10): Core classifies
-            // the WebErrorStatus into a plain-language category.
-            _log.Warn($"Navigation failed: {e.WebErrorStatus} for {UrlPolicy.RedactForLog(Browser.Source?.ToString())}");
-            _history.NoteClosedPage(Browser.Source?.ToString());
-            // Enhancement pack: the overlay also names the raw error
-            // status and what it means, in plain words.
-            ShowOverlay(
-                "Arena couldn't be reached",
-                LoadFailureClassifier.MessageFor(e.WebErrorStatus.ToString()),
-                "Retry", null,
-                errorStatus: e.WebErrorStatus.ToString());
-            SetStatus($"Load failed: {e.WebErrorStatus}");
+            _log.Warn($"Navigation failed: {e.WebErrorStatus} for {UrlPolicy.RedactForLog(src)}");
+            _history.NoteClosedPage(src);
+            if (active)
+            {
+                // S8 #76: the coordinator now owns the failed state the
+                // connectivity retry keys on (S1 #10 used a local flag).
+                _recovery.OnLoadFailed();
+                // Smarter load-failure overlay (v0.5.0, S1 #10): Core classifies
+                // the WebErrorStatus into a plain-language category.
+                // Enhancement pack: the overlay also names the raw error
+                // status and what it means, in plain words.
+                ShowOverlay(
+                    "Arena couldn't be reached",
+                    LoadFailureClassifier.MessageFor(e.WebErrorStatus.ToString()),
+                    "Retry", null,
+                    errorStatus: e.WebErrorStatus.ToString());
+                SetStatus($"Load failed: {e.WebErrorStatus}");
+            }
         }
-        UpdateNavButtons();
+        if (active)
+            UpdateNavButtons();
     }
 
     /// <summary>S8 #73: the first navigation of the launch completes the startup timings — record, persist, and log them once.</summary>
@@ -2489,16 +2753,21 @@ public partial class MainWindow : Window
         switch (UrlPolicy.ClassifyNewWindow(e.Uri))
         {
             case LinkDisposition.InApp:
-                Browser.CoreWebView2.Navigate(e.Uri);
+                // Multi-view tabs: the REQUESTING view navigates, not
+                // whichever tab happens to be visible — a background
+                // tab's window.open lands in its own tab.
+                (sender as CoreWebView2)?.Navigate(e.Uri);
                 break;
             case LinkDisposition.ExternalBrowser:
                 OpenExternal(e.Uri);
-                SetStatus("Opened link in your browser");
+                if (SenderIsActive(sender))
+                    SetStatus("Opened link in your browser");
                 break;
             default:
                 _log.Warn($"Blocked new-window request: {UrlPolicy.RedactForLog(e.Uri)}");
                 RecordPrivacy(PrivacyEventCategory.BlockedNewWindow, SchemeOf(e.Uri), HostOf(e.Uri));
-                SetStatus("That link was blocked");
+                if (SenderIsActive(sender))
+                    SetStatus("That link was blocked");
                 break;
         }
     }
@@ -2516,13 +2785,20 @@ public partial class MainWindow : Window
             e.State = CoreWebView2PermissionState.Allow;
             e.Handled = true;
             _log.Info($"Granted {kind} to {UrlPolicy.RedactForLog(e.Uri)}");
-            if (e.PermissionKind == CoreWebView2PermissionKind.Microphone && !_micGrantedThisSession)
+            // S4 #35: remember the grant for the session — the
+            // pinned SDK has no capture-state signal, so tray
+            // suspend treats this as "voice may be live" until the
+            // page navigates (which ends any capture it held).
+            // Multi-view tabs: the memory is per view — a grant on a
+            // background tab must not mark the visible page as a
+            // voice session, nor the reverse.
+            var grantingView = ViewForCore(sender as CoreWebView2);
+            if (e.PermissionKind == CoreWebView2PermissionKind.Microphone
+                && grantingView is not null && !grantingView.MicGrantedThisSession)
             {
-                // S4 #35: remember the grant for the session — the
-                // pinned SDK has no capture-state signal, so tray
-                // suspend treats this as "voice may be live" until the
-                // page navigates (which ends any capture it held).
-                _micGrantedThisSession = true;
+                grantingView.MicGrantedThisSession = true;
+                if (IsActiveView(grantingView))
+                    _micGrantedThisSession = true;
                 _log.Info("Microphone granted this session; tray suspend will stay out of the way until the page navigates");
             }
         }
@@ -2624,6 +2900,17 @@ public partial class MainWindow : Window
         }
 
         e.Handled = true;
+        // Multi-view tabs: a download from a background tab takes the
+        // same destination policy and tracker; the notification
+        // centre records which tab it came from, since the status
+        // bar belongs to the visible page.
+        if (ViewForCore(sender as CoreWebView2) is { } dlView && !IsActiveView(dlView))
+        {
+            var dlTab = Tabs.Tabs.FirstOrDefault(t => t.Id == dlView.TabId);
+            RecordNotification(NotificationCategory.Download, "Download started",
+                $"{suggestedName} — from the tab “{dlTab?.DisplayTitle ?? "Arena"}”");
+            _log.Info($"Download started from a background tab: {suggestedName}");
+        }
         // Destination decided above; the tracker follows the operation
         // (progress, cancel, pause/resume, completion, history) from here.
         _downloads.Attach(e.DownloadOperation);
@@ -2647,7 +2934,7 @@ public partial class MainWindow : Window
             SetStatus("That download can't be retried anymore (retries last for this session only)");
             return;
         }
-        if (!_webReady || Browser.CoreWebView2 is null)
+        if (!_webReady || _env is null)
         {
             SetStatus("Wait for Arena to load, then retry the download");
             return;
@@ -2656,7 +2943,7 @@ public partial class MainWindow : Window
         {
             if (!_retryWebReady)
             {
-                await RetryBrowser.EnsureCoreWebView2Async(Browser.CoreWebView2.Environment);
+                await RetryBrowser.EnsureCoreWebView2Async(_env);
                 RetryBrowser.CoreWebView2.DownloadStarting += OnDownloadStarting;
                 _retryWebReady = true;
             }
@@ -2754,9 +3041,14 @@ public partial class MainWindow : Window
 
     private void OnTitleChanged(object? sender, object e)
     {
-        _pageTitle = Browser.CoreWebView2.DocumentTitle ?? "";
+        // Multi-view tabs: every view's title feeds its tab-strip
+        // entry; the window title, the title text and the attention
+        // signal follow the VISIBLE page only, as they always have.
+        var view = ViewForCore(sender as CoreWebView2);
+        SyncTabFromView(view);
+        if (!IsActiveView(view)) return;
+        _pageTitle = (sender as CoreWebView2)?.DocumentTitle ?? "";
         TitleText.Text = string.IsNullOrWhiteSpace(_pageTitle) ? "Arena" : _pageTitle;
-        SyncActiveTabFromPage();
         ApplyWindowTitle();
         OnAttentionSignal(AttentionSignal.Parse(_pageTitle));
     }
@@ -2877,20 +3169,30 @@ public partial class MainWindow : Window
 
     private void OnSourceChanged(object? sender, CoreWebView2SourceChangedEventArgs e)
     {
-        var src = Browser.Source?.ToString() ?? "";
+        // Multi-view tabs: the sender's view records its own freshest
+        // page (S8 #71: what crash recovery restores for that tab);
+        // the address bar and nav buttons follow the active view.
+        var core = sender as CoreWebView2;
+        var view = ViewForCore(core);
+        var src = core?.Source ?? "";
+        var inApp = src.Length > 0 && UrlPolicy.ClassifyNavigation(src) == LinkDisposition.InApp;
+        if (inApp && view is not null)
+            view.LastGoodUrl = src;
+        SyncTabFromView(view);
+        if (!IsActiveView(view)) return;
         AddressText.Text = Uri.TryCreate(src, UriKind.Absolute, out var u) ? u.Host : src;
-        // S8 #71: the freshest in-app page is what crash recovery
-        // restores — kept current here so it survives the web view.
-        if (src.Length > 0 && UrlPolicy.ClassifyNavigation(src) == LinkDisposition.InApp)
+        if (inApp)
             _lastGoodUrl = src;
-        SyncActiveTabFromPage();
         UpdateNavButtons();
     }
 
     private void OnFullScreenElementChanged(object? sender, object e)
     {
-        // Page content (e.g. a video) asked for full screen.
-        SetFullScreen(Browser.CoreWebView2.ContainsFullScreenElement);
+        // Page content (e.g. a video) asked for full screen. Only the
+        // visible page may drive the window's full-screen state.
+        if (!SenderIsActive(sender)) return;
+        if (sender is CoreWebView2 core)
+            SetFullScreen(core.ContainsFullScreenElement);
     }
 
     /// <summary>
@@ -2906,31 +3208,61 @@ public partial class MainWindow : Window
         var kind = Enum.TryParse<ProcessFailureKind>(e.ProcessFailedKind.ToString(), out var mapped)
             ? mapped
             : ProcessFailureKind.Other;
-        _log.Error($"WebView2 process failed: {e.ProcessFailedKind} ({e.Reason})");
+        // Multi-view tabs: the coordinator still decides (one
+        // incident budget for the window), but the ACTION lands on
+        // the view that failed — a background tab's dead renderer
+        // reloads its own page, never the visible one.
+        var view = ViewForCore(sender as CoreWebView2);
+        var active = IsActiveView(view);
+        _log.Error($"WebView2 process failed: {e.ProcessFailedKind} ({e.Reason})"
+            + (view is null ? "" : active ? " [active tab]" : " [background tab]"));
         var decision = _recovery.OnProcessFailed(kind, DateTimeOffset.UtcNow);
         switch (decision)
         {
             case RecoveryDecision.ReloadPage:
                 _log.Info("Recovery: reloading the page automatically (one automatic recovery per incident)");
-                SetStatus("The page stopped responding — reloading it");
-                try { Browser.CoreWebView2.Navigate(_lastGoodUrl ?? UrlPolicy.HomeUrl); }
+                if (active)
+                    SetStatus("The page stopped responding — reloading it");
+                try
+                {
+                    var target = view?.LastGoodUrl
+                        ?? Tabs.Tabs.FirstOrDefault(t => view is not null && t.Id == view.TabId)?.Url
+                        ?? _lastGoodUrl ?? UrlPolicy.HomeUrl;
+                    (sender as CoreWebView2)?.Navigate(target);
+                }
                 catch (Exception ex)
                 {
                     _log.Warn($"Recovery reload failed: {ex.Message}");
-                    ShowCrashOverlay(e.ProcessFailedKind.ToString());
+                    if (active)
+                        ShowCrashOverlay(e.ProcessFailedKind.ToString());
+                    else if (view is not null)
+                        DisposeTabView(view);
                 }
                 break;
             case RecoveryDecision.RecreateWebView:
                 _log.Info("Recovery: recreating the web view automatically (one automatic recovery per incident)");
-                SetStatus("The web view stopped — rebuilding it");
+                if (active)
+                    SetStatus("The web view stopped — rebuilding it");
                 await RecreateWebViewAsync();
                 break;
             case RecoveryDecision.ShowFailureOverlay:
-                _log.Warn("Recovery: automatic recovery already used for this incident — showing the failure overlay");
-                ShowCrashOverlay(e.ProcessFailedKind.ToString());
+                if (active)
+                {
+                    _log.Warn("Recovery: automatic recovery already used for this incident — showing the failure overlay");
+                    ShowCrashOverlay(e.ProcessFailedKind.ToString());
+                }
+                else if (view is not null)
+                {
+                    // A background view beyond automatic recovery:
+                    // drop the dead view — its tab rebuilds at its
+                    // persisted URL when next shown.
+                    _log.Warn("Recovery: a background tab's view failed beyond automatic recovery — it will rebuild when next shown");
+                    DisposeTabView(view);
+                }
                 break;
             default:
-                SetStatus($"Web view problem: {e.ProcessFailedKind}");
+                if (active)
+                    SetStatus($"Web view problem: {e.ProcessFailedKind}");
                 break;
         }
     }
@@ -2946,32 +3278,26 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Recreate the web view after a browser-process exit (S8 #71):
-    /// the WPF controls bound to the dead environment are disposed and
-    /// replaced with fresh ones (the XAML fields are reassigned — the
-    /// rest of the window only ever talks to the fields), then the
-    /// normal init runs against a new environment and restores the
-    /// last page. The hidden retry view belonged to the dead
-    /// environment too and is replaced alongside.
+    /// Recreate the web views after a browser-process exit (S8 #71):
+    /// the process took the profile's shared environment with it, so
+    /// EVERY tab view bound to it is dead. All views are disposed,
+    /// the hidden retry view (same environment) is replaced, a fresh
+    /// environment is built by the normal init, and the ACTIVE tab's
+    /// view is recreated at its last page. Background tabs keep their
+    /// persisted URLs and rebuild lazily when next shown — their
+    /// in-page state is the honest cost of a browser-process crash,
+    /// recorded in KNOWN_LIMITATIONS.
     /// </summary>
     private async Task RecreateWebViewAsync()
     {
-        var restoreUrl = _lastGoodUrl ?? UrlPolicy.HomeUrl;
+        var restoreUrl = _activeView?.LastGoodUrl ?? _lastGoodUrl ?? UrlPolicy.HomeUrl;
         try
         {
             _watchdogTimer?.Stop();
-            var oldBrowser = Browser;
-            WebFocusRing.Child = null;
-            try { oldBrowser.Dispose(); } catch { /* already dead — that's why we're here */ }
-            var fresh = new Microsoft.Web.WebView2.Wpf.WebView2
-            {
-                DefaultBackgroundColor = ThemeManager.BrowserBackground,
-            };
-            System.Windows.Automation.AutomationProperties.SetName(fresh, "Arena web content");
-            fresh.GotKeyboardFocus += OnBrowserGotKeyboardFocus;
-            fresh.LostKeyboardFocus += OnBrowserLostKeyboardFocus;
-            Browser = fresh;
-            WebFocusRing.Child = fresh;
+            foreach (var view in _views.Values.ToList())
+                DisposeTabView(view);
+            Tabs.ClearLiveViews();
+            _activeView = null;
 
             var oldRetry = RetryBrowser;
             ContentGrid.Children.Remove(oldRetry);
@@ -2987,10 +3313,11 @@ public partial class MainWindow : Window
             RetryBrowser = freshRetry;
             ContentGrid.Children.Add(freshRetry);
 
+            _env = null;
             _webReady = false;
             _retryWebReady = false;
             await InitWebViewAsync(restoreUrl);
-            _log.Info($"Web view recreated; restored {UrlPolicy.RedactForLog(restoreUrl)}");
+            _log.Info($"Web views recreated; restored {UrlPolicy.RedactForLog(restoreUrl)}");
         }
         catch (Exception ex)
         {
@@ -3740,7 +4067,9 @@ public partial class MainWindow : Window
             if (!target.HasLinkUri || string.IsNullOrWhiteSpace(target.LinkUri))
                 return;
             var linkUri = target.LinkUri;
-            var env = Browser.CoreWebView2.Environment;
+            // The requesting view's environment (the one shared
+            // environment, whichever tab asked).
+            var env = (sender as CoreWebView2)?.Environment ?? _env!;
 
             var openItem = env.CreateContextMenuItem(
                 "Open link in browser", null, CoreWebView2ContextMenuItemKind.Command);

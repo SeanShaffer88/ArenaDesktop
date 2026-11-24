@@ -376,8 +376,9 @@
              closed — same grid, same row, so nothing about the page's
              layout changes when the pane is hidden. SplitWorkspace owns
              the arithmetic for how wide the pane may be. -->
-        <!-- Tab strip (completeness slice D1): state tabs over the one
-             browsing view — see TabSet in Core and KNOWN_LIMITATIONS. -->
+        <!-- Tab strip (completeness slice D1; multi-view follow-up):
+             one live WebView2 view per tab — see TabSet in Core and
+             docs/MULTI_VIEW_TABS.md. -->
         <Border x:Name="TabStrip" Grid.Row="2" Grid.Column="1" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
             <StackPanel Orientation="Horizontal">
@@ -404,8 +405,10 @@
                  while keyboard focus is inside the page, transparent
                  while focus is on the shell chrome. -->
             <Border x:Name="WebFocusRing" BorderThickness="2" BorderBrush="Transparent">
-                <wv2:WebView2 x:Name="Browser" DefaultBackgroundColor="#0B0B0D"
-                              AutomationProperties.Name="Arena web content"/>
+                <!-- Multi-view tabs: the active tab's WebView2 control
+                     is created in code (one per tab, all on the one
+                     shared environment) and placed here by MainWindow;
+                     switching tabs swaps the child. -->
             </Border>
             <!-- Hidden retry view (S2 #15): same environment/profile, used only to
                  re-issue a download that failed in this session. Never shown. -->

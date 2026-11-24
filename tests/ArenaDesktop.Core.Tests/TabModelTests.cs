@@ -62,6 +62,116 @@ public sealed class TabModelTests
     }
 
     [Fact]
+    public void LiveViews_CapEvictsLeastRecentlyUsedBackgroundTab()
+    {
+        var set = new TabSet();
+        var ids = new List<string>();
+        for (var i = 0; i < TabSet.MaxLiveViews; i++)
+            ids.Add(set.Open($"https://arena.ai/{i}").Id);
+        foreach (var id in ids)
+            Assert.Null(set.RegisterLiveView(id));
+        Assert.Equal(TabSet.MaxLiveViews, set.LiveViewIds.Count);
+
+        // One more live view evicts the least-recently-activated one.
+        var extra = set.Open("https://arena.ai/extra");
+        var evicted = set.RegisterLiveView(extra.Id);
+        Assert.Equal(ids[0], evicted);
+        Assert.False(set.HasLiveView(ids[0]));
+        Assert.True(set.HasLiveView(extra.Id));
+        Assert.Equal(TabSet.MaxLiveViews, set.LiveViewIds.Count);
+    }
+
+    [Fact]
+    public void LiveViews_ActivationRefreshesEvictionOrder()
+    {
+        var set = new TabSet();
+        var ids = new List<string>();
+        for (var i = 0; i < TabSet.MaxLiveViews; i++)
+            ids.Add(set.Open($"https://arena.ai/{i}").Id);
+        foreach (var id in ids) set.RegisterLiveView(id);
+
+        // Revisit the oldest tab: it becomes the most recent, so the
+        // NEXT registration evicts what is now the oldest (ids[1]).
+        set.Activate(ids[0]);
+        var extra = set.Open("https://arena.ai/extra");
+        Assert.Equal(ids[1], set.RegisterLiveView(extra.Id));
+        Assert.True(set.HasLiveView(ids[0]));
+    }
+
+    [Fact]
+    public void LiveViews_NeverEvictsTheRegisteredTabItself()
+    {
+        var set = new TabSet();
+        var ids = new List<string>();
+        for (var i = 0; i < TabSet.MaxLiveViews + 2; i++)
+            ids.Add(set.Open($"https://arena.ai/{i}").Id);
+        foreach (var id in ids)
+        {
+            var evicted = set.RegisterLiveView(id);
+            Assert.NotEqual(id, evicted);
+            Assert.True(set.HasLiveView(id));
+        }
+        Assert.Equal(TabSet.MaxLiveViews, set.LiveViewIds.Count);
+    }
+
+    [Fact]
+    public void LiveViews_CloseAndUnregisterForgetTheView()
+    {
+        var set = new TabSet();
+        var a = set.Open("https://arena.ai/a");
+        var b = set.Open("https://arena.ai/b");
+        set.RegisterLiveView(a.Id);
+        set.RegisterLiveView(b.Id);
+        set.UnregisterLiveView(a.Id);
+        Assert.False(set.HasLiveView(a.Id));
+        set.Close(b.Id);
+        Assert.False(set.HasLiveView(b.Id));
+        set.RegisterLiveView(a.Id);
+        set.ClearLiveViews();
+        Assert.Empty(set.LiveViewIds);
+    }
+
+    [Fact]
+    public void LiveViews_RegisterIgnoresUnknownTab()
+    {
+        var set = new TabSet();
+        set.Open("https://arena.ai/a");
+        Assert.Null(set.RegisterLiveView("no-such-tab"));
+        Assert.Empty(set.LiveViewIds);
+    }
+
+    [Fact]
+    public void LiveViews_SanitizePrunesUnknownDuplicatesAndCaps()
+    {
+        var set = new TabSet();
+        var ids = new List<string>();
+        for (var i = 0; i < TabSet.MaxTabs; i++)
+            ids.Add(set.Open($"https://arena.ai/{i}").Id);
+        set.LiveViewIds = [.. ids, "ghost", ids[0]];
+        var repaired = TabSet.Sanitize(set);
+        Assert.Equal(TabSet.MaxLiveViews, repaired.LiveViewIds.Count);
+        Assert.DoesNotContain("ghost", repaired.LiveViewIds);
+        // The duplicate ids[0] at the tail counts as its most recent
+        // activation (last occurrence wins), so it survives the cap
+        // as the newest entry.
+        Assert.Equal(ids[0], repaired.LiveViewIds[^1]);
+    }
+
+    [Fact]
+    public void LiveViews_NotPersisted()
+    {
+        var settings = new AppSettings();
+        var set = new TabSet();
+        var tab = set.Open("https://arena.ai/battle", "Battle");
+        set.RegisterLiveView(tab.Id);
+        settings.OpenTabsByProfile["default"] = set;
+        var json = SettingsStore.Export(settings);
+        Assert.DoesNotContain("LiveViewIds", json);
+        Assert.True(SettingsStore.TryImport(json, out var back, out _));
+        Assert.Empty(back!.OpenTabsByProfile["default"].LiveViewIds);
+    }
+
+    [Fact]
     public void Settings_RoundTripsTabsPerProfile()
     {
         var settings = new AppSettings();

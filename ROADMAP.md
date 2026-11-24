@@ -65,8 +65,11 @@ not by moving cookies.
 
 ## D. Productivity & UX — in development
 
-- **Tabs** (state tabs over the one browsing view; pages reload on
-  switch — concurrent live pages remain "Open in new window").
+- **Tabs** — concurrent live pages: each tab has its own live
+  WebView2 view on the shared sign-in, so a Battle, an Agent task
+  and the Leaderboard stay running at once. At most six tabs hold a
+  live view; older background views are released and reload when
+  next opened.
 - **Library search & export** across the app's own stores (Battle
   Lab, prompt pad, downloads) as JSON/Markdown. Arena conversations
   live on Arena's servers and are not the app's to export.
