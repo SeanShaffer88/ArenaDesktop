@@ -1,4 +1,4 @@
-# QUALITY.md — ArenaDesktop v0.17.0 (assessment, 2026-11-23)
+# QUALITY.md — ArenaDesktop v0.18.0 (assessment, 2026-11-23)
 
 Scored from evidence only. No row is scored Verified on a user's Windows PC: the on-machine pass in `RELEASE_CHECKLIST.md` has still not run. Static checks, CI compilation, and a Windows Server smoke test are useful evidence, but none demonstrates the interactive experience on a user's desktop.
 
