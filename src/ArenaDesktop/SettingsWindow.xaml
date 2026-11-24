@@ -654,6 +654,15 @@
                         <TextBlock Style="{StaticResource Note}"
                                    Text="These are the web engine's features, shared by every window in the profile. They apply to the profile ArenaDesktop is currently running and take effect as soon as you choose OK."/>
 
+                        <TextBlock Text="What the web view can do — and how to revoke it:" Style="{StaticResource SubHeader}"/>
+                        <TextBlock x:Name="PermissionsTransparencyText" Style="{StaticResource Note}"
+                                   AutomationProperties.Name="Web view permissions transparency"/>
+                        <TextBlock Text="Audit log (what the app itself did):" Style="{StaticResource SubHeader}"/>
+                        <ListBox x:Name="AuditList" Height="110" Margin="0,0,0,4"
+                                 AutomationProperties.Name="Audit log"/>
+                        <TextBlock Style="{StaticResource Note}"
+                                   Text="Profile switches, downloads, data clearing, backups and permission denials — timestamps and kinds only, never URLs or content. Stored in audit-log.jsonl beside the settings."/>
+
                         <TextBlock Text="Clear browsing data:" Style="{StaticResource SubHeader}"/>
                         <StackPanel Orientation="Horizontal">
                             <ComboBox x:Name="ClearChoiceCombo" Width="140" SelectionChanged="OnClearChoiceChanged"

@@ -8,7 +8,10 @@ namespace ArenaDesktop.Core;
 /// Portable mode (v0.9.0, S5 #49): a <c>portable.txt</c> marker beside
 /// the exe moves the settings root (settings, download history, logs)
 /// to a <c>data</c> folder beside the exe — see
-/// <see cref="SettingsLocation"/>. The WebView2 profile does NOT move.
+/// <see cref="SettingsLocation"/>. Since the completeness program
+/// (slice A) the WebView2 profile moves with it (same-machine
+/// portability; WebView2 cookies are DPAPI-bound to the Windows
+/// user+machine, so the carried session only works there).
 /// Tests can redirect the root via the ARENADESKTOP_HOME environment
 /// variable, which outranks the portable marker (it is a test hook).
 /// </summary>
@@ -55,6 +58,15 @@ public static class AppPaths
     /// <summary>Privacy report counters + recent permission denials (v0.11.0, S7 #62/#67) — counts and host names only, beside the settings.</summary>
     public static string PrivacyStatsPath => Path.Combine(RootDir, "privacy-stats.json");
 
+    /// <summary>BYOK API keys as protected blobs only (completeness slice B1) — deliberately NOT inside settings.json, so settings exports never carry a key.</summary>
+    public static string ApiKeysPath => Path.Combine(RootDir, "api-keys.json");
+
+    /// <summary>The notification centre's durable entries (completeness slice D3).</summary>
+    public static string NotificationsPath => Path.Combine(RootDir, "notifications.json");
+
+    /// <summary>The user-facing audit log (completeness slice E): one JSON object per line, append-only.</summary>
+    public static string AuditLogPath => Path.Combine(RootDir, "audit-log.jsonl");
+
     /// <summary>The crash ledger (v0.14.0): recent crashes, and whether the last run ended in one.</summary>
     public static string CrashHistoryPath => Path.Combine(RootDir, "crash-history.json");
 
@@ -73,15 +85,14 @@ public static class AppPaths
     public static string LogDir => Path.Combine(RootDir, "logs");
     public static string LogPath => Path.Combine(LogDir, "arenadesktop.log");
 
-    /// <summary>WebView2 profile (cookies / local storage — what keeps you signed in) for the default profile; additional profiles get sibling folders (see Profiles.FolderName).</summary>
-    public static string WebViewDataDir => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "ArenaDesktop", "WebView2");
+    private static string LocalAppDataDir =>
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 
-    /// <summary>The WebView2 data folder for any profile id (v0.3.0).</summary>
-    public static string ProfileDir(string profileId) => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "ArenaDesktop", Profiles.FolderName(profileId));
+    /// <summary>WebView2 profile (cookies / local storage — what keeps you signed in) for the default profile; additional profiles get sibling folders (see Profiles.FolderName). In portable mode this lives under the data root beside the exe (slice A).</summary>
+    public static string WebViewDataDir => Location.WebViewProfileDir(LocalAppDataDir, Profiles.DefaultId);
+
+    /// <summary>The WebView2 data folder for any profile id (v0.3.0). Portable mode relocates it under the data root (slice A).</summary>
+    public static string ProfileDir(string profileId) => Location.WebViewProfileDir(LocalAppDataDir, profileId);
 
     public static string DownloadsHint =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");

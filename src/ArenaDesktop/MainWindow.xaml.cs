@@ -4,6 +4,8 @@ using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Windows.Threading;
 using ContextMenu = System.Windows.Controls.ContextMenu;
+using Button = System.Windows.Controls.Button;
+using StackPanel = System.Windows.Controls.StackPanel;
 using MenuItem = System.Windows.Controls.MenuItem;
 using TextChangedEventArgs = System.Windows.Controls.TextChangedEventArgs;
 using System.IO;
@@ -287,6 +289,12 @@ public partial class MainWindow : Window
         Closing += OnClosing;
         Closed += (_, _) => _hotkeyManager?.Dispose();
         PreviewKeyDown += OnPreviewKeyDown;
+        EnsureInitialTab();
+        RefreshTabStrip();
+        // Slice D4: the tab strip is the first surface on the
+        // externalized string table (ShellStrings).
+        NewTabButton.ToolTip = ShellStrings.Get(UiCulture, "tab.new.tip");
+        System.Windows.Automation.AutomationProperties.SetName(NewTabButton, ShellStrings.Get(UiCulture, "tab.new"));
         // v0.14.0: if the ledger says the last run ended in an error, say so
         // once, in the status bar — the ledger is cleared on a clean exit, so
         // this cannot nag a user whose runs are fine.
@@ -1011,7 +1019,353 @@ public partial class MainWindow : Window
         RefreshBattleLabItem();
     }
 
+    // ───────────────────────── tabs (slice D1) ─────────────────────────
+    // State tabs over the one browsing view: the Core TabSet is the
+    // durable model (persisted per profile); switching saves the
+    // current page into the outgoing tab and navigates to the target
+    // tab's page. Pages therefore reload on switch — the honest limit
+    // of the single-view shell, recorded in KNOWN_LIMITATIONS.
+
+    /// <summary>The shell UI culture for externalized strings (slice D4).</summary>
+    private string UiCulture =>
+        ShellStrings.ResolveCulture(_settings.UiLanguage, System.Globalization.CultureInfo.CurrentUICulture.Name);
+
+    private TabSet Tabs
+    {
+        get
+        {
+            var id = _settings.ActiveProfileId;
+            if (!_settings.OpenTabsByProfile.TryGetValue(id, out var set) || set is null)
+            {
+                set = new TabSet();
+                _settings.OpenTabsByProfile[id] = set;
+            }
+            return set;
+        }
+    }
+
+    private bool _switchingTab;
+
+    private void EnsureInitialTab()
+    {
+        if (Tabs.Tabs.Count == 0)
+            Tabs.Open(_settings.ActiveLastUrl ?? UrlPolicy.HomeUrl);
+    }
+
+    private void RefreshTabStrip()
+    {
+        TabItems.Items.Clear();
+        foreach (var tab in Tabs.Tabs)
+        {
+            var isActive = tab.Id == Tabs.ActiveTabId;
+            var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+            var button = new Button
+            {
+                Content = tab.DisplayTitle.Length > 28 ? tab.DisplayTitle[..27] + "…" : tab.DisplayTitle,
+                Tag = tab.Id,
+                FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal,
+                Margin = new Thickness(2, 2, 0, 2),
+                ToolTip = tab.DisplayTitle,
+            };
+            button.Click += OnTabClicked;
+            System.Windows.Automation.AutomationProperties.SetName(button, $"Tab: {tab.DisplayTitle}");
+            panel.Children.Add(button);
+            var close = new Button { Content = "×", Tag = tab.Id, Width = 20, Margin = new Thickness(0, 2, 2, 2), ToolTip = ShellStrings.Get(UiCulture, "tab.close.tip") };
+            close.Click += OnTabCloseClicked;
+            System.Windows.Automation.AutomationProperties.SetName(close, $"Close tab {tab.DisplayTitle}");
+            panel.Children.Add(close);
+            TabItems.Items.Add(panel);
+        }
+    }
+
+    private void SyncActiveTabFromPage()
+    {
+        if (_switchingTab || !_webReady) return;
+        var tab = Tabs.Active;
+        if (tab is null) return;
+        var src = Browser.Source?.ToString() ?? "";
+        var changed = false;
+        if (src.Length > 0 && UrlPolicy.ClassifyNavigation(src) == LinkDisposition.InApp && tab.Url != src)
+        {
+            tab.Url = src;
+            changed = true;
+        }
+        var title = Browser.CoreWebView2?.DocumentTitle ?? "";
+        if (title.Length > 0 && tab.Title != title)
+        {
+            tab.Title = title;
+            changed = true;
+        }
+        if (changed)
+        {
+            RefreshTabStrip();
+            SaveSettings();
+        }
+    }
+
+    private void NavigateToTab(BrowserTab tab)
+    {
+        if (!_webReady || Browser.CoreWebView2 is null) return;
+        if ((Browser.Source?.ToString() ?? "") == tab.Url) return;
+        _switchingTab = true;
+        try { Browser.CoreWebView2.Navigate(tab.Url); }
+        finally { _switchingTab = false; }
+    }
+
+    private void SwitchToTab(string tabId)
+    {
+        SyncActiveTabFromPage();
+        if (!Tabs.Activate(tabId)) return;
+        RefreshTabStrip();
+        SaveSettings();
+        if (Tabs.Active is { } tab) NavigateToTab(tab);
+    }
+
+    private void OnTabClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button { Tag: string id }) SwitchToTab(id);
+    }
+
+    private void OnTabCloseClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button { Tag: string id }) CloseTab(id);
+    }
+
+    private void OnNewTab(object sender, RoutedEventArgs e) => OpenNewTab();
+
+    private void OpenNewTab()
+    {
+        SyncActiveTabFromPage();
+        var tab = Tabs.Open(UrlPolicy.HomeUrl);
+        RefreshTabStrip();
+        SaveSettings();
+        NavigateToTab(tab);
+        SetStatus(ShellStrings.Get(UiCulture, "status.newtab"));
+    }
+
+    private void CloseActiveTab()
+    {
+        if (Tabs.Active is { } active) CloseTab(active.Id);
+    }
+
+    private void CloseTab(string tabId)
+    {
+        SyncActiveTabFromPage();
+        var next = Tabs.Close(tabId);
+        if (next is null)
+            next = Tabs.Open(UrlPolicy.HomeUrl);
+        RefreshTabStrip();
+        SaveSettings();
+        NavigateToTab(next);
+    }
+
+    private bool ReopenClosedTab()
+    {
+        var tab = Tabs.ReopenClosed();
+        if (tab is null) return false;
+        RefreshTabStrip();
+        SaveSettings();
+        NavigateToTab(tab);
+        return true;
+    }
+
     private void OnFieldPass(object sender, RoutedEventArgs e) => OpenFieldPassWindow();
+
+    private void OnProviders(object sender, RoutedEventArgs e) => OpenProvidersWindow();
+
+    private void OnCompare(object sender, RoutedEventArgs e) => OpenCompareWindow();
+
+    private void OnGit(object sender, RoutedEventArgs e) => OpenGitWindow();
+
+    private void OnLibrary(object sender, RoutedEventArgs e) => OpenLibraryWindow();
+
+    private void OnNotifications(object sender, RoutedEventArgs e) => OpenNotificationsWindow();
+
+    private NotificationStore? _notificationStore;
+
+    /// <summary>The notification centre store, loaded on first use (slice D3).</summary>
+    internal NotificationStore Notifications => _notificationStore ??= NotificationStore.Load(AppPaths.NotificationsPath);
+
+    /// <summary>
+    /// Record a notification-centre entry (and a balloon when the
+    /// window is hidden and the category is not muted). Producers:
+    /// downloads, terminal/git tasks, scratch comparisons, updates.
+    /// </summary>
+    internal void RecordNotification(NotificationCategory category, string title, string body)
+    {
+        try
+        {
+            if (!NotificationStore.IsCategoryEnabled(_settings.MutedNotificationCategories, category))
+                return;
+            Notifications.Add(category, title, body);
+            if (!IsVisible && !_isLocked)
+                _tray.ShowNotification(title, body);
+        }
+        catch (Exception ex) { _log.Warn($"Notification record failed: {ex.Message}"); }
+    }
+
+    private NotificationsWindow? _notificationsWindow;
+
+    private void OpenNotificationsWindow()
+    {
+        if (_notificationsWindow is not null) { _notificationsWindow.Activate(); return; }
+        _notificationsWindow = new NotificationsWindow(Notifications, _settings, () => FlushSettings()) { Owner = this };
+        _notificationsWindow.Closed += (_, _) => _notificationsWindow = null;
+        _notificationsWindow.Show();
+    }
+
+    private LibraryWindow? _libraryWindow;
+
+    private void OpenLibraryWindow()
+    {
+        if (_libraryWindow is not null) { _libraryWindow.Activate(); return; }
+        _libraryWindow = new LibraryWindow(_log) { Owner = this };
+        _libraryWindow.Closed += (_, _) => _libraryWindow = null;
+        _libraryWindow.Show();
+    }
+
+    private void OnTerminal(object sender, RoutedEventArgs e) => OpenTerminalWindow();
+
+    private ProcessRunner? _processRunner;
+    private ProcessRunner Processes => _processRunner ??= new ProcessRunner();
+
+    private GitWindow? _gitWindow;
+
+    private void OpenGitWindow()
+    {
+        if (_gitWindow is not null) { _gitWindow.Activate(); return; }
+        _gitWindow = new GitWindow(_settings, Processes, _log, () => FlushSettings(),
+            summary => { SetStatus(summary); RecordNotification(NotificationCategory.Agent, "Git", summary); }) { Owner = this };
+        _gitWindow.Closed += (_, _) => _gitWindow = null;
+        _gitWindow.Show();
+    }
+
+    /// <summary>Run a user script command (slice D5) in the terminal, in its folder or the project folder.</summary>
+    private void RunScriptCommand(string paletteId)
+    {
+        if (ScriptCommandCatalog.ForPaletteId(_settings.ScriptCommands, paletteId) is not { } script)
+        {
+            SetStatus("That script command no longer exists.");
+            return;
+        }
+        OpenTerminalWindow();
+        _terminalWindow?.RunExternalCommand(script.Command, script.WorkingFolder ?? _settings.ProjectFolder);
+    }
+
+    private void OnScripts(object sender, RoutedEventArgs e) => OpenScriptsWindow();
+
+    private ScriptsWindow? _scriptsWindow;
+
+    private void OpenScriptsWindow()
+    {
+        if (_scriptsWindow is not null) { _scriptsWindow.Activate(); return; }
+        _scriptsWindow = new ScriptsWindow(_settings, () => FlushSettings()) { Owner = this };
+        _scriptsWindow.Closed += (_, _) => _scriptsWindow = null;
+        _scriptsWindow.Show();
+    }
+
+    private void OnProfileBackup(object sender, RoutedEventArgs e) => CreateProfileBackup();
+
+    private void OnProfileRestore(object sender, RoutedEventArgs e) => RestoreProfileBackup();
+
+    /// <summary>Encrypted profile backup (slice E): settings + profile metadata, never cookies.</summary>
+    private void CreateProfileBackup()
+    {
+        var prompt = new PasswordPromptWindow(
+            "Choose a passphrase for the profile backup. The backup holds your settings and profile preferences — never cookies or sign-ins (Windows binds those to this PC and user, so they cannot be restored from a file).",
+            confirm: true, minLength: 8) { Owner = this };
+        if (FocusReturn.ShowDialog(prompt) != true) return;
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            FileName = "arenadesktop-profile-backup.txt",
+            Filter = "ArenaDesktop profile backup (*.txt)|*.txt",
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            File.WriteAllText(dialog.FileName, ProfileBackup.Create(_settings, prompt.Password));
+            Audit(AuditLog.BackupCreated, Path.GetFileName(dialog.FileName));
+            SetStatus("Profile backup written (settings + profile preferences; no sign-ins).");
+        }
+        catch (Exception ex) { SetStatus($"Profile backup failed: {ex.Message}"); }
+    }
+
+    private void RestoreProfileBackup()
+    {
+        var open = new Microsoft.Win32.OpenFileDialog { Filter = "ArenaDesktop profile backup (*.txt)|*.txt|All files (*.*)|*.*" };
+        if (open.ShowDialog(this) != true) return;
+        string text;
+        try { text = File.ReadAllText(open.FileName); }
+        catch (Exception ex) { SetStatus($"Could not read that file: {ex.Message}"); return; }
+        if (!ProfileBackup.IsBackup(text)) { SetStatus("That file is not an ArenaDesktop profile backup."); return; }
+        var prompt = new PasswordPromptWindow("Enter the backup's passphrase.", confirm: false) { Owner = this };
+        if (FocusReturn.ShowDialog(prompt) != true) return;
+        if (!ProfileBackup.TryRead(text, prompt.Password, out var payload, out var error) || payload is null)
+        {
+            SetStatus(error ?? "The backup could not be read.");
+            return;
+        }
+        if (!SettingsStore.TryImport(payload.SettingsJson, out var restored, out var importError) || restored is null)
+        {
+            SetStatus(importError ?? "The backup's settings could not be read.");
+            return;
+        }
+        var preview = SettingsRestorePreview.Compare(_settings, restored);
+        var confirm = System.Windows.MessageBox.Show(this,
+            $"Restore this backup? It was made {payload.CreatedUtc.LocalDateTime:yyyy-MM-dd HH:mm} and covers {payload.Profiles.Count} profile(s).\n\n{preview.Summary}\n\nSign-ins are not in the backup and are not touched. The app restarts after restoring.",
+            "Restore profile backup", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes) return;
+        restored.Sanitized();
+        SettingsStore.Save(AppPaths.SettingsPath, restored);
+        Audit(AuditLog.BackupRestored, Path.GetFileName(open.FileName));
+        SetStatus("Backup restored — restarting ArenaDesktop…");
+        try
+        {
+            var exe = Environment.ProcessPath;
+            if (!string.IsNullOrEmpty(exe))
+                Process.Start(new ProcessStartInfo("cmd.exe", $"/c timeout /t 2 /nobreak > NUL & start \"\" \"{exe}\"")
+                { CreateNoWindow = true, UseShellExecute = false, WindowStyle = ProcessWindowStyle.Hidden });
+        }
+        catch (Exception ex) { _log.Warn($"Post-restore relaunch failed: {ex.Message}"); }
+        ExitApp();
+    }
+
+    private TerminalWindow? _terminalWindow;
+
+    private void OpenTerminalWindow()
+    {
+        if (_terminalWindow is not null) { _terminalWindow.Activate(); return; }
+        _terminalWindow = new TerminalWindow(Processes, () => _settings.ProjectFolder, _log,
+            summary => { SetStatus(summary); RecordNotification(NotificationCategory.Agent, "Terminal", summary); }) { Owner = this };
+        _terminalWindow.Closed += (_, _) => _terminalWindow = null;
+        _terminalWindow.Show();
+    }
+
+    private CompareWindow? _compareWindow;
+
+    private void OpenCompareWindow()
+    {
+        if (_compareWindow is not null) { _compareWindow.Activate(); return; }
+        _compareWindow = new CompareWindow(_settings, ApiKeys, _log,
+            summary => RecordNotification(NotificationCategory.Battle, "Scratch comparison", summary)) { Owner = this };
+        _compareWindow.Closed += (_, _) => _compareWindow = null;
+        _compareWindow.Show();
+    }
+
+    private ApiKeyVault? _apiKeyVault;
+
+    /// <summary>The BYOK key vault, loaded on first use. DPAPI on this machine; keys never enter settings.</summary>
+    private ApiKeyVault ApiKeys => _apiKeyVault ??= ApiKeyVault.Load(AppPaths.ApiKeysPath, new DpapiSecretProtector());
+
+    private ProvidersWindow? _providersWindow;
+
+    private void OpenProvidersWindow()
+    {
+        if (_providersWindow is not null) { _providersWindow.Activate(); return; }
+        _providersWindow = new ProvidersWindow(_settings, ApiKeys, () => FlushSettings(), _log) { Owner = this };
+        _providersWindow.Closed += (_, _) => _providersWindow = null;
+        _providersWindow.Show();
+    }
 
     /// <summary>Open the Field pass from a launch intent — behind the lock like every other window (S7 #64).</summary>
     private void OpenFieldPassFromLaunch()
@@ -1139,7 +1493,7 @@ public partial class MainWindow : Window
         if (!SimpleModePolicy.AllowsCommandPalette(_settings.SimpleMode))
             return;
         ShowFromTray();
-        var dialog = new CommandPaletteWindow(_settings, IsPaletteCommandAvailable) { Owner = this };
+        var dialog = new CommandPaletteWindow(_settings, IsPaletteCommandAvailable, ScriptCommandCatalog.ToPaletteCommands(_settings.ScriptCommands)) { Owner = this };
         dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
         // S5: transient shell windows follow the text scale too.
         ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
@@ -1236,6 +1590,11 @@ public partial class MainWindow : Window
             RunPaletteArgument(argumented);
             return;
         }
+        if (id.StartsWith(ScriptCommandCatalog.Prefix, StringComparison.Ordinal))
+        {
+            RunScriptCommand(id);
+            return;
+        }
         if (id.StartsWith(CommandPalette.ModePrefix, StringComparison.Ordinal))
         {
             NavigateArenaMode(id[CommandPalette.ModePrefix.Length..]);
@@ -1259,6 +1618,15 @@ public partial class MainWindow : Window
             case "prompt-pad": OpenPromptPadWindow(); break;
             case "battle-next-queue": RunNextQueuedPrompt(); break;
             case "field-pass": OpenFieldPassWindow(); break;
+            case "providers": OpenProvidersWindow(); break;
+            case "scratch-compare": OpenCompareWindow(); break;
+            case "git-panel": OpenGitWindow(); break;
+            case "library": OpenLibraryWindow(); break;
+            case "notifications": OpenNotificationsWindow(); break;
+            case "script-commands": OpenScriptsWindow(); break;
+            case "profile-backup": CreateProfileBackup(); break;
+            case "profile-restore": RestoreProfileBackup(); break;
+            case "terminal": OpenTerminalWindow(); break;
             case "shortcuts": OnShortcuts(this, new RoutedEventArgs()); break;
             case "diagnostics": OnDiagnostics(this, new RoutedEventArgs()); break;
             case "session": OnSessionWindow(this, new RoutedEventArgs()); break;
@@ -2310,6 +2678,9 @@ public partial class MainWindow : Window
         // Enhancement pack: the session counts every finished download,
         // visible or not — the count is a fact, the balloon is a policy.
         _session.RecordDownloadCompleted();
+        RecordNotification(NotificationCategory.Download, "Download finished",
+            _isLocked ? "A download finished." : fileName);
+        Audit(AuditLog.DownloadCompleted, _isLocked ? "a download" : fileName);
         // S7 #64: while locked, no balloon naming the file — the
         // download itself finishes normally behind the lock.
         if (_isLocked)
@@ -2385,6 +2756,7 @@ public partial class MainWindow : Window
     {
         _pageTitle = Browser.CoreWebView2.DocumentTitle ?? "";
         TitleText.Text = string.IsNullOrWhiteSpace(_pageTitle) ? "Arena" : _pageTitle;
+        SyncActiveTabFromPage();
         ApplyWindowTitle();
         OnAttentionSignal(AttentionSignal.Parse(_pageTitle));
     }
@@ -2511,6 +2883,7 @@ public partial class MainWindow : Window
         // restores — kept current here so it survives the web view.
         if (src.Length > 0 && UrlPolicy.ClassifyNavigation(src) == LinkDisposition.InApp)
             _lastGoodUrl = src;
+        SyncActiveTabFromPage();
         UpdateNavButtons();
     }
 
@@ -3073,6 +3446,7 @@ public partial class MainWindow : Window
         try
         {
             dialog = new SettingsWindow(clone, _log, _privacyGateway, SwitchToProfile,
+                audit: Audit,
                 notificationTest: RunTestNotification,
                 globalHotkeyStatus: () => _hotkeyManager?.StatusText ?? "") { Owner = this };
         }
@@ -3254,6 +3628,7 @@ public partial class MainWindow : Window
         // Force: the app is about to restart, so a deferred write would
         // simply never happen.
         FlushSettings();
+        Audit(AuditLog.ProfileSwitch, $"to profile {targetProfileId}");
         _log.Info($"Switching to profile {targetProfileId}; restarting");
         try
         {
@@ -3403,8 +3778,14 @@ public partial class MainWindow : Window
     /// immediately — the file is tiny and blocks are rare, so durability
     /// beats batching. Counts + host only, by construction of the model.
     /// </summary>
+    /// <summary>Write one user-facing audit-log entry (slice E). Never throws.</summary>
+    internal void Audit(string kind, string detail) =>
+        AuditLog.Record(AppPaths.AuditLogPath, kind, detail);
+
     private void RecordPrivacy(PrivacyEventCategory category, string kind, string? host)
     {
+        if (category == PrivacyEventCategory.DeniedPermission)
+            Audit(AuditLog.PermissionDenied, $"{kind} for {host ?? "unknown host"}");
         try
         {
             _privacyStats.Record(category, kind, host, DateTimeOffset.UtcNow);
@@ -5133,7 +5514,12 @@ public partial class MainWindow : Window
                 case Key.F: ShowFindBar(); e.Handled = true; break;
                 case Key.P: OnPrint(this, e); e.Handled = true; break;
                 case Key.T when Keyboard.Modifiers.HasFlag(ModifierKeys.Shift):
-                    OnRestoreClosedPage(this, e); e.Handled = true; break;
+                    if (!ReopenClosedTab()) OnRestoreClosedPage(this, e);
+                    e.Handled = true; break;
+                case Key.T:
+                    OpenNewTab(); e.Handled = true; break;
+                case Key.W:
+                    CloseActiveTab(); e.Handled = true; break;
                 case Key.OemQuestion: OnShortcuts(this, e); e.Handled = true; break;
                 case Key.D1: NavigateArenaMode(ArenaModes.BattleId); e.Handled = true; break;
                 case Key.D2: NavigateArenaMode(ArenaModes.DirectId); e.Handled = true; break;

@@ -39,6 +39,7 @@ public partial class SettingsWindow : Window
     private readonly DiagnosticLog _log;
     private readonly WebPrivacyGateway? _privacy;
     private readonly Action<AppSettings, string> _switchProfile;
+    private readonly Action<string, string>? _audit;
     private readonly Func<string>? _notificationTest;
     private readonly Func<string>? _globalHotkeyStatus;
     private readonly List<System.Windows.FrameworkElement> _searchControlMatches = new();
@@ -47,12 +48,13 @@ public partial class SettingsWindow : Window
 
     public SettingsWindow(AppSettings working, DiagnosticLog log, WebPrivacyGateway? privacy,
         Action<AppSettings, string> switchProfile, Func<string>? notificationTest = null,
-        Func<string>? globalHotkeyStatus = null)
+        Func<string>? globalHotkeyStatus = null, Action<string, string>? audit = null)
     {
         _working = working;
         _log = log;
         _privacy = privacy;
         _switchProfile = switchProfile;
+        _audit = audit;
         _notificationTest = notificationTest;
         _globalHotkeyStatus = globalHotkeyStatus;
         InitializeComponent();
@@ -296,9 +298,12 @@ public partial class SettingsWindow : Window
         AccentCombo.SelectedIndex = accentIndex >= 0 ? accentIndex : 0;
         TextScaleCombo.SelectedItem = ShellTextScale.FormatPercent(_working.ShellFontScale);
         RebuildToolbarEditor();
+        PermissionsTransparencyText.Text = PermissionsTransparency.RenderText();
+        AuditList.ItemsSource = AuditLog.ReadRecent(AppPaths.AuditLogPath, 100)
+            .Select(a => $"{a.Utc.LocalDateTime:yyyy-MM-dd HH:mm} — {a.Kind}: {a.Detail}").ToList();
         PortableNote.Text = AppPaths.IsPortable
-            ? $"Portable mode is ON: settings, download history, and logs live in {AppPaths.RootDir} — a data folder beside the app. Sign-in data still lives in your user profile (see README, “Where things live”)."
-            : $"Settings, download history, and logs live in {AppPaths.RootDir}. For portable use, put an empty file named portable.txt beside ArenaDesktop.exe and restart: settings then live in a data folder beside the app and start fresh there — nothing is moved automatically.";
+            ? $"Portable mode is ON: settings, download history, logs and the WebView2 sign-in profiles live in {AppPaths.RootDir} — a data folder beside the app. The sign-in only works for this Windows user on this PC: WebView2 cookies are protected by Windows for this user and machine, so a copy taken elsewhere will ask you to sign in again."
+            : $"Settings, download history, and logs live in {AppPaths.RootDir}. For portable use, put an empty file named portable.txt beside ArenaDesktop.exe and restart: settings and sign-in profiles then live in a data folder beside the app and start fresh there — nothing is moved automatically.";
 
         // Reading a profile's folder size touches the disk, which is the one
         // part of this that can fail on a machine that is not ours.
@@ -1162,6 +1167,8 @@ public partial class SettingsWindow : Window
         {
             var result = await _privacy.ClearAsync(choice, targets);
             ClearResultNote.Text = result.Summary;
+            if (result.Success)
+                _audit?.Invoke(AuditLog.DataCleared, $"{choice} / {scope}");
             _ = RefreshSiteDataAsync();
             // The pre-v0.11.0 flow, preserved: a successful clear that
             // signed the RUNNING profile out closes Settings (adopting

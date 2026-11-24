@@ -1,0 +1,35 @@
+name: Bug report
+description: Something ArenaDesktop does wrong, or fails to do
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. For a security issue, do NOT use this
+        form — follow the private reporting steps in SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: ArenaDesktop version
+      description: Shown in the About window and at the top of Diagnostics.
+      placeholder: "e.g. 0.19.0"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+      description: Steps to reproduce help most — what you clicked or typed, in order.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics (optional)
+      description: |
+        Anything from the Diagnostics window (Copy report) or the log
+        viewer helps. Both are already redacted by the app — no URLs
+        with query strings, no page content.
+    validations:
+      required: false

@@ -1,0 +1,69 @@
+<Window x:Class="ArenaDesktop.ProvidersWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AI providers (bring your own key)"
+        Width="760" Height="560" MinWidth="620" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+    <Window.Resources>
+        <Style x:Key="Note" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style x:Key="Field" TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource RaisedBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,2,0,8"/>
+        </Style>
+    </Window.Resources>
+    <Grid Margin="14,12,14,10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Grid.Row="0" Style="{StaticResource Note}"
+                   Text="Your own OpenAI, Anthropic or Google key turns ArenaDesktop into a general multi-model client (used by Scratch comparison). Keys are stored on this PC protected by Windows (DPAPI, this user only) in a separate file — never in settings, never in exports, never logged. Local servers (Ollama, LM Studio) need no key."/>
+        <ListBox x:Name="ProviderList" Grid.Row="1" Margin="0,10,0,10"
+                 Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                 SelectionChanged="OnSelectionChanged" AutomationProperties.Name="Configured providers"/>
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                <TextBlock Text="Name"/>
+                <TextBox x:Name="NameBox" Style="{StaticResource Field}" AutomationProperties.Name="Provider name"/>
+                <TextBlock Text="Base URL"/>
+                <TextBox x:Name="BaseUrlBox" Style="{StaticResource Field}" AutomationProperties.Name="Provider base URL"/>
+                <TextBlock Text="Default model"/>
+                <TextBox x:Name="ModelBox" Style="{StaticResource Field}" AutomationProperties.Name="Default model"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                <TextBlock Text="API key"/>
+                <PasswordBox x:Name="KeyBox" Margin="0,2,0,4" AutomationProperties.Name="API key"/>
+                <TextBlock x:Name="KeyStatus" Style="{StaticResource Note}"/>
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <Button Content="Save key" Click="OnSaveKey" Margin="0,0,6,0" AutomationProperties.Name="Save API key"/>
+                    <Button Content="Remove key" Click="OnRemoveKey" AutomationProperties.Name="Remove API key"/>
+                </StackPanel>
+                <TextBlock x:Name="ModelsStatus" Style="{StaticResource Note}" Margin="0,8,0,0"/>
+                <Button Content="List models from provider" Click="OnListModels" HorizontalAlignment="Left" Margin="0,4,0,0"
+                        AutomationProperties.Name="List models from provider"/>
+            </StackPanel>
+        </Grid>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,10,0,0">
+            <Button Content="Add OpenAI" Click="OnAddOpenAi" Margin="0,0,6,0"/>
+            <Button Content="Add Anthropic" Click="OnAddAnthropic" Margin="0,0,6,0"/>
+            <Button Content="Add Google" Click="OnAddGoogle" Margin="0,0,6,0"/>
+            <Button Content="Add Ollama" Click="OnAddOllama" Margin="0,0,6,0"/>
+            <Button Content="Add LM Studio" Click="OnAddLmStudio" Margin="0,0,6,0"/>
+            <Button Content="Remove provider" Click="OnRemoveProvider" Margin="6,0,0,0"/>
+        </StackPanel>
+    </Grid>
+</Window>

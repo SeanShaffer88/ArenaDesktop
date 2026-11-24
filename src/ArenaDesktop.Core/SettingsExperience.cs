@@ -265,8 +265,12 @@ public static class StartPagePolicy
 /// instead — the zip build becomes carry-on-a-USB-stick software.
 /// Nothing is migrated automatically: a portable launch starts fresh
 /// in its data folder, and removing the marker returns to the installed
-/// data untouched. The WebView2 sign-in profiles deliberately stay in
-/// %LOCALAPPDATA% in this version — see DECISIONS.md.
+/// data untouched. Since the completeness program (slice A), portable
+/// mode also carries the WebView2 sign-in profiles — they live under
+/// the data root via <see cref="WebViewProfileDir"/> — but only for
+/// the same Windows user on the same machine: WebView2 cookies are
+/// DPAPI-bound to that user+machine, so a copied folder never carries
+/// a live sign-in elsewhere. See DECISIONS.md.
 /// </summary>
 public sealed record SettingsLocation(bool IsPortable, string RootDir)
 {
@@ -284,4 +288,18 @@ public sealed record SettingsLocation(bool IsPortable, string RootDir)
             : new SettingsLocation(false, installedRoot);
 
     public static SettingsLocation Installed(string root) => new(false, root);
+
+    /// <summary>
+    /// The WebView2 user-data folder for one profile (completeness
+    /// slice A). Installed mode keeps the long-standing location,
+    /// <paramref name="localAppDataDir"/>\ArenaDesktop\&lt;folder&gt;;
+    /// portable mode puts the same folder directly under the data
+    /// root, so the whole app — sign-in session included — is one
+    /// carryable folder on the machine it was created on. Folder
+    /// naming is <see cref="Profiles.FolderName"/> in both modes.
+    /// </summary>
+    public string WebViewProfileDir(string localAppDataDir, string profileId) =>
+        IsPortable
+            ? Path.Combine(RootDir, Profiles.FolderName(profileId))
+            : Path.Combine(localAppDataDir, "ArenaDesktop", Profiles.FolderName(profileId));
 }

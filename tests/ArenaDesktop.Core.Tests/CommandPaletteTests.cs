@@ -341,9 +341,9 @@ public class CommandPaletteTests
         Assert.Contains("private bool IsPaletteCommandAvailable(PaletteCommand command)", shell);
         Assert.Contains("AppLock.IsLockActive(_settings)", shell);
         Assert.Contains("ZoomPresets.IsAvailable(preset, _settings.ExtendedZoomRange)", shell);
-        Assert.Contains("new CommandPaletteWindow(_settings, IsPaletteCommandAvailable)", shell);
+        Assert.Contains("new CommandPaletteWindow(_settings, IsPaletteCommandAvailable, ScriptCommandCatalog.ToPaletteCommands(_settings.ScriptCommands))", shell);
         var window = Source("src/ArenaDesktop/CommandPaletteWindow.xaml.cs");
-        Assert.Contains("CommandPalette.Available(_isAvailable).Count", window);
+        Assert.Contains("CommandPalette.Available(_isAvailable, _extras).Count", window);
     }
 
     // ──────────────────────── the menus are all reachable ────────────────────────
@@ -362,6 +362,15 @@ public class CommandPaletteTests
         ["OnBattleLab"] = "battle-lab-pane",
         ["OnPromptPad"] = "prompt-pad",
         ["OnFieldPass"] = "field-pass",
+        ["OnProviders"] = "providers",
+        ["OnCompare"] = "scratch-compare",
+        ["OnGit"] = "git-panel",
+        ["OnLibrary"] = "library",
+        ["OnNotifications"] = "notifications",
+        ["OnScripts"] = "script-commands",
+        ["OnProfileBackup"] = "profile-backup",
+        ["OnProfileRestore"] = "profile-restore",
+        ["OnTerminal"] = "terminal",
         // v0.14.0: the queue's head without opening the pane.
         ["OnBattleNextQueued"] = "battle-next-queue",
         ["OnShortcuts"] = "shortcuts",
@@ -410,6 +419,7 @@ public class CommandPaletteTests
         ["OnArenaMode"] = "parameterised by its Tag; covered by the nine mode: commands",
         ["OnRailArenaMode"] = "the Left Rail's copy of the mode rows",
         // Components of a surface that is opened from the palette.
+        ["OnNewTab"] = "a button on the tab strip (slice D1); Ctrl+T is its command form",
         ["OnFindClose"] = "a control in the find bar, which the find command opens",
         ["OnFindNext"] = "a control in the find bar",
         ["OnFindPrevious"] = "a control in the find bar",

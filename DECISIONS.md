@@ -1,3 +1,20 @@
+## 2026-11-23 — Completeness program: portable profiles move, DPAPI honesty stays (slice A)
+
+- **Portable mode now relocates the WebView2 profiles** under the portable data root (`SettingsLocation.WebViewProfileDir` is the pure resolver; `AppPaths.ProfileDir`/`WebViewDataDir` are the single choke point every consumer already used). Installed mode paths are byte-identical to before. No migration either way — the standing portable rule.
+- **We do not claim cross-machine sign-in portability.** WebView2 cookies are DPAPI-bound to the creating Windows user+machine; a copied profile folder cannot decrypt elsewhere. The plan's original "encrypted session export" idea is not implementable honestly, so slice A delivers same-machine portability and section E's encrypted backup covers settings + profile metadata only. Every user-facing description says this plainly.
+
+## 2026-11-23 — Completeness program: native developer tools, and two deliberate refusals (slice C)
+
+- **No file-system bridge into Arena's web agent — decided, not deferred.** Giving the web agent access to local files would require script injection, a host object, or a WebMessageReceived bridge into arena.ai pages; SECURITY.md forbids all three, and Arena offers no sanctioned local-files protocol. The desktop value is therefore native and beside the agent: Git panel, terminal, and task notifications over a user-chosen project folder.
+- **Connector OAuth stays in the web view.** Managing Arena connector credentials natively would mean the app handling Arena account tokens outside Arena's own flow. Not built; what is native is notification of long-running local tasks (terminal/git/downloads/comparisons).
+- **Git runs non-interactively** (`GIT_TERMINAL_PROMPT=0`, the user's own credential helper): a missing credential fails plainly instead of hanging a hidden process forever. Pull is `--ff-only` so the panel never creates a surprise merge commit.
+
+## 2026-11-23 — Completeness program: BYOK keys live in a DPAPI vault, never in settings (slices B1/B2)
+
+- **Keys are not settings.** `ApiKeyVault` stores each key as a protected blob in `api-keys.json`; settings.json carries provider configs only, so the existing settings export/import can never leak a key. The shell protector is DPAPI current-user via crypt32 P/Invoke (no new package); Core's `ISecretProtector` seam keeps the vault testable and a passphrase protector (PBKDF2 + AES-GCM) ships in Core for tests and any future non-Windows host.
+- **Each provider keeps its real API shape.** Anthropic is not squeezed through an OpenAI-shaped shim: its system split, `x-api-key`/`anthropic-version` headers and event-stream deltas are modelled as-is, as are Google's `contents[]`/`:generateContent` shape. Ollama and LM Studio ride the OpenAI-compatible path at their localhost defaults.
+- **No live network in tests** — `ChatClient` takes an injected `HttpMessageHandler`; the suite uses a fake.
+
 ## 2026-11-23 — Simple Mode is a Core policy, and the fuzz corpus is seeded (audit pass, unreleased)
 
 - **One policy, every door.** Simple Mode's decisions live in Core (`SimpleModePolicy`): whether Battle Lab, the prompt pad and the command palette are available, which palette commands survive the filter, and which tray entries stay visible (Open and Exit only). The shell only hides and refuses. That matters because each surface has at least five doors (⋯ menu, tray, keyboard, command line, `arenadesktop://` link) and a shell-only implementation would have had to remember all of them in several places; here the open-methods refuse centrally and the menus/tray consult the same rule.

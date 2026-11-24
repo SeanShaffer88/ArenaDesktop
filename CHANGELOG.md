@@ -2,6 +2,27 @@
 
 All notable changes to ArenaDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.20.0] — 2026-11-23
+
+The completeness program (plan: `docs/COMPLETENESS_PLAN.md`).
+
+### Added
+
+- **Public roadmap + issue templates.** `ROADMAP.md` lays out the completeness program with honest statuses, the decided limits, and how feature voting works (👍 reactions); GitHub issue templates for bugs and features land with it. Distribution stays GitHub Releases only — no package-manager listings, by standing decision.
+- **Encrypted profile backup, audit log, and permissions transparency.** Back up your settings + profile preferences into one passphrase-encrypted file (⋯ menu → Back up profile (encrypted)…) and restore it with a change preview — sign-ins are never in the file (Windows binds them to this PC and user, and the UI says so). A user-facing audit log (Settings → Privacy & security) records profile switches, downloads, data clearing, backups/restores and permission denials. SECURITY.md and the same Settings section now carry the exact WebView2 permissions table — what is exposed (microphone/notifications to arena.ai only; camera and geolocation never) and how to revoke each.
+- **Script commands (the plugin surface).** Define your own commands (⋯ menu → Script commands…) and they appear in the command palette under Scripts, titled with their full command text, and run in the terminal in the project folder. Local automation only: no third-party code is ever loaded into the app.
+- **Accessibility & language groundwork.** README now details the accessibility story (live-region announcements, automation names, High Contrast following Windows, text scaling, reduced motion). New shell surfaces take their strings from an externalized table in Core (`ShellStrings`) with a UI-language setting — English is the only shipped table today, and the docs say so.
+- **Notification centre.** A durable list (⋯ menu → Notifications…) of what the app itself noticed — downloads, terminal and Git task completions, scratch comparisons, app events — with read/unread state and per-category muting. Balloons remain governed by the existing quiet-hours / Do Not Disturb policy; the centre keeps the record either way.
+- **Library search & export.** One search across everything ArenaDesktop itself stores — Battle Lab prompts and journal, prompt pad entries, download history — plus a structured export of all of it as JSON or Markdown (⋯ menu → Library search & export…). Arena conversations are not included: they live on Arena's servers and the app never reads the page.
+- **Tabs.** A tab strip keeps several Arena pages as named tabs per profile (Ctrl+T new, Ctrl+W close, Ctrl+Shift+T reopen closed), restored on the next launch. Honest architecture note: tabs share the one browsing view, so a page reloads when you switch back to its tab — truly concurrent live pages remain the job of "Open in new window". The tab model lives in Core (`TabSet`), so a future multi-view host can adopt it unchanged.
+- **Git panel and terminal for a project folder.** Pick a project folder (Git panel → Choose project folder…) and ArenaDesktop gains a native Git panel — status, per-file diff, stage/unstage, commit, push, pull (fast-forward only), branch and repository switching, all over the git CLI with your own git credentials (the app never handles them) — and a terminal that runs your commands in that folder with streamed output and a Stop button. Long git/terminal tasks report to the status bar and, from the notification-centre slice, to the centre.
+- **Scratch comparison.** One prompt fanned out to your configured BYOK/local targets at once, replies side by side with timings, exportable as Markdown (⋯ menu → Scratch comparison…). Arena models are not targets — Arena has no API and the app never reads the Arena page; Arena-side comparison stays in Battle Lab.
+- **Bring your own key (BYOK) + local models.** Configure your own OpenAI, Anthropic or Google provider — or a local Ollama / LM Studio server, no key needed — in the new AI providers window (⋯ menu → AI providers (BYOK)…, or the command palette). Each provider is called with its real API shape; keys are stored protected by Windows DPAPI (this user, this machine) in their own file, never in settings or exports, and are masked everywhere they appear. This is the engine under Scratch comparison; Arena itself still runs in the web view as before.
+
+### Changed
+
+- **Portable mode now carries your sign-in (same machine).** The WebView2 profiles live under the portable `data` folder (`data\WebView2`, `data\WebView2-<id>`) instead of `%LOCALAPPDATA%`, so the whole app is one carryable folder. Honest limit, stated wherever portable mode is described: WebView2 cookies are DPAPI-bound to the Windows user and PC that created them, so a copy taken to another PC or user still asks for sign-in there.
+
 ## [0.19.0] — 2026-11-23
 
 A security, simplicity and testing pass: the security posture is now written down in one place, a Simple Mode trims the shell back to essentials, and the URI parsers gain a fuzzing harness.

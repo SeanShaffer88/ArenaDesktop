@@ -1,0 +1,39 @@
+name: Feature request
+description: Something ArenaDesktop should do that it doesn't yet
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Requests are prioritised partly by 👍 reactions — after
+        filing, react to your own issue, and vote on others you want
+        (see ROADMAP.md, "How to influence this list"). One idea per
+        issue keeps votes meaningful.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The task or problem first — the feature you have in mind goes below.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would help?
+      description: Your suggested feature or change, and how you'd expect it to behave.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Arena in the web view (modes, Battle Lab, prompt pad)
+        - My own models (BYOK / local models / scratch comparison)
+        - Developer tools (Git panel, terminal)
+        - Productivity (tabs, library, notifications, script commands)
+        - Privacy & trust (backup, audit log, permissions)
+        - Something else
+    validations:
+      required: false
