@@ -216,6 +216,8 @@
                                   ToolTip="Only affects the sign-in launch: on = ArenaDesktop waits in the tray; off = the window opens like a normal launch. Double-clicking the app always opens the window"/>
                         <CheckBox x:Name="CloseToTrayCheck" Content="Close window to tray (instead of quitting)"
                                   ToolTip="The X button hides the window; Exit lives on the tray menu"/>
+                        <CheckBox x:Name="SimpleModeCheck" Content="Simple Mode"
+                                  ToolTip="A calmer shell: Battle Lab and the prompt pad are hidden (with their shortcuts), the command palette (Ctrl+K) is off, and the tray menu keeps only Open and Exit. Nothing is deleted — turn this off to get everything back"/>
                         <CheckBox x:Name="SuspendInTrayCheck" Content="Save memory while hidden in the tray"
                                   ToolTip="After the time below, the web view is suspended until you come back. Suspend never happens during a download, and stays out of the way after the microphone has been used (a voice session may be live)"/>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">

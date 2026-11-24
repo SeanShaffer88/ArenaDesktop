@@ -64,6 +64,9 @@ public sealed class TrayController : IDisposable
     private readonly Action? _openPromptPad;
     private Forms.ToolStripMenuItem? _promptPadItem;
     private readonly Action? _openCommandPalette;
+    private readonly Func<bool>? _simpleMode;
+    private Forms.ContextMenuStrip? _menu;
+    private Forms.ToolStripMenuItem? _exitItem;
     private Forms.ToolStripMenuItem? _commandPaletteItem;
     private Forms.ToolStripMenuItem? _battleLabItem;
     private Forms.ToolStripMenuItem? _modesItem;
@@ -126,7 +129,8 @@ public sealed class TrayController : IDisposable
         Action? openBattleLab = null,
         Func<IReadOnlyList<string>>? favoriteModeIds = null,
         Action? openPromptPad = null,
-        Action? openCommandPalette = null)
+        Action? openCommandPalette = null,
+        Func<bool>? simpleMode = null)
     {
         _log = log;
         _dispatcher = dispatcher;
@@ -158,6 +162,7 @@ public sealed class TrayController : IDisposable
         _openBattleLab = openBattleLab;
         _openPromptPad = openPromptPad;
         _openCommandPalette = openCommandPalette;
+        _simpleMode = simpleMode;
         _favoriteModeIds = favoriteModeIds;
     }
 
@@ -177,6 +182,7 @@ public sealed class TrayController : IDisposable
                 Icon = _baseIcon,
             };
             var menu = new Forms.ContextMenuStrip();
+            _menu = menu;
             _openItem = new Forms.ToolStripMenuItem("Open Arena");
             _openItem.Click += (_, _) => _dispatcher.Invoke(_showWindow);
             menu.Items.Add(_openItem);
@@ -270,9 +276,12 @@ public sealed class TrayController : IDisposable
                 RebuildFavoritesMenu();
                 RefreshLockState();
                 RefreshStatusItem();
+                ApplySimpleModeToMenu();
             };
             menu.Items.Add(new Forms.ToolStripSeparator());
-            menu.Items.Add("Exit", null, (_, _) => _dispatcher.Invoke(_exitApp));
+            _exitItem = new Forms.ToolStripMenuItem("Exit");
+            _exitItem.Click += (_, _) => _dispatcher.Invoke(_exitApp);
+            menu.Items.Add(_exitItem);
             _icon.ContextMenuStrip = menu;
             _icon.MouseClick += (_, e) =>
             {
@@ -317,6 +326,51 @@ public sealed class TrayController : IDisposable
             _dispatcher.Invoke(_showWindow);
         };
         _clickTimer.Start();
+    }
+
+    /// <summary>
+    /// Simple Mode on the tray menu: Core's policy
+    /// (<see cref="SimpleModePolicy.SimpleTrayItemIds"/>) keeps only
+    /// Open and Exit; everything else — items and separators alike —
+    /// is hidden for this opening. Runs on every menu open like the
+    /// other refreshes, so a Settings change applies without a
+    /// restart. With no simple-mode delegate wired, nothing changes.
+    /// </summary>
+    private void ApplySimpleModeToMenu()
+    {
+        if (_menu is null || _simpleMode is null)
+            return;
+        var simple = _simpleMode();
+        foreach (Forms.ToolStripItem item in _menu.Items)
+        {
+            // The lock item's visibility in the full menu belongs to
+            // RefreshLockState (it appears only when a lock exists and
+            // isn't engaged) — Simple Mode may hide it, never show it.
+            if (!simple && ReferenceEquals(item, _lockItem))
+                continue;
+            item.Visible = SimpleModePolicy.IsTrayItemVisible(TrayItemId(item), simple);
+        }
+    }
+
+    /// <summary>The Core policy id for one tray menu item, matched by the reference the Build method kept. Separators and anything unrecognised map to null, which Simple Mode hides and the full menu shows.</summary>
+    private string? TrayItemId(Forms.ToolStripItem item)
+    {
+        if (ReferenceEquals(item, _openItem)) return "open";
+        if (ReferenceEquals(item, _dictateItem)) return "quick-ask";
+        if (ReferenceEquals(item, _modesItem)) return "modes";
+        if (ReferenceEquals(item, _favoritesItem)) return "favorite-modes";
+        if (ReferenceEquals(item, _newWindowItem)) return "new-window";
+        if (ReferenceEquals(item, _reloadItem)) return "reload";
+        if (ReferenceEquals(item, _downloadsItem)) return "downloads";
+        if (ReferenceEquals(item, _battleLabItem)) return "battle-lab";
+        if (ReferenceEquals(item, _promptPadItem)) return "prompt-pad";
+        if (ReferenceEquals(item, _commandPaletteItem)) return "command-palette";
+        if (ReferenceEquals(item, _settingsItem)) return "settings";
+        if (ReferenceEquals(item, _lockItem)) return "lock";
+        if (ReferenceEquals(item, _switchItem)) return "switch-profile";
+        if (ReferenceEquals(item, _statusItem)) return "status";
+        if (ReferenceEquals(item, _exitItem)) return "exit";
+        return null;
     }
 
     /// <summary>

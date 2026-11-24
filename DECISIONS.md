@@ -1,3 +1,11 @@
+## 2026-11-23 — Simple Mode is a Core policy, and the fuzz corpus is seeded (audit pass, unreleased)
+
+- **One policy, every door.** Simple Mode's decisions live in Core (`SimpleModePolicy`): whether Battle Lab, the prompt pad and the command palette are available, which palette commands survive the filter, and which tray entries stay visible (Open and Exit only). The shell only hides and refuses. That matters because each surface has at least five doors (⋯ menu, tray, keyboard, command line, `arenadesktop://` link) and a shell-only implementation would have had to remember all of them in several places; here the open-methods refuse centrally and the menus/tray consult the same rule.
+- **Hidden means unreachable, not greyed out.** The items leave the menus, the shortcuts route through the same guarded open-methods so they refuse too, the palette cannot open at all, and turning Simple Mode on closes a Lab pane or pad window that is already open. Nothing is deleted: the library, queue and pad draft are exactly where they were when the mode is turned back off.
+- **The fuzz harness adds no dependency.** `UriFuzzingTests` generates its corpus from a seeded `Random` plus mutations of valid links. FsCheck/SharpFuzz would give smarter generation, but the invariants being defended (never throw; accepted ⇒ allowlisted) do not need it, a seeded corpus reproduces a failure exactly, and the test project stays at its current dependency set.
+- **PERFORMANCE.md records no invented numbers.** The brief asked for measured baselines; measurements require a Windows machine and the first field pass has not run. The file therefore carries the methodology and an explicitly empty baseline table rather than figures produced on a Linux VM, which would be fiction. The project rule stands: budgets are declared at the first field pass, measured, not guessed.
+- **Windows runtime: Unverified** for Simple Mode's shell gating until the on-machine pass covers it.
+
 ## 2026-11-23 — Settings sections are cards that are the sections themselves (v0.15.0)
 
 The v0.15.0 restyle turns each Settings section into a rounded card. The

@@ -182,6 +182,7 @@ public partial class MainWindow : Window
         Browser.DefaultBackgroundColor = ThemeManager.BrowserBackground;
         ApplyToolbarLayout();
         ApplyShellLayout();
+        ApplySimpleMode();
         ShellTextScaling.Apply(this, _settings.ShellFontScale);
         ThemeManager.Changed += OnThemeChanged;
 
@@ -245,7 +246,8 @@ public partial class MainWindow : Window
             openBattleLab: OpenBattleLabFromTray,
             favoriteModeIds: () => _settings.FavoriteModeIds,
             openPromptPad: OpenPromptPadWindow,
-            openCommandPalette: OpenCommandPaletteWindow);
+            openCommandPalette: OpenCommandPaletteWindow,
+            simpleMode: () => _settings.SimpleMode);
 
         // S6 #54: live regions for assistive-tech announcements, and
         // the download events that feed them (the wording is Core's).
@@ -810,7 +812,44 @@ public partial class MainWindow : Window
             PresentLockWindow();
             return;
         }
+        // Simple Mode: every door (menu, tray, key, CLI, link) lands
+        // here, so this one check retires the Lab completely.
+        if (!SimpleModePolicy.AllowsBattleLab(_settings.SimpleMode))
+        {
+            SetStatus("Battle Lab is hidden in Simple Mode — turn Simple Mode off in Settings → Behavior to bring it back");
+            return;
+        }
         ShowSidePane();
+    }
+
+    /// <summary>
+    /// Simple Mode, applied to the live shell: the Battle Lab, prompt
+    /// pad and command palette items leave the ⋯ menu, and anything
+    /// already open closes. Runs at startup (the persisted setting is
+    /// respected from the first frame) and again when Settings is OK'd.
+    /// The tray reads the same setting live on every menu open, and the
+    /// open-methods above refuse while it is on, so the keyboard
+    /// shortcuts (Ctrl+Shift+B, Ctrl+Shift+P, Ctrl+K) — which all route
+    /// through those methods — are disabled by the same rule.
+    /// </summary>
+    private void ApplySimpleMode()
+    {
+        var simple = _settings.SimpleMode;
+        var visibility = simple ? Visibility.Collapsed : Visibility.Visible;
+        BattleLabItem.Visibility = visibility;
+        PromptPadItem.Visibility = visibility;
+        CommandPaletteItem.Visibility = visibility;
+        BattleNextQueuedItem.Visibility = visibility;
+        if (simple)
+        {
+            if (SidePaneShowing)
+                HideSidePane();
+            if (_promptPadWindow is not null)
+            {
+                _promptPadWindow.Close();
+                _promptPadWindow = null;
+            }
+        }
     }
 
     /// <summary>
@@ -1046,6 +1085,11 @@ public partial class MainWindow : Window
             PresentLockWindow();
             return;
         }
+        if (!SimpleModePolicy.AllowsPromptPad(_settings.SimpleMode))
+        {
+            SetStatus("The prompt pad is hidden in Simple Mode — turn Simple Mode off in Settings → Behavior to bring it back");
+            return;
+        }
         ShowFromTray();
         if (_promptPadWindow is not null)
         {
@@ -1087,6 +1131,13 @@ public partial class MainWindow : Window
             PresentLockWindow();
             return;
         }
+        // Simple Mode disables the palette entirely — Ctrl+K, the ⋯
+        // menu, the tray, --palette and arenadesktop://palette all
+        // land here, so this one check covers every door. Unlike the
+        // Lab and the pad there is no status line: the palette is a
+        // transient launcher, and silence is the honest "off".
+        if (!SimpleModePolicy.AllowsCommandPalette(_settings.SimpleMode))
+            return;
         ShowFromTray();
         var dialog = new CommandPaletteWindow(_settings, IsPaletteCommandAvailable) { Owner = this };
         dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
@@ -1152,6 +1203,8 @@ public partial class MainWindow : Window
     /// </summary>
     private bool IsPaletteCommandAvailable(PaletteCommand command)
     {
+        if (!SimpleModePolicy.AllowsPaletteCommand(command.Id, _settings.SimpleMode))
+            return false;
         if (CommandPalette.ZoomPresetFor(command.Id) is { } preset)
             return ZoomPresets.IsAvailable(preset, _settings.ExtendedZoomRange);
         return command.Id switch
@@ -3111,6 +3164,7 @@ public partial class MainWindow : Window
         _settings.GlobalHotkeyEnabled = clone.GlobalHotkeyEnabled;
         _settings.GlobalHotkeyGesture = clone.GlobalHotkeyGesture;
         _settings.RegisterProtocolLinks = clone.RegisterProtocolLinks;
+        _settings.SimpleMode = clone.SimpleMode;
         _settings.Sanitized();
         if (_webReady)
         {
@@ -3127,6 +3181,7 @@ public partial class MainWindow : Window
         ThemeManager.Apply(_settings);
         ApplyToolbarLayout();
         ApplyShellLayout();
+        ApplySimpleMode();
         ShellTextScaling.Apply(this, _settings.ShellFontScale);
         // Enhancement pack: the pinned mode and toolbar dimming apply
         // immediately on OK, like the rest of Appearance.

@@ -218,6 +218,7 @@ public partial class SettingsWindow : Window
         StartWithWindowsCheck.IsChecked = _working.StartWithWindows;
         StartMinimizedCheck.IsChecked = _working.StartMinimizedToTray;
         CloseToTrayCheck.IsChecked = _working.CloseToTray;
+        SimpleModeCheck.IsChecked = _working.SimpleMode;
         SuspendInTrayCheck.IsChecked = _working.SuspendWhenInTray;
         var timeoutIndex = Array.FindIndex(SuspendTimeoutChoices, c => c.Value == _working.TraySuspendTimeout);
         SuspendTimeoutCombo.SelectedIndex = timeoutIndex >= 0 ? timeoutIndex : 1;
@@ -408,6 +409,7 @@ public partial class SettingsWindow : Window
         _working.StartWithWindows = StartWithWindowsCheck.IsChecked == true;
         _working.StartMinimizedToTray = StartMinimizedCheck.IsChecked == true;
         _working.CloseToTray = CloseToTrayCheck.IsChecked == true;
+        _working.SimpleMode = SimpleModeCheck.IsChecked == true;
         _working.SuspendWhenInTray = SuspendInTrayCheck.IsChecked == true;
         if (SuspendTimeoutCombo.SelectedIndex >= 0 && SuspendTimeoutCombo.SelectedIndex < SuspendTimeoutChoices.Length)
             _working.TraySuspendTimeout = SuspendTimeoutChoices[SuspendTimeoutCombo.SelectedIndex].Value;
@@ -2495,6 +2497,7 @@ public partial class SettingsWindow : Window
         target.WindowMaximized = source.WindowMaximized;
         target.ZoomFactor = source.ZoomFactor;
         target.CloseToTray = source.CloseToTray;
+        target.SimpleMode = source.SimpleMode;
         target.StartWithWindows = source.StartWithWindows;
         target.DownloadsFolder = source.DownloadsFolder;
         target.AskWhereToSave = source.AskWhereToSave;

@@ -63,6 +63,9 @@ public sealed class AppSettings
     /// <summary>When true, closing the window hides to the tray instead of exiting. Default since v0.1.3 (SEAN's direction after field verification); existing installs keep their saved value.</summary>
     public bool CloseToTray { get; set; } = true;
 
+    /// <summary>Simple Mode: hide Battle Lab and the prompt pad, disable the command palette, and cut the tray menu down to Open and Exit. Off by default; the policy is <see cref="SimpleModePolicy"/>. A plain on/off preference, so Sanitized() needs no repair for it.</summary>
+    public bool SimpleMode { get; set; }
+
     /// <summary>Start with Windows (HKCU Run). Off by default; user opt-in only.</summary>
     public bool StartWithWindows { get; set; }
 

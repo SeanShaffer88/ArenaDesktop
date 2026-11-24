@@ -28,7 +28,7 @@ public static class SettingsSearch
     public static readonly IReadOnlyList<SettingsSectionInfo> Sections = new[]
     {
         new SettingsSectionInfo(BehaviorId, "Behavior",
-            "start with windows startup sign in autostart start in tray minimized close to tray suspend memory timeout check for updates update updates channel release pre-release prerelease beta snooze remind later frequency daily weekly manual rollback previous version what's new setup wizard first run welcome protocol links arenadesktop links url handler command line launching startup mode modes favorite favorites open mode battle last used pin pinned pinning clipboard clear clearing copy copied prompt prompts paste security privacy shared history wipe timeout minutes"),
+            "simple mode simplified calmer fewer features hide battle lab prompt pad command palette start with windows startup sign in autostart start in tray minimized close to tray suspend memory timeout check for updates update updates channel release pre-release prerelease beta snooze remind later frequency daily weekly manual rollback previous version what's new setup wizard first run welcome protocol links arenadesktop links url handler command line launching startup mode modes favorite favorites open mode battle last used pin pinned pinning clipboard clear clearing copy copied prompt prompts paste security privacy shared history wipe timeout minutes"),
         new SettingsSectionInfo(TrayId, "Tray & notifications",
             "tray icon single click double click reopen flash taskbar attention quiet hours do not disturb notifications balloon silent night"),
         new SettingsSectionInfo(ProfilesId, "Account profiles",

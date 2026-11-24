@@ -2,6 +2,21 @@
 
 All notable changes to ArenaDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.19.0] — 2026-11-23
+
+A security, simplicity and testing pass: the security posture is now written down in one place, a Simple Mode trims the shell back to essentials, and the URI parsers gain a fuzzing harness.
+
+### Added
+
+- **Security whitepaper (`SECURITY.md`).** The threat model (untrusted web content, malicious URIs, tampered updates), the no-script-injection policy and how the code enforces it, the WebView2 security settings the shell actually applies, the update verification process (SHA-256 against the release's `SHA256SUMS.txt`; a release without sums is refused, a mismatch is deleted and never launched), the honest unsigned-binary position, and how to report a vulnerability privately.
+- **Simple Mode (Settings → Behavior).** When on: Battle Lab and the prompt pad are hidden from the ⋯ menu along with their shortcuts (Ctrl+Shift+B, Ctrl+Shift+P), the "Copy the next queued prompt" item goes with them, the command palette is disabled entirely (Ctrl+K and every other door), and the tray menu keeps only Open and Exit. Every entry point — menu, tray, keyboard, command line and `arenadesktop://` links — is judged by the one Core policy (`SimpleModePolicy`), so there is no back door back in. The setting is saved with the rest and respected from the first frame of the next launch; turning it off restores everything, and nothing is deleted either way.
+- **Performance profiling report (`PERFORMANCE.md`).** Definitions and a reproducible methodology (the app's own Diagnostics startup timings, `dotnet-counters`, Windows Performance Recorder) for cold startup, idle working set and CPU during a prompt-copying workflow. No figures are recorded yet: the baseline is measured on a real Windows machine at the first field pass, not estimated.
+- **URI fuzzing harness (`UriFuzzingTests`).** Thousands of seeded, reproducible generated and mutated inputs — malformed `arenadesktop://` links, hostile web URLs, extreme lengths — are fed to the protocol-link parser and the URL policy. The tests assert the parsers never throw, that an accepted link can only name an allowlisted intent, a real profile or a real mode, and that log redaction never echoes a query or fragment. Seeded generation keeps the corpus identical on every run with no new test dependency.
+
+### Verification status
+
+The full build and Core suite pass locally, including the new Simple Mode and fuzzing tests. The Simple Mode shell behaviour (menu, tray and shortcut gating on a real desktop), like the performance baseline, remains **Unverified** on a real Windows machine until the on-machine checklist runs.
+
 ## [0.18.0] — 2026-11-23
 
 A custom rendering engine for streamed responses, styled after Replit's workspace interface. Streamed text is parsed as it arrives, code blocks are identified mid-stream, and everything is rendered as interactive components with syntax highlighting and embedded widgets.
